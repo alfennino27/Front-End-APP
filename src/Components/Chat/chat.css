@@ -1,0 +1,25 @@
+.chat-enter {
+  opacity: 0;
+  transform: translateY(100%);
+}
+
+.chat-enter-active {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 300ms, transform 300ms;
+}
+
+.chat-exit {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.chat-exit-active {
+  opacity: 0;
+  transform: translateY(100%);
+  transition: opacity 300ms, transform 300ms;
+}
+
+@media print {
+  #tidak-tercetak { display: none; }
+}

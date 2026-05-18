@@ -1,0 +1,22 @@
+.ant-carousel .slick-prev,
+.ant-carousel .slick-next,
+.ant-carousel .slick-prev:hover,
+.ant-carousel .slick-next:hover {
+  font-size: inherit;
+  color: black;
+}
+
+/* Mengatur warna default semua dots */
+.ant-carousel .slick-dots li button {
+  background-color: #b0b0b0; /* Warna dot default */
+  height: 8px; /* Tinggi dot */
+  opacity: 1; /* Pastikan dot terlihat penuh */
+}
+
+/* Dot saat aktif */
+.ant-carousel .slick-dots li.slick-active::before,
+.ant-carousel .slick-dots li.slick-active::after {
+  background-color: #0EAEF9; /* Warna hijau untuk dot aktif */
+  height: 8px; /* Tinggi dot */
+  opacity: 1; /* Pastikan dot terlihat penuh */
+}

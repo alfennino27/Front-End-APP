@@ -1,0 +1,529 @@
+
+.pekerjaan {
+  font-size: 14px;
+}
+
+.lowonganPekerjaan {
+  height: 87vh;
+}
+.lowonganPekerjaan2 {
+  width: 30vw;
+}
+
+.deskripsiPekerjaan {
+  height: auto;
+  border-radius: 10px;
+  border: 1px solid #00000080;
+  background-color: #fbfbfb;
+}
+
+.newComment {
+  background-color: #c7c7c7;
+  animation-name: fadeOutBackground;
+  animation-duration: 2s;
+  animation-fill-mode: forwards;
+}
+
+@keyframes fadeOutBackground {
+  0% {
+    background-color: #969696;
+  }
+  100% {
+    background-color: #fbfbfb;
+  }
+}
+
+
+.deskripsiPekerjaan p {
+  font-size: 12px;
+}
+
+@media (max-width: 768px) {
+  .lowonganPekerjaan {
+    height: 93vh;
+  }
+}
+
+.modalKLF .modal-header,
+.modalKLF .modal-body,
+.modalKLF .modal-footer {
+  background-image: linear-gradient(to right, #262626, #363636);
+  color: white;
+  border: 1px solid #585858;
+}
+
+.modalKLF .modal-body input {
+  background-image: linear-gradient(to right, #151515, #282828); 
+  border: 1px solid rgb(150, 150, 150);
+  color: #ffffff;
+}
+
+.modalKLF .modal-body input:focus {
+  background-color: rgb(32, 32, 32);
+  border: 1px solid rgb(150, 150, 150);
+  color: #ffffff;
+  outline: none; 
+}
+
+.modalKLF .modal-body select {
+  background-color: rgb(32, 32, 32); 
+  border: 1px solid rgb(150, 150, 150);
+  color: #ffffff;
+}
+
+.modalKLF .modal-body textarea {
+  background-color: rgb(32, 32, 32); 
+  border: 1px solid rgb(150, 150, 150);
+  color: #ffffff;
+}
+
+.modalKLF .modal-body textarea:focus {
+  background-color: rgb(32, 32, 32); /* Tetapkan latar belakang saat fokus */
+  border: 1px solid rgb(150, 150, 150); /* Tetapkan border saat fokus */
+  color: #ffffff;
+  outline: none; /* Menghilangkan outline default */
+}
+
+
+.modalKLFlight .modal-header,
+.modalKLFlight .modal-body,
+.modalKLFlight .modal-footer {
+  background-image: linear-gradient(to right, #ffffff, #dbdbdb);
+  color: black;
+  border: 1px solid #c0c0c0;
+}
+
+.modalKLFlight .modal-body input {
+  background-image: linear-gradient(to right, #ffffff, #ffffff); 
+  /* border: 1px solid rgb(150, 150, 150); */
+  color: #000000;
+}
+
+.modalKLFlight .modal-body input:focus {
+  background-color: rgb(32, 32, 32); /* Tetapkan latar belakang saat fokus */
+  /* border: 1px solid rgb(150, 150, 150); */
+  color: #000000;
+  outline: none; /* Menghilangkan outline default */
+}
+
+.modalKLFlight .modal-body select {
+  background-color: rgb(255, 255, 255); 
+  border: 1px solid rgb(150, 150, 150);
+  color: #000000; /* Tambahkan ini agar teks tetap terlihat */
+}
+
+.modalKLFlight .modal-body textarea {
+  background-color: rgb(255, 255, 255); 
+  /* border: 1px solid rgb(150, 150, 150); */
+  color: #000000; /* Tambahkan ini agar teks tetap terlihat */
+}
+
+.modalKLFlight .modal-body textarea:focus {
+  background-color: rgb(255, 255, 255); /* Tetapkan latar belakang saat fokus */
+  /* border: 1px solid rgb(150, 150, 150); */
+  color: #000000;
+  outline: none; /* Menghilangkan outline default */
+}
+
+
+
+
+.listPekerjaan {
+  height: 150px;
+  border-radius: 10px;
+  background-color: #fbfbfb;
+  padding: 15px;
+  border: 1px solid #0000001a;
+  color: black;
+  transition: all 0.2s ease-in-out;
+}
+
+.listPekerjaan.listCatalog {
+  height: 120px;
+}
+
+
+.listPekerjaan h5 {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.listPekerjaan h6 {
+  font-size: 15px;
+  font-weight: 400;
+}
+
+
+/* Hover untuk tema terang */
+.listPekerjaan.tema-light:hover {
+  transform: scale(1.02);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  border-color: #007bff !important;
+  background: linear-gradient(to right, #e0f0ff, #e7e7e7) !important;
+}
+
+/* Hover untuk tema gelap */
+.listPekerjaan.tema-dark:hover {
+  transform: scale(1.02);
+  box-shadow: 0 4px 12px rgba(77, 163, 255, 0.3);
+  border-color: #4da3ff !important;
+  background: linear-gradient(to right, #002a51, #252525) !important;
+}
+
+
+.listPekerjaan:hover {
+  /* text-decoration: underline; */
+  transform: scale(1.02);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  border-color: #007bff !important;
+  background: linear-gradient(to right, #e0f0ff, #e7e7e7) !important;
+}
+
+/* Efek klik (active) untuk tema terang */
+.listPekerjaan.tema-light:active {
+  transform: scale(0.99);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+}
+
+/* Efek klik (active) untuk tema gelap */
+.listPekerjaan.tema-dark:active {
+  transform: scale(0.99);
+  box-shadow: 0 2px 8px rgba(77, 163, 255, 0.3);
+}
+
+/* Efek untuk item yang sedang dipilih - tema terang */
+.listPekerjaan.selected.tema-light {
+  border: 2px solid #007bff !important;
+  background: linear-gradient(to right, #e0f0ff, #b3d8ff) !important;
+  box-shadow: 0 4px 12px rgba(0, 123, 255, 0.3);
+  transform: scale(1.03);
+}
+
+/* Efek untuk item yang sedang dipilih - tema gelap */
+.listPekerjaan.selected.tema-dark {
+  border: 2px solid #007bff !important;
+  background: linear-gradient(to right, #002a51, #001c39) !important;
+  box-shadow: 0 4px 12px rgba(77, 163, 255, 0.3);
+  transform: scale(1.03);
+}
+
+.listPekerjaan2 {
+  height: 17vh;
+  border-radius: 10px;
+  background-color: #fbfbfb;
+  padding: 15px;
+  border: 1px solid #0000001a;
+  color: black;
+}
+
+.listPekerjaan2 h5 {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.listPekerjaan2 h6 {
+  font-size: 15px;
+  font-weight: 400;
+}
+
+.listPekerjaan2:hover {
+  text-decoration: underline;
+}
+
+
+.pekerjaan a {
+  text-decoration: none;
+}
+
+.listSPK {
+  height: 80px;
+  border-radius: 10px;
+  padding: 15px;
+  color: white;
+  transition: all 0.2s ease-in-out;
+}
+
+/* Hover untuk tema terang */
+.listSPK.tema-light:hover {
+  transform: scale(1.02);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  border-color: #007bff !important;
+  background: linear-gradient(to right, #e0f0ff, #e7e7e7) !important;
+}
+
+/* Hover untuk tema gelap */
+.listSPK.tema-dark:hover {
+  transform: scale(1.02);
+  box-shadow: 0 4px 12px rgba(77, 163, 255, 0.3);
+  border-color: #4da3ff !important;
+  background: linear-gradient(to right, #002a51, #252525) !important;
+}
+
+/* Efek klik (active) untuk tema terang */
+.listSPK.tema-light:active {
+  transform: scale(0.99);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+}
+
+/* Efek klik (active) untuk tema gelap */
+.listSPK.tema-dark:active {
+  transform: scale(0.99);
+  box-shadow: 0 2px 8px rgba(77, 163, 255, 0.3);
+}
+
+/* Efek untuk item yang sedang dipilih - tema terang */
+.listSPK.selected.tema-light {
+  border: 2px solid #007bff !important;
+  background: linear-gradient(to right, #e0f0ff, #b3d8ff) !important;
+  box-shadow: 0 4px 12px rgba(0, 123, 255, 0.3);
+  transform: scale(1.03);
+}
+
+/* Efek untuk item yang sedang dipilih - tema gelap */
+.listSPK.selected.tema-dark {
+  border: 2px solid #007bff !important;
+  background: linear-gradient(to right, #002a51, #001c39) !important;
+  box-shadow: 0 4px 12px rgba(77, 163, 255, 0.3);
+  transform: scale(1.03);
+}
+
+
+.SPK {
+  height: "auto";
+  border-radius: 10px;
+  background-color: #fbfbfb;
+  padding: 15px;
+  border: 1px solid #0000001a;
+  color: black;
+}
+
+.btnKomentar {
+  width: auto;
+  padding: -1px;
+  height: 30px;
+  border-radius: 10px;
+  background: rgb(0, 85, 181);
+  border: none;
+  font-weight: 500;
+  color: white;
+  font-size: 12px;
+}
+
+.btnHubungi {
+  width: 85px;
+  height: 40px;
+  border-radius: 10px;
+  background: var(--PrimaryColor);
+  border: none;
+  font-weight: 500;
+  color: white;
+  font-size: 12px;
+}
+
+
+
+.progress {
+    /* position: absolute; */
+    /* top: 50%; */
+    /* left: 27vh; */
+    /* transform: translate(-50%, -50%); */
+    background: #ddd;
+    height: 30px;
+    width: 200px;
+    border-radius: 20px;
+}
+.progress-done {
+    font-family: sans-serif;
+    font-weight: bolder;
+    color: #fff;
+    height: 100%;
+background: linear-gradient(to left, #007bff, #00c6ff);
+
+    border-radius: 20px;
+    display: grid;
+    place-items: center;
+    width: 0;
+    box-shadow: 0 0 3px -5px rgb(253, 2, 140), 0 3px 150px
+                rgb(255, 0, 140);
+    transition: width .5s ease;
+}
+
+/* Untuk browser berbasis WebKit (Chrome, Safari, Edge) */
+::-webkit-scrollbar {
+  width: 12px; /* Lebar scrollbar */
+}
+
+::-webkit-scrollbar-track {
+  background: transparent; /* Membuat background track scrollbar transparan */
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: #888; /* Warna scrollbar */
+  border-radius: 10px; /* Membuat ujungnya melengkung */
+  border: 2px solid transparent; /* Membuat border transparan */
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: #555; /* Warna scrollbar saat di-hover */
+}
+
+/* Untuk Firefox */
+html {
+  scrollbar-width: thin; /* Lebar scrollbar */
+  scrollbar-color: #888 transparent; /* Warna scrollbar dan track (track transparan) */
+}
+
+
+.custom-collapse .ant-collapse-header {
+  background-color: #262626; /* Ubah warna latar belakang header */
+}
+
+.custom-collapse .ant-collapse-content {
+  background-color: #363636; /* Ubah warna latar belakang konten */
+}
+
+.custom-collapse .ant-collapse-arrow {
+  color: #ffffff !important; /* Ubah warna tanda panah dengan !important */
+}
+
+.custom-collapse-light .ant-collapse-header {
+  background-color: #f9f9f9; /* Ubah warna latar belakang header */
+}
+
+.custom-collapse-light .ant-collapse-content {
+  background-color: #ffffff; /* Ubah warna latar belakang konten */
+}
+
+.custom-collapse-light .ant-collapse-arrow {
+  color: #252525 !important; /* Ubah warna tanda panah dengan !important */
+}
+
+.ant-statistic-content-value {
+  color: #ffffff;
+}
+
+.ant-statistic-title {
+  color: #ffffff !important;
+}
+
+.ant-mentions-dropdown {
+  z-index: 2000 !important; /* Pastikan dropdown di atas elemen lainnya */
+  pointer-events: auto; /* Pastikan klik bisa dideteksi */
+}
+
+
+/* .hover-effect:hover {
+  background-color: #589add;
+  transition: background-color 0.3s;
+} */
+
+.hover-effect {
+  transition: transform 0.15s ease-in-out;
+}
+.hover-effect:hover {
+  /* color: #004084 !important; */
+  cursor: pointer;
+}
+
+.hover-effect:active {
+  transform: scale(0.98);
+}
+
+/* Jika .hover-effect mengandung elemen .no-active yang diklik, efek active tidak berlaku */
+.hover-effect:has(.no-active:active) {
+  transform: none !important;
+}
+
+.tr-hover-effect.tema-light:hover {
+  background: linear-gradient(to right, #ebf3fd, #e7e7e7) !important;
+  color: #004084 !important;
+  cursor: pointer;
+}
+.tr-hover-effect.tema-light:active {
+  transform: scale(0.98);
+  transition: transform 0.15s ease-in-out;
+}
+
+.tr-hover-effect.tema-dark:hover {
+  background: linear-gradient(to right, #002a51, #252525) !important;
+  color: #cfe6ff !important;
+  cursor: pointer;
+}
+.tr-hover-effect.tema-dark:active {
+  transform: scale(0.98);
+  transition: transform 0.15s ease-in-out;
+}
+
+.button-effect {
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.button-effect:hover {
+  transform: scale(1.2) !important;
+  cursor: pointer;
+}
+
+.button-effect:active {
+  transform: scale(0.8) !important;
+}
+
+.button-effect2 {
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.button-effect2:hover {
+  transform: scale(1.05) !important;
+  cursor: pointer;
+}
+
+.button-effect2:active {
+  transform: scale(0.95) !important;
+}
+
+/* untuk yang ga pake active */
+.button-effect3 {
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.button-effect3:hover {
+  transform: scale(1.05) !important;
+  cursor: pointer;
+}
+
+.ant-modal-content {
+  background-image: linear-gradient(to right, #ffffff, #dbdbdb);
+}
+
+.ant-modal-header {
+  background-color: transparent !important;  /* Menurunkan Drawer ke bawah elemen lainnya */
+}
+
+.ant-select-selector {
+  border: 1px solid #00000080 !important;  /* Menurunkan Drawer ke bawah elemen lainnya */
+}
+
+.form-control {
+  border: 1px solid #00000080 !important;  /* Menurunkan Drawer ke bawah elemen lainnya */
+}
+
+.antd-btn-custom {
+  border: 1px solid #00000080 !important;  /* Menurunkan Drawer ke bawah elemen lainnya */
+}
+
+.ant-input {
+  border: 1px solid #00000080 !important;  /* Menurunkan Drawer ke bawah elemen lainnya */
+}
+
+.ant-input-number-input {
+  border: 1px solid #00000080 !important;  /* Menurunkan Drawer ke bawah elemen lainnya */
+}
+
+.ant-picker {
+  border: 1px solid #00000080 !important;  /* Menurunkan Drawer ke bawah elemen lainnya */
+}
+
+.folder-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+  text-decoration: none;
+}

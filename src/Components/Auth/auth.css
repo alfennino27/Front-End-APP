@@ -1,0 +1,58 @@
+.main {
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 14px;
+    background-image: url(../../assets/images/gambar.jpg);
+    background-size: cover;
+  }
+  
+  .main a {
+    color: black;
+    text-decoration: underline;
+  }
+  
+  .signIn {
+    width: 500px;
+    height: 500px;
+    border-radius: 10px;
+    background-color: #fbfbfb;
+  }
+
+  .registerForm {
+    width: 500px;
+    height: 650px;
+    border-radius: 10px;
+    background-color: #fbfbfb;
+  }
+  
+  .form-control {
+    border-radius: 15px;
+    margin-top: 10px;
+  }
+  
+  .btn-login {
+    width: 100%;
+    height: 40px;
+    border-radius: 10px;
+    background: var(--PrimaryColor);
+    border: none;
+    font-weight: 500;
+    color: white;
+  }
+  
+  .boxLink {
+    width: 100%;
+    height: 50px;
+    border-radius: 10px;
+  }
+  
+  .boxLink .iconLogin {
+    width: 30px;
+    height: 30px;
+  }
+  
+  .boxLink:hover {
+    background-color: var(--PrimaryColor);
+  }

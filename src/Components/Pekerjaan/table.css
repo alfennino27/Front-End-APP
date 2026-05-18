@@ -1,0 +1,37 @@
+table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  
+    .tableStyle {
+    border: 1px solid #ddd;
+    padding: 8px;
+    text-align: left;
+  }
+  
+  @media not print {
+    #tidak-tercetak{ display: block; }
+    #tercetak{ display: none; }
+  }
+  
+  /* Sembunyikan div pertama saat dicetak */
+  @media print {
+    #tidak-tercetak { display: none; }
+    .no-page-break-inside {
+      page-break-inside: avoid;
+    }
+  }
+  
+  
+  /* th {
+    background-color: #f2f2f2;
+  }
+  
+  tr:nth-child(even) {
+    background-color: #f2f2f2;
+  }
+  
+  tr:hover {
+    background-color: #ddd;
+  } */
+  

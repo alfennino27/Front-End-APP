@@ -1,0 +1,110 @@
+.btnDaftar {
+  width: 85px;
+  height: 40px;
+  border-radius: 10px;
+  background: var(--SecondaryColor);
+  border: none;
+  font-weight: 500;
+  color: white;
+}
+
+.btnLogin {
+  width: 85px;
+  height: 40px;
+  border-radius: 10px;
+  background: var(--PrimaryColor);
+  border: none;
+  font-weight: 500;
+  color: white;
+}
+
+.btn:hover {
+  background: hsl(199, 100%, 33%);
+}
+
+.navItem {
+  font-weight: 500;
+}
+
+.navLink a {
+  text-decoration: none;
+  color: #000;
+  line-height: 40px;
+}
+
+.navLink a:hover {
+  text-decoration: underline;
+  color: var(--PrimaryColor);
+}
+
+.logo {
+  text-decoration: none;
+  color: #ffffff;
+}
+
+.link-hover:hover {
+  transform: scale(1.02);
+  color: #3663d7 !important; /* Ganti warna sesuai keinginan */
+  transition: transform 0.15s ease-in-out;
+}
+
+.logoDiv {
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.logoDiv:hover {
+  transform: scale(1.05);
+  opacity: 0.9;
+}
+
+.logoDiv:active {
+  transform: scale(0.95);
+  opacity: 0.6;
+}
+
+.bell-hover {
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.bell-hover:hover {
+  transform: scale(1.1) !important;
+  cursor: pointer;
+}
+
+.bell-hover:active {
+  transform: scale(0.9) !important;
+}
+
+.notif-hover-effect:hover {
+  transform: scale(1.015) !important;
+  cursor: pointer;
+}
+
+/* Navbar tetap dengan z-index positif */
+.navbar-klf-custom {
+  z-index: 1000 !important;
+}
+
+/* Drawer dengan z-index negatif */
+.ant-drawer {
+  z-index: 999 !important;  /* Menurunkan Drawer ke bawah elemen lainnya */
+}
+
+/* .button-effect {
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.button-effect:hover {
+  transform: scale(1.001) !important;
+  cursor: pointer;
+}
+
+.button-effect:active {
+  transform: scale(0.999) !important;
+} */
+ 
+.disabled-link {
+  opacity: 0.5;
+  pointer-events: none; /* opsional, biar nggak bisa di-klik */
+  cursor: not-allowed;
+}

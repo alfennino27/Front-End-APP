@@ -1,0 +1,104 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap');
+
+* {
+  font-family: 'Poppins', sans-serif;
+}
+
+:root {
+  --PrimaryColor: #964b00;
+  --SecondaryColor: #b69574;
+  --gradientColor: linear-gradient(to right, hsl(187, 85%, 43%), hsl(199, 100%, 33%));
+  --whiteColor: hsl(0, 0%, 100%);
+  --blackColor: hsl(201, 33%, 16%);
+  --textColor: hsl(240, 4%, 36%);
+}
+
+.banner {
+  margin-top: 20px;
+  margin-bottom: 20px;
+}
+
+.inputText {
+  width: 95%;
+  border: 1px #969696 solid;
+  height: 35px;
+}
+
+.kategori h5 {
+  font-weight: 600;
+}
+
+.kategori a {
+  text-decoration: none;
+}
+
+.kategoriItem {
+  width: 130px;
+  height: 130px;
+  border-radius: 100%;
+  background-color: #fbfbfb;
+}
+
+.kategoriItem:hover {
+  background: var(--PrimaryColor);
+  color: white;
+  cursor: pointer;
+}
+
+.kategoriItem img {
+  width: 50%;
+  height: 60%;
+}
+
+.icon {
+  width: 40px;
+  height: 40px;
+  opacity: 50%;
+}
+
+.cardBody {
+  background-color: #fbfbfb;
+}
+
+@media screen and (max-width: 780px) {
+  .card {
+    font-size: 14px;
+  }
+
+  .card .imgCard {
+    width: 60%;
+    height: 60%;
+  }
+
+  .kategori h5 {
+    font-size: 16px;
+  }
+
+  .kategoriItem {
+    width: 80px;
+    height: 80px;
+    border-radius: 100%;
+    background-color: #fbfbfb;
+  }
+
+  .kategoriItem:hover {
+    background: var(--PrimaryColor);
+    color: white;
+    cursor: pointer;
+  }
+
+  .kategoriItem img {
+    width: 50%;
+    height: 50%;
+  }
+
+  .kategoriItem h6 {
+    font-size: 12px;
+  }
+
+  .icon {
+    width: 20px;
+    height: 20px;
+    opacity: 50%;
+  }
+}

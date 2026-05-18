@@ -1,0 +1,41 @@
+.ant-picker-calendar {
+    background-color: transparent !important; /* Warna abu-abu */
+    /* border-radius: 12px !important;
+    padding: 10px; */
+}
+
+.ant-picker-calendar .ant-picker-panel {
+    background-color: rgb(21, 21, 21) !important;
+    border: 1px solid rgb(199, 199, 199) !important;
+    border-radius: 12px !important; /* Pastikan bagian dalam kalender juga mengikuti radius */
+}
+
+.ant-picker-calendar .ant-picker-cell-today {
+    background-color: rgb(42, 42, 42) !important;
+
+}
+
+.ant-picker-calendar .ant-badge-status-text {
+    color: rgb(255, 255, 255) !important;
+
+}
+
+.events li {
+    white-space: nowrap;       /* Jangan biarkan teks turun ke baris berikutnya */
+    overflow: hidden;          /* Sembunyikan teks yang melampaui batas */
+    text-overflow: ellipsis;   /* Tambahkan ... jika teks terlalu panjang */
+    width: 100%;               /* Pastikan lebarnya sesuai dengan elemen */
+    padding-left: 0;           /* Hilangkan padding di sebelah kiri */
+    margin-left: -30px;            /* Hilangkan margin di sebelah kiri */
+    text-align: left;          /* Pastikan teks rata kiri */
+}
+
+.ant-select-selector {
+    background-color: rgb(255, 255, 255) !important; /* Warna abu-abu */
+    border-radius: 8px !important;
+}
+
+.ant-radio-button-wrapper {
+    background-color: rgb(255, 255, 255) !important; /* Warna abu-abu */
+    /* border-radius: 8px !important; */
+}

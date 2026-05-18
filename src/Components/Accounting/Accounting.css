@@ -1,0 +1,92 @@
+/* .table-container {
+    margin: 20px;
+    overflow: hidden;
+    border-radius: 10px;
+    border: 1px solid #dddddd;
+}
+
+table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+th,
+td {
+    border: 1px solid #c2c2c2;
+    text-align: left;
+    padding: 8px;
+    font-size: 12px;
+}
+
+th {
+    background-color: #4B39EF;
+    text-align: center;
+    color: white;
+}
+
+thead th:first-child {
+    border-top-left-radius: 10px;
+}
+
+thead th:last-child {
+    border-top-right-radius: 10px;
+}
+
+tbody tr:last-child td:first-child {
+    border-bottom-left-radius: 10px;
+}
+
+tbody tr:last-child td:last-child {
+    border-bottom-right-radius: 10px;
+}
+
+tbody tr:nth-child(odd) {
+    background-color: #ffffff;
+}
+
+tbody tr:nth-child(even) {
+    background-color: #e9e9e9;
+} */
+
+/* Animasi muncul */
+.fade-in {
+    opacity: 0;
+    transform: translateY(-10px);
+    transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.fade-in.show {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+
+.tr-hover-effect:hover {
+    background: linear-gradient(to right, #ebf3fd, #e7e7e7) !important;
+    color: #004084 !important;
+    cursor: pointer;
+}
+
+.tr-hover-effect:active {
+    transform: scale(0.99);
+    transition: transform 0.15s ease-in-out;
+}
+
+.tr-hover-effect2:hover {
+    background: linear-gradient(to right, #ebf3fd, #e7e7e7) !important;
+    color: #004084 !important;
+}
+
+.button-effect {
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.button-effect:hover {
+    transform: scale(1.2) !important;
+    cursor: pointer;
+}
+
+.button-effect:active {
+    transform: scale(0.8) !important;
+}

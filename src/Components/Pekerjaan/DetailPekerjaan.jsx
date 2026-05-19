@@ -1197,7 +1197,8 @@ const DetailPekerjaan = () => {
   }, [category, slug, dataCommentsFromDB]);
 
   const ALUR_KERJA_AUTHORIZED_UIDS = [
-    'w4M5JJjgGQeHFbS2nkyoCfUBE532', // Alfen
+    'w4M5JJjgGQeHFbS2nkyoCfUBE532',
+    'fYpdHwXRDLhj5XGxM5FZIAvxp9E2', // Alfen
     '4WGPaHicKWYr0Ny84IUh8xb9Bo62', // P. Dhe
     '6D4XVa5BSSOl1ugUlkDlTea2COX2', // Azwad
   ];

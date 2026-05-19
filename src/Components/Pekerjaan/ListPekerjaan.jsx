@@ -59,6 +59,8 @@ const ListPekerjaan = () => {
 
   const [cetakLabel, setCetakLabel] = useState([]);
   const [tipeLabel, setTipeLabel] = useState('Pengiriman');
+  const [pdfSupplierCategory, setPdfSupplierCategory] = useState('Besi');
+  const [pdfSupplierName, setPdfSupplierName] = useState('');
 
   const handleSearchClick = () => {
     setShowSearch(!showSearch);
@@ -388,6 +390,16 @@ const ListPekerjaan = () => {
   };
 
   const handlePrint = () => {
+    if (tipeLabel === 'PDF Supplier') {
+      const filtered = masterDataFalse.filter(p => p[`Supplier${pdfSupplierCategory}`] === pdfSupplierName);
+      sessionStorage.setItem('cetakLabelSupplier', JSON.stringify({
+        items: filtered,
+        category: pdfSupplierCategory,
+        supplier: pdfSupplierName,
+      }));
+      window.open('/cetakLabelSupplier', '_blank');
+      return;
+    }
     sessionStorage.setItem('cetakLabel', JSON.stringify(cetakLabel));
     if (tipeLabel == "Pengiriman") {
       window.open(`/cetakLabel`, '_blank');
@@ -793,8 +805,31 @@ const ListPekerjaan = () => {
             >
               <option value="Pengiriman">Pengiriman</option>
               <option value="QC">QC</option>
+              <option value="PDF Supplier">PDF Supplier</option>
             </Form.Select>
           </Form.Group>
+
+          {tipeLabel === 'PDF Supplier' && (
+            <>
+              <Form.Group className="mb-2">
+                <Form.Label>Category</Form.Label>
+                <Form.Select value={pdfSupplierCategory} onChange={(e) => { setPdfSupplierCategory(e.target.value); setPdfSupplierName(''); }}>
+                  {['Stainless','Besi','Kayu','Jok','Rotan','Marmer','Kaca','Kain','Fiber','Veneer','Finishing','Hardware'].map(c => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </Form.Select>
+              </Form.Group>
+              <Form.Group className="mb-2">
+                <Form.Label>Supplier</Form.Label>
+                <Form.Select value={pdfSupplierName} onChange={(e) => setPdfSupplierName(e.target.value)}>
+                  <option value="">-- Pilih Supplier --</option>
+                  {dataSupplierFromDB.filter(s => s.category === pdfSupplierCategory).map((s, i) => (
+                    <option key={i} value={s.supplierName}>{s.supplierName}</option>
+                  ))}
+                </Form.Select>
+              </Form.Group>
+            </>
+          )}
 
           {cetakLabel.map((item, index) => (
             <div key={index}>

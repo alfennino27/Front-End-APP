@@ -706,7 +706,7 @@ const DetailPekerjaan = () => {
           commentData.append('user', user.uid);
           commentData.append('idProduct', slug);
           commentData.append('category', category);
-          commentData.append('text', `${uploaderName} tolong cek @Alfen`);
+          commentData.append('text', `${uploaderName} tolong cek @Alfen @P. Dhe`);
           await fetch(`${baseUrl}/comments/create`, { method: 'POST', body: commentData });
         }
 

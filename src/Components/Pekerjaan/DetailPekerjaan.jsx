@@ -1341,7 +1341,10 @@ const DetailPekerjaan = () => {
       return;
     }
 
-    navigator.clipboard.read().then(clipboardItems => {
+    navigator.clipboard.read().catch(err => {
+      alert('Gagal akses clipboard. Pastikan:\n1. Izin clipboard sudah diaktifkan di browser\n2. Aplikasi diakses via HTTPS\n\nError: ' + err.message);
+    }).then(clipboardItems => {
+      if (!clipboardItems) return;
       console.log('clipboardItems:', clipboardItems);
       clipboardItems.forEach(item => {
         const imageType = item.types.includes('image/png')

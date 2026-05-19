@@ -699,6 +699,17 @@ const DetailPekerjaan = () => {
 
       if (res.ok) {
         console.log('Gambar kategori berhasil diperbarui:', result);
+
+        if (category === 'BarangJadi') {
+          const uploaderName = dataUserFromDB.find(u => u.uid === user?.uid)?.name || 'User';
+          const commentData = new FormData();
+          commentData.append('user', user.uid);
+          commentData.append('idProduct', slug);
+          commentData.append('category', category);
+          commentData.append('text', `${uploaderName} tolong cek @Alfen`);
+          await fetch(`${baseUrl}/comments/create`, { method: 'POST', body: commentData });
+        }
+
         await refreshData();
       } else {
         console.error('Gagal memperbarui gambar kategori:', result.message);

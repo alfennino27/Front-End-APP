@@ -1,6 +1,24 @@
 import React, { useEffect, useState } from 'react';
 import { getImageUrl } from '../../Utils/image';
 
+const extractDimensiBahan = (text) => {
+  if (!text) return '-';
+  const hasDimensi = /DIMENSI\s*:/i.test(text);
+  const hasBahan = /BAHAN\s*:/i.test(text);
+  if (!hasDimensi && !hasBahan) return text;
+
+  const sections = [];
+  const sectionRegex = /^([A-Z][A-Z\s]*):\s*\n([\s\S]*?)(?=\n[A-Z][A-Z\s]*:\s*\n|$)/gm;
+  let match;
+  while ((match = sectionRegex.exec(text)) !== null) {
+    const header = match[1].trim().toUpperCase();
+    if (header === 'DIMENSI' || header === 'BAHAN') {
+      sections.push(`${match[1].trim()}:\n${match[2].trimEnd()}`);
+    }
+  }
+  return sections.length > 0 ? sections.join('\n\n') : text;
+};
+
 const CetakLabelSupplier = () => {
   const [items, setItems] = useState([]);
   const [category, setCategory] = useState('');
@@ -65,7 +83,7 @@ const CetakLabelSupplier = () => {
                 <strong>{item.NamaBarang}</strong>
                 {item.Buyer && <><br /><span style={{ color: '#555' }}>{item.Buyer}</span></>}
               </td>
-              <td style={{ whiteSpace: 'pre-wrap' }}>{item[`Description${category}`] || '-'}</td>
+              <td style={{ whiteSpace: 'pre-wrap' }}>{extractDimensiBahan(item[`Description${category}`])}</td>
               <td className="deadline"></td>
             </tr>
           ))}

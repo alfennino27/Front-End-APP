@@ -1351,7 +1351,9 @@ const DetailPekerjaan = () => {
           ? 'image/png'
           : item.types.includes('image/jpeg')
             ? 'image/jpeg'
-            : '';
+            : item.types.includes('image/webp')
+              ? 'image/webp'
+              : '';
 
         if (imageType) {
           item.getType(imageType).then(blob => {

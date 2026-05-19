@@ -1,22 +1,32 @@
 import React, { useEffect, useState } from 'react';
 import { getImageUrl } from '../../Utils/image';
 
+const WANTED_SECTIONS = ['DIMENSI', 'BAHAN', 'MODEL'];
+
 const extractDimensiBahan = (text) => {
   if (!text) return '-';
-  const hasDimensi = /DIMENSI\s*:/i.test(text);
-  const hasBahan = /BAHAN\s*:/i.test(text);
-  if (!hasDimensi && !hasBahan) return text;
 
-  const sections = [];
-  const sectionRegex = /^([A-Z][A-Z\s]*):\s*\n([\s\S]*?)(?=\n[A-Z][A-Z\s]*:\s*\n|$)/gm;
-  let match;
-  while ((match = sectionRegex.exec(text)) !== null) {
-    const header = match[1].trim().toUpperCase();
-    if (header === 'DIMENSI' || header === 'BAHAN') {
-      sections.push(`${match[1].trim()}:\n${match[2].trimEnd()}`);
+  const hasWantedSection = WANTED_SECTIONS.some(s => new RegExp(`^${s}\\s*:`, 'im').test(text));
+  if (!hasWantedSection) return text;
+
+  const lines = text.split('\n');
+  const result = [];
+  let currentHeader = null;
+  let inWanted = false;
+
+  for (const line of lines) {
+    const headerMatch = line.match(/^([A-Z][A-Z\s]*):\s*$/);
+    if (headerMatch) {
+      const header = headerMatch[1].trim().toUpperCase();
+      currentHeader = header;
+      inWanted = WANTED_SECTIONS.includes(header);
+      if (inWanted) result.push(line);
+    } else if (inWanted) {
+      result.push(line);
     }
   }
-  return sections.length > 0 ? sections.join('\n\n') : text;
+
+  return result.join('\n').trim() || text;
 };
 
 const CetakLabelSupplier = () => {

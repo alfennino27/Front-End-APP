@@ -203,6 +203,7 @@ const ListPekerjaan = () => {
     setProjectsCopy([...Projects]);
     setShowLabel(true);
     setSearchProduct('');
+    supplierData();
     setSelectedProduct('Select Product');
     setIdProject('');
     setProductProject('');

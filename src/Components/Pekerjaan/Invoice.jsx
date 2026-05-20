@@ -1572,15 +1572,8 @@ const Invoice = () => {
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
-                position: 'sticky',
-                ...(isMobile ? { top: -1 } : { top: 0 }),
-                zIndex: 1,
                 padding: '10px',
                 color: globalTheme == "light" ? "#000000" : "#ffffff",
-                backgroundColor: isScrolled2 ? (globalTheme === "light" ? "#f3f3f3" : "#151515") : "transparent",
-                borderRadius: "30px",
-                border: isScrolled2 ? (globalTheme === "light" ? "1px solid #5f5f5f" : "1px solid white") : "1px solid transparent",
-                transition: "background-color 1s ease, border 1s ease",
               }}
             >
               <span>Detail Invoice</span>

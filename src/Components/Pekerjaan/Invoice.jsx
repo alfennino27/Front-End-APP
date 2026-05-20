@@ -1999,26 +1999,26 @@ const Invoice = () => {
 
                 <div className={`p-2 ${globalTheme === 'light' ? 'text-dark' : 'text-light'}`}>
                   <table>
-                    <thead>
+                    <thead style={{ position: 'sticky', top: 0, zIndex: 2 }}>
                       <tr>
-                        <th className='tableStyle text-center'>No</th>
-                        <th className='tableStyle text-center'>Gambar</th>
-                        <th className='tableStyle text-center'>Nama</th>
-                        <th className='tableStyle text-center'>Dimensi</th>
-                        <th className='tableStyle text-center'>Stainless</th>
-                        <th className='tableStyle text-center'>Besi</th>
-                        <th className='tableStyle text-center'>Kayu</th>
-                        <th className='tableStyle text-center'>Jok</th>
-                        <th className='tableStyle text-center'>Rotan</th>
-                        <th className='tableStyle text-center'>Finishing</th>
-                        <th className='tableStyle text-center'>Marmer</th>
-                        <th className='tableStyle text-center'>Fiber</th>
-                        <th className='tableStyle text-center'>Veneer</th>
-                        <th className='tableStyle text-center'>HPP</th>
-                        <th className='tableStyle text-center'>Jual</th>
-                        <th className='tableStyle text-center'>Qty</th>
-                        <th className='tableStyle text-center'>Gross Profit</th>
-                        <th className='tableStyle text-center'>%</th>
+                        <th className='tableStyle text-center' style={{ position: 'sticky', top: 0, backgroundColor: globalTheme === 'light' ? '#f8f9fa' : '#2a2a2a' }}>No</th>
+                        <th className='tableStyle text-center' style={{ position: 'sticky', top: 0, backgroundColor: globalTheme === 'light' ? '#f8f9fa' : '#2a2a2a' }}>Gambar</th>
+                        <th className='tableStyle text-center' style={{ position: 'sticky', top: 0, backgroundColor: globalTheme === 'light' ? '#f8f9fa' : '#2a2a2a' }}>Nama</th>
+                        <th className='tableStyle text-center' style={{ position: 'sticky', top: 0, backgroundColor: globalTheme === 'light' ? '#f8f9fa' : '#2a2a2a' }}>Dimensi</th>
+                        <th className='tableStyle text-center' style={{ position: 'sticky', top: 0, backgroundColor: globalTheme === 'light' ? '#f8f9fa' : '#2a2a2a' }}>Stainless</th>
+                        <th className='tableStyle text-center' style={{ position: 'sticky', top: 0, backgroundColor: globalTheme === 'light' ? '#f8f9fa' : '#2a2a2a' }}>Besi</th>
+                        <th className='tableStyle text-center' style={{ position: 'sticky', top: 0, backgroundColor: globalTheme === 'light' ? '#f8f9fa' : '#2a2a2a' }}>Kayu</th>
+                        <th className='tableStyle text-center' style={{ position: 'sticky', top: 0, backgroundColor: globalTheme === 'light' ? '#f8f9fa' : '#2a2a2a' }}>Jok</th>
+                        <th className='tableStyle text-center' style={{ position: 'sticky', top: 0, backgroundColor: globalTheme === 'light' ? '#f8f9fa' : '#2a2a2a' }}>Rotan</th>
+                        <th className='tableStyle text-center' style={{ position: 'sticky', top: 0, backgroundColor: globalTheme === 'light' ? '#f8f9fa' : '#2a2a2a' }}>Finishing</th>
+                        <th className='tableStyle text-center' style={{ position: 'sticky', top: 0, backgroundColor: globalTheme === 'light' ? '#f8f9fa' : '#2a2a2a' }}>Marmer</th>
+                        <th className='tableStyle text-center' style={{ position: 'sticky', top: 0, backgroundColor: globalTheme === 'light' ? '#f8f9fa' : '#2a2a2a' }}>Fiber</th>
+                        <th className='tableStyle text-center' style={{ position: 'sticky', top: 0, backgroundColor: globalTheme === 'light' ? '#f8f9fa' : '#2a2a2a' }}>Veneer</th>
+                        <th className='tableStyle text-center' style={{ position: 'sticky', top: 0, backgroundColor: globalTheme === 'light' ? '#f8f9fa' : '#2a2a2a' }}>HPP</th>
+                        <th className='tableStyle text-center' style={{ position: 'sticky', top: 0, backgroundColor: globalTheme === 'light' ? '#f8f9fa' : '#2a2a2a' }}>Jual</th>
+                        <th className='tableStyle text-center' style={{ position: 'sticky', top: 0, backgroundColor: globalTheme === 'light' ? '#f8f9fa' : '#2a2a2a' }}>Qty</th>
+                        <th className='tableStyle text-center' style={{ position: 'sticky', top: 0, backgroundColor: globalTheme === 'light' ? '#f8f9fa' : '#2a2a2a' }}>Gross Profit</th>
+                        <th className='tableStyle text-center' style={{ position: 'sticky', top: 0, backgroundColor: globalTheme === 'light' ? '#f8f9fa' : '#2a2a2a' }}>%</th>
                       </tr>
                     </thead>
                     <tbody>

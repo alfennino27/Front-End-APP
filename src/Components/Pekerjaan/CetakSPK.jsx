@@ -10,8 +10,17 @@ const fmt = (dateStr) => {
 // A4 landscape: 297mm × 210mm. With @page margin 10mm → content = 277mm × 190mm
 const PAGE_H = 190; // mm
 const HEADER_H = 42; // mm
-const FOOTER_H = 33; // mm
-const BODY_H = PAGE_H - HEADER_H - FOOTER_H; // 115mm
+const FOOTER_H = 23; // mm (reduced 30% from 33mm)
+const BODY_H = PAGE_H - HEADER_H - FOOTER_H; // 125mm
+
+const getKeteranganFontSize = (text) => {
+  if (!text) return 12;
+  const len = text.length;
+  if (len <= 450) return 12;
+  if (len <= 700) return 11;
+  if (len <= 1000) return 10;
+  return 9;
+};
 
 const IMGPAGE_TITLE_H = 12; // mm
 const IMGPAGE_GRID_H = PAGE_H - IMGPAGE_TITLE_H; // 178mm
@@ -112,7 +121,6 @@ const CetakSPK = () => {
         }
         .spk-body-right pre {
           font-family: Arial, sans-serif;
-          font-size: 14px;
           white-space: pre-wrap;
           line-height: 1.6;
           overflow: hidden;
@@ -142,7 +150,7 @@ const CetakSPK = () => {
           padding: 6px 12px;
         }
         .spk-footer-box:first-child { border-left: none; }
-        .spk-footer-box p { font-weight: bold; font-size: 13px; margin-bottom: 2px; }
+        .spk-footer-box p { font-weight: bold; font-size: 11px; margin-bottom: 2px; }
 
         /* === Page 2+: Image Grid === */
         .img-page { height: ${PAGE_H}mm; padding: 0; }
@@ -213,7 +221,9 @@ const CetakSPK = () => {
           </div>
           <div className="spk-body-right">
             <h6>Keterangan</h6>
-            <pre>{project[`Description${category}`] || '-'}</pre>
+            <pre style={{ fontSize: `${getKeteranganFontSize(project[`Description${category}`])}px` }}>
+              {project[`Description${category}`] || '-'}
+            </pre>
           </div>
         </div>
 

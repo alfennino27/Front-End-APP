@@ -160,6 +160,8 @@ const DetailPekerjaan = () => {
   const [deadline, setDeadline] = useState('');
   const [description, setDescription] = useState('');
   const [showConfirmCategoryModal, setShowConfirmCategoryModal] = useState(false);
+  const [showSPKImagePicker, setShowSPKImagePicker] = useState(false);
+  const [spkImages, setSpkImages] = useState([]);
   const [alurKerjaModalOpen, setAlurKerjaModalOpen] = useState(false);
   const [alurKerjaField, setAlurKerjaField] = useState('');
   const [alurKerjaLabel, setAlurKerjaLabel] = useState('');
@@ -1218,21 +1220,28 @@ const DetailPekerjaan = () => {
   const handlePrintSPK = () => {
     const project = dataProjectFromDB[0];
     if (!project) return;
-
-    const images = [];
+    const imgs = [];
     for (let i = 1; i <= 50; i++) {
       const val = project[`image${category}${i}`];
-      if (val && !val.includes('.pdf')) images.push(val);
+      if (val && !val.includes('.pdf')) imgs.push(val);
     }
+    setSpkImages(imgs);
+    setShowSPKImagePicker(true);
+  };
 
+  const handleConfirmPrintSPK = (mainImg) => {
+    const project = dataProjectFromDB[0];
+    // Put selected main image first, then the rest
+    const rest = spkImages.filter(img => img !== mainImg);
+    const orderedImages = [mainImg, ...rest];
     const spkData = {
       project,
       category,
       spkCode: selectedSPKCode || '-',
-      images,
+      images: orderedImages,
       printDate: new Date().toISOString(),
     };
-
+    setShowSPKImagePicker(false);
     sessionStorage.setItem('cetakSPK', JSON.stringify(spkData));
     window.open('/cetakSPK', '_blank');
   };
@@ -2095,23 +2104,7 @@ const DetailPekerjaan = () => {
               <MdAccessTime /> Deadline :  {dataProjectFromDB[0][`DeadlineSupplier${category}`] ? new Date(dataProjectFromDB[0][`DeadlineSupplier${category}`]).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : '-'}</small>
           )}
 
-          <div className='mt-4 d-flex align-items-center gap-2'>
-            <h6 className='mb-0' style={{ color: globalTheme == "light" ? "black" : "white" }}>Gambar Spesifik</h6>
-            {category && dataProjectFromDB.length > 0 && (
-              <button
-                title="Print SPK"
-                onClick={(e) => { e.stopPropagation(); handlePrintSPK(); }}
-                className="no-active"
-                style={{
-                  background: 'none', border: '1px solid #888', borderRadius: '4px',
-                  padding: '2px 6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px',
-                  color: globalTheme === 'light' ? '#333' : '#ccc', fontSize: '11px',
-                }}
-              >
-                <AiOutlinePrinter style={{ fontSize: '14px' }} /> SPK
-              </button>
-            )}
-          </div>
+          <h6 className='mt-4' style={{ color: globalTheme == "light" ? "black" : "white" }}>Gambar Spesifik</h6>
           <div style={{ display: category == "" ? "none" : "block" }} className="me-3 no-active" onClick={(e) => { e.stopPropagation(); if (user.uid === "rYN2eFpFqVU5jSYRrwyioAi33xD3" || user.uid === "qd2gyCyknDVZYUfA6IkiQv3jGTI3") { console.log('anda tidak punya izin'); } else { setShowImageCategoryEdit(true); refreshImageEditInput(); } }}>
 
 
@@ -2454,7 +2447,7 @@ const DetailPekerjaan = () => {
           </div>
 
 
-          <div className="position-absolute top-0 end-0 p-3">
+          <div className="position-absolute top-0 end-0 p-3" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px' }}>
             {dataProjectFromDB.length > 0 && (
               <>
                 {dataProjectFromDB[0][`CategoryStatus${category}`] === "Belum Proses" && (
@@ -2465,7 +2458,7 @@ const DetailPekerjaan = () => {
                 )}
                 {dataProjectFromDB[0][`CategoryStatus${category}`] === "QC Pass" && (
                   <>
-                    <div className='text-center text-light' style={{ backgroundColor: "rgba(0, 255, 0, 0.6)", width: "100px", height: "20px", borderRadius: "20px", marginBottom: "5px" }}>Selesai</div>
+                    <div className='text-center text-light' style={{ backgroundColor: "rgba(0, 255, 0, 0.6)", width: "100px", height: "20px", borderRadius: "20px" }}>Selesai</div>
                     <div className='text-center text-light' style={{ backgroundColor: "rgba(0, 0, 255, 0.6)", width: "100px", height: "20px", borderRadius: "20px" }}>QC Pass</div>
                   </>
                 )}
@@ -2479,6 +2472,23 @@ const DetailPekerjaan = () => {
                   <div className="text-center text-light" style={{ backgroundColor: "rgba(128, 128, 128, 0.6)", width: "150px", height: "20px", borderRadius: "20px" }}>Ready Stock</div>
                 )}
               </>
+            )}
+            {category && dataProjectFromDB.length > 0 && (
+              <button
+                title="Buat SPK"
+                onClick={(e) => { e.stopPropagation(); handlePrintSPK(); }}
+                className="no-active"
+                style={{
+                  background: globalTheme === 'light' ? '#fff' : '#333',
+                  border: '1.5px solid #888', borderRadius: '6px',
+                  padding: '5px 12px', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', gap: '6px',
+                  color: globalTheme === 'light' ? '#333' : '#ddd',
+                  fontSize: '13px', fontWeight: '600',
+                }}
+              >
+                <AiOutlinePrinter style={{ fontSize: '16px' }} /> Buat SPK
+              </button>
             )}
           </div>
 
@@ -2640,6 +2650,56 @@ const DetailPekerjaan = () => {
         </Modal.Footer>
       </Modal>
       {/* End Confirm Category Modal */}
+
+      {/* SPK Image Picker Modal */}
+      <Modal
+        show={showSPKImagePicker}
+        onHide={() => setShowSPKImagePicker(false)}
+        size="lg"
+        className={`${globalTheme === 'light' ? 'modalKLFlight' : 'modalKLF'}`}
+      >
+        <Modal.Header closeButton>
+          <Modal.Title style={{ color: globalTheme === 'light' ? 'black' : 'white', fontSize: '16px' }}>
+            Pilih Gambar Utama untuk SPK
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <p style={{ color: globalTheme === 'light' ? '#555' : '#bbb', fontSize: '13px', marginBottom: '12px' }}>
+            Klik gambar yang ingin ditampilkan sebagai gambar utama di halaman pertama SPK.
+          </p>
+          {spkImages.length === 0 ? (
+            <p style={{ color: '#aaa', textAlign: 'center' }}>Tidak ada gambar tersedia.</p>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '10px' }}>
+              {spkImages.map((imgSrc, i) => (
+                <div
+                  key={i}
+                  onClick={() => handleConfirmPrintSPK(imgSrc)}
+                  style={{
+                    cursor: 'pointer', borderRadius: '8px', overflow: 'hidden',
+                    border: `2px solid ${globalTheme === 'light' ? '#ccc' : '#555'}`,
+                    transition: 'border-color 0.15s, transform 0.15s',
+                    aspectRatio: '1',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    background: globalTheme === 'light' ? '#f8f8f8' : '#222',
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor = '#0d6efd'; e.currentTarget.style.transform = 'scale(1.03)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = globalTheme === 'light' ? '#ccc' : '#555'; e.currentTarget.style.transform = 'scale(1)'; }}
+                >
+                  <img
+                    src={getImageUrl(imgSrc)}
+                    alt={`Gambar ${i + 1}`}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowSPKImagePicker(false)}>Batal</Button>
+        </Modal.Footer>
+      </Modal>
 
       {/* Alur Kerja QC Modal */}
       <Modal

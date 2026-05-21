@@ -9,6 +9,7 @@ import CalendarPage from './Pages/CalendarPage';
 import CetakLabelPage from './Pages/CetakLabelPage';
 import CetakLabelQCPage from './Pages/CetakLabelQCPage';
 import CetakLabelSupplierPage from './Pages/CetakLabelSupplierPage';
+import CetakSPKPage from './Pages/CetakSPKPage';
 import KLFAIPage from './Pages/KLFAIPage';
 import AccountingPage from './Pages/AccountingPage';
 import AccountingJurnalPage from './Pages/AccountingJurnalPage';
@@ -62,6 +63,7 @@ function App() {
         <Route path="/cetakLabel" element={<CetakLabelPage />} />
         <Route path="/cetakLabelQC" element={<CetakLabelQCPage />} />
         <Route path="/cetakLabelSupplier" element={<CetakLabelSupplierPage />} />
+        <Route path="/cetakSPK" element={<CetakSPKPage />} />
         <Route path="/klf-ai" element={<KLFAIPage />} />
         <Route path="/accounting" element={<AccountingPage />} />
         <Route path="/accounting/jurnal" element={<AccountingJurnalPage />} />

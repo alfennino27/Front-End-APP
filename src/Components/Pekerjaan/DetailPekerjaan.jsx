@@ -11,6 +11,7 @@ import { FaPaste, FaRegCommentDots } from "react-icons/fa";
 import { BsReply } from "react-icons/bs";
 import { MdAccessTime } from "react-icons/md";
 import { IoCalendarNumberOutline, IoNewspaperOutline } from "react-icons/io5";
+import { AiOutlinePrinter } from "react-icons/ai";
 import { getApiBaseUrl } from '../../Config/APIurl';
 import { format } from "date-fns";
 import { id } from 'date-fns/locale';
@@ -1214,6 +1215,28 @@ const DetailPekerjaan = () => {
     '6D4XVa5BSSOl1ugUlkDlTea2COX2', // Azwad
   ];
 
+  const handlePrintSPK = () => {
+    const project = dataProjectFromDB[0];
+    if (!project) return;
+
+    const images = [];
+    for (let i = 1; i <= 50; i++) {
+      const val = project[`image${category}${i}`];
+      if (val && !val.includes('.pdf')) images.push(val);
+    }
+
+    const spkData = {
+      project,
+      category,
+      spkCode: selectedSPKCode || '-',
+      images,
+      printDate: new Date().toISOString(),
+    };
+
+    sessionStorage.setItem('cetakSPK', JSON.stringify(spkData));
+    window.open('/cetakSPK', '_blank');
+  };
+
   const handleAlurKerjaClick = (fieldName, label) => {
     if (!ALUR_KERJA_AUTHORIZED_UIDS.includes(user?.uid)) return;
     setAlurKerjaField(fieldName);
@@ -2072,7 +2095,23 @@ const DetailPekerjaan = () => {
               <MdAccessTime /> Deadline :  {dataProjectFromDB[0][`DeadlineSupplier${category}`] ? new Date(dataProjectFromDB[0][`DeadlineSupplier${category}`]).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : '-'}</small>
           )}
 
-          <h6 className='mt-4' style={{ color: globalTheme == "light" ? "black" : "white" }}>Gambar Spesifik</h6>
+          <div className='mt-4 d-flex align-items-center gap-2'>
+            <h6 className='mb-0' style={{ color: globalTheme == "light" ? "black" : "white" }}>Gambar Spesifik</h6>
+            {category && dataProjectFromDB.length > 0 && (
+              <button
+                title="Print SPK"
+                onClick={(e) => { e.stopPropagation(); handlePrintSPK(); }}
+                className="no-active"
+                style={{
+                  background: 'none', border: '1px solid #888', borderRadius: '4px',
+                  padding: '2px 6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px',
+                  color: globalTheme === 'light' ? '#333' : '#ccc', fontSize: '11px',
+                }}
+              >
+                <AiOutlinePrinter style={{ fontSize: '14px' }} /> SPK
+              </button>
+            )}
+          </div>
           <div style={{ display: category == "" ? "none" : "block" }} className="me-3 no-active" onClick={(e) => { e.stopPropagation(); if (user.uid === "rYN2eFpFqVU5jSYRrwyioAi33xD3" || user.uid === "qd2gyCyknDVZYUfA6IkiQv3jGTI3") { console.log('anda tidak punya izin'); } else { setShowImageCategoryEdit(true); refreshImageEditInput(); } }}>
 
 

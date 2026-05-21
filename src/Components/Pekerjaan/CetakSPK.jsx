@@ -15,11 +15,20 @@ const BODY_H = PAGE_H - HEADER_H - FOOTER_H; // 125mm
 
 const getKeteranganFontSize = (text) => {
   if (!text) return 12;
-  const len = text.length;
-  if (len <= 450) return 12;
-  if (len <= 700) return 11;
-  if (len <= 1000) return 10;
-  return 9;
+  // Available height for pre: BODY_H minus ~14mm for h6 header+padding, converted to px at 3.78px/mm
+  const availPx = (BODY_H - 14) * 3.78; // ~417px for BODY_H=125
+  // Count visual lines: actual newlines + estimate wrapping for long lines
+  // Body-right width ~120mm → ~454px; avg char width ≈ fontSize * 0.58
+  const rawLines = text.split('\n');
+  for (const size of [12, 11, 10, 9, 8]) {
+    const charsPerLine = Math.max(20, Math.floor(454 / (size * 0.58)));
+    const totalLines = rawLines.reduce(
+      (acc, line) => acc + Math.max(1, Math.ceil((line.length || 1) / charsPerLine)),
+      0
+    );
+    if (totalLines * size * 1.6 <= availPx) return size;
+  }
+  return 8;
 };
 
 const IMGPAGE_TITLE_H = 12; // mm

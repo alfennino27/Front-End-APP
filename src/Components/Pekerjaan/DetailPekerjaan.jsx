@@ -1226,7 +1226,7 @@ const DetailPekerjaan = () => {
   const handleAlurKerjaSubmit = async (state, keterangan) => {
     const displayName = user?.displayName || 'User';
     const commentText = state === 'ok'
-      ? `${displayName} sudah cek ${category} dan sudah ok`
+      ? `${displayName} sudah cek ${category} dan sudah ok${keterangan ? `. Keterangan: ${keterangan}` : ''}`
       : `${displayName} sudah cek ${category} dan perlu servis / cek lebih lanjut. Keterangan: ${keterangan}`;
 
     try {
@@ -2625,9 +2625,19 @@ const DetailPekerjaan = () => {
             </div>
           )}
           {alurKerjaStep === 'confirm-ok' && (
-            <p style={{ color: globalTheme === 'light' ? 'black' : 'white' }}>
-              Konfirmasi: <b>{user?.displayName || 'Anda'}</b> sudah cek <b>{category}</b> — <b>{alurKerjaLabel}</b> dan sudah ok?
-            </p>
+            <>
+              <p style={{ color: globalTheme === 'light' ? 'black' : 'white' }}>
+                Konfirmasi: <b>{user?.displayName || 'Anda'}</b> sudah cek <b>{category}</b> — <b>{alurKerjaLabel}</b> dan sudah ok?
+              </p>
+              <label style={{ color: globalTheme === 'light' ? 'black' : 'white' }}>Keterangan (opsional):</label>
+              <textarea
+                className="form-control mt-1"
+                rows={2}
+                value={alurKerjaKeterangan}
+                onChange={(e) => setAlurKerjaKeterangan(e.target.value)}
+                placeholder="Tambahkan catatan jika ada..."
+              />
+            </>
           )}
           {alurKerjaStep === 'servis-input' && (
             <>
@@ -2655,7 +2665,7 @@ const DetailPekerjaan = () => {
           {alurKerjaStep === 'confirm-ok' && (
             <>
               <Button variant="secondary" onClick={() => setAlurKerjaStep('choose')}>Kembali</Button>
-              <Button variant="success" onClick={() => handleAlurKerjaSubmit('ok', '')}>Simpan</Button>
+              <Button variant="success" onClick={() => handleAlurKerjaSubmit('ok', alurKerjaKeterangan)}>Simpan</Button>
             </>
           )}
           {alurKerjaStep === 'servis-input' && (

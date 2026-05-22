@@ -163,6 +163,7 @@ const DetailPekerjaan = () => {
   const [showSPKImagePicker, setShowSPKImagePicker] = useState(false);
   const [spkImages, setSpkImages] = useState([]);
   const [alurKerjaModalOpen, setAlurKerjaModalOpen] = useState(false);
+  const [alurKerjaCurrentVal, setAlurKerjaCurrentVal] = useState(null);
   const [alurKerjaField, setAlurKerjaField] = useState('');
   const [alurKerjaLabel, setAlurKerjaLabel] = useState('');
   const [alurKerjaStep, setAlurKerjaStep] = useState('choose');
@@ -1246,10 +1247,11 @@ const DetailPekerjaan = () => {
     window.open('/cetakSPK', '_blank');
   };
 
-  const handleAlurKerjaClick = (fieldName, label) => {
+  const handleAlurKerjaClick = (fieldName, label, currentVal) => {
     if (!ALUR_KERJA_AUTHORIZED_UIDS.includes(user?.uid)) return;
     setAlurKerjaField(fieldName);
     setAlurKerjaLabel(label);
+    setAlurKerjaCurrentVal(currentVal ?? null);
     setAlurKerjaStep('choose');
     setAlurKerjaKeterangan('');
     setAlurKerjaModalOpen(true);
@@ -1257,15 +1259,18 @@ const DetailPekerjaan = () => {
 
   const handleAlurKerjaSubmit = async (state, keterangan) => {
     const displayName = user?.displayName || 'User';
+    const apiState = state === 'reset' ? null : state;
     const commentText = state === 'ok'
-      ? `${displayName} sudah cek ${category} dan sudah ok${keterangan ? `. Keterangan: ${keterangan}` : ''}`
-      : `${displayName} sudah cek ${category} dan perlu servis / cek lebih lanjut. Keterangan: ${keterangan}`;
+      ? `${displayName} sudah cek ${category} — ${alurKerjaLabel} dan sudah ok${keterangan ? `. Keterangan: ${keterangan}` : ''}`
+      : state === 'reset'
+        ? `${displayName} mereset status ${alurKerjaLabel} (${category}) kembali ke belum dicek`
+        : `${displayName} sudah cek ${category} — ${alurKerjaLabel} dan perlu servis / cek lebih lanjut. Keterangan: ${keterangan}`;
 
     try {
       await fetch(`${baseUrl}/projects/alurkerja`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ slug, fieldName: alurKerjaField, state, category }),
+        body: JSON.stringify({ slug, fieldName: alurKerjaField, state: apiState, category }),
       });
 
       const formData = new FormData();
@@ -1292,7 +1297,7 @@ const DetailPekerjaan = () => {
       <div
         key={fieldName}
         style={{ display: 'flex', alignItems: 'center', marginBottom: '6px', cursor: isAuthorized ? 'pointer' : 'default' }}
-        onClick={() => isAuthorized && handleAlurKerjaClick(fieldName, label)}
+        onClick={() => isAuthorized && handleAlurKerjaClick(fieldName, label, val)}
         className="no-active"
       >
         <span style={{
@@ -2712,15 +2717,26 @@ const DetailPekerjaan = () => {
         </Modal.Header>
         <Modal.Body>
           {alurKerjaStep === 'choose' && (
-            <div className="d-flex gap-3 mt-2">
-              <Button variant="success" style={{ flex: 1, padding: '14px', fontSize: '15px' }}
-                onClick={() => setAlurKerjaStep('confirm-ok')}>
-                ✓ Sudah Ok
-              </Button>
-              <Button variant="warning" style={{ flex: 1, padding: '14px', fontSize: '15px' }}
-                onClick={() => setAlurKerjaStep('servis-input')}>
-                ⚠ Servis / Cek
-              </Button>
+            <div className="d-flex flex-column gap-2 mt-2">
+              <div className="d-flex gap-3">
+                <Button variant="success" style={{ flex: 1, padding: '14px', fontSize: '15px' }}
+                  onClick={() => setAlurKerjaStep('confirm-ok')}>
+                  ✓ Sudah Ok
+                </Button>
+                <Button variant="warning" style={{ flex: 1, padding: '14px', fontSize: '15px' }}
+                  onClick={() => setAlurKerjaStep('servis-input')}>
+                  ⚠ Servis / Cek
+                </Button>
+              </div>
+              {(alurKerjaCurrentVal === 'ok' || alurKerjaCurrentVal === 'servis') && (
+                <Button
+                  variant="outline-secondary"
+                  style={{ width: '100%', padding: '10px', fontSize: '13px' }}
+                  onClick={() => setAlurKerjaStep('confirm-reset')}
+                >
+                  ↩ Reset ke Belum Dicek
+                </Button>
+              )}
             </div>
           )}
           {alurKerjaStep === 'confirm-ok' && (
@@ -2756,6 +2772,11 @@ const DetailPekerjaan = () => {
               <p>Keterangan: <b>{alurKerjaKeterangan}</b></p>
             </div>
           )}
+          {alurKerjaStep === 'confirm-reset' && (
+            <p style={{ color: globalTheme === 'light' ? 'black' : 'white' }}>
+              Reset status <b>{alurKerjaLabel}</b> kembali ke <b>belum dicek</b>?
+            </p>
+          )}
         </Modal.Body>
         <Modal.Footer>
           {alurKerjaStep === 'choose' && (
@@ -2777,6 +2798,12 @@ const DetailPekerjaan = () => {
             <>
               <Button variant="secondary" onClick={() => setAlurKerjaStep('servis-input')}>Kembali</Button>
               <Button variant="warning" onClick={() => handleAlurKerjaSubmit('servis', alurKerjaKeterangan)}>Simpan</Button>
+            </>
+          )}
+          {alurKerjaStep === 'confirm-reset' && (
+            <>
+              <Button variant="secondary" onClick={() => setAlurKerjaStep('choose')}>Kembali</Button>
+              <Button variant="outline-secondary" onClick={() => handleAlurKerjaSubmit('reset', '')}>Ya, Reset</Button>
             </>
           )}
         </Modal.Footer>

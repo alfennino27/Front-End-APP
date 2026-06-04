@@ -1175,7 +1175,7 @@ const NavigationBar = () => {
             role="button"
             onClick={() => setOpenArchive(!openArchive)}
             style={
-              ["/catalog", "/products", "/pricelist"].some((path) => location.pathname.startsWith(path))
+              ["/catalog", "/products", "/pricelist", "/testimoni-lama"].some((path) => location.pathname.startsWith(path))
                 ? { color: "#234dba", fontWeight: 600 }
                 : { color: globalTheme === "light" ? "black" : "white" }
             }

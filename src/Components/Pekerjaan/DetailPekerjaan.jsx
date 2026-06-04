@@ -76,6 +76,7 @@ const DetailPekerjaan = () => {
   const [supplierHardware, setSupplierHardware] = useState('');
   const [supplierBarangJadi, setSupplierBarangJadi] = useState('');
   const [supplierPengiriman, setSupplierPengiriman] = useState('');
+  const [supplierTestimoni, setSupplierTestimoni] = useState('');
 
   const [productNameInformation, setProductNameInformation] = useState('');
   const [buyerNameInformation, setBuyerNameInformation] = useState('');
@@ -961,6 +962,7 @@ const DetailPekerjaan = () => {
       setSupplierHardware(data.SupplierHardware);
       setSupplierBarangJadi(data.SupplierBarangJadi);
       setSupplierPengiriman(data.SupplierPengiriman);
+      setSupplierTestimoni(data.SupplierTestimoni);
 
       setDataProjectFromDB([data]); // karena sebelumnya berbentuk array
     } catch (err) {
@@ -1081,6 +1083,7 @@ const DetailPekerjaan = () => {
         setSupplierHardware(data.SupplierHardware);
         setSupplierBarangJadi(data.SupplierBarangJadi);
         setSupplierPengiriman(data.SupplierPengiriman);
+        setSupplierTestimoni(data.SupplierTestimoni);
 
         if (categorySearch) {
           setCategory(categorySearch);

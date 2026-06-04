@@ -1937,7 +1937,7 @@ const DetailPekerjaan = () => {
 
 
 
-          {["Stainless", "Besi", "Kayu", "Jok", "Rotan", "Marmer", "Kaca", "Kain", "Fiber", "Veneer", "Finishing", "Hardware", "BarangJadi", "Pengiriman"].map((category) => {
+          {["Stainless", "Besi", "Kayu", "Jok", "Rotan", "Marmer", "Kaca", "Kain", "Fiber", "Veneer", "Finishing", "Hardware", "BarangJadi", "Pengiriman", "Testimoni"].map((category) => {
             const supplier = eval(`supplier${category}`);
             const status = dataProjectFromDB[0]?.[`CategoryStatus${category}`];
             const azwad = dataProjectFromDB[0]?.[`${category}Azwad`];

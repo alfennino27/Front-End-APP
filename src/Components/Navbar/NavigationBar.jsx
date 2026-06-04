@@ -1238,6 +1238,16 @@ const NavigationBar = () => {
                   <ImPriceTags />
                   <span className="fw-semibold">Price List</span>
                 </Link>
+                <hr className="my-1" style={dividerStyle} />
+
+                <Link
+                  to="/testimoni-lama"
+                  className="d-flex align-items-center gap-2 py-2 text-decoration-none link-hover"
+                  style={isActive("/testimoni-lama")}
+                >
+                  <BiArchive />
+                  <span className="fw-semibold">Testimoni Lama</span>
+                </Link>
 
               </motion.div>
             )}

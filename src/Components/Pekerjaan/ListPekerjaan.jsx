@@ -683,7 +683,7 @@ const ListPekerjaan = () => {
             if (!item.idInvoice || seen.has(item.idInvoice)) continue;
             seen.add(item.idInvoice);
             const pel = deliveryData.pelunasanMap?.[item.idInvoice];
-            if (pel) invoiceRows.push({ ...pel, Buyer: item.Buyer, NamaBarang: item.NamaBarang, Deadline: item.Deadline, overdueDays: item.overdueDays });
+            if (pel) invoiceRows.push({ ...pel, Buyer: item.Buyer, NamaBarang: item.NamaBarang, Deadline: item.Deadline, TargetKirim: item.TargetKirim, delayDays: item.delayDays || 0, overdueDays: item.overdueDays });
           }
 
           // Also list items without invoice
@@ -712,6 +712,7 @@ const ListPekerjaan = () => {
                     <th style={{ padding: '6px 8px' }}>Customer</th>
                     <th style={{ padding: '6px 8px' }}>Kode Invoice</th>
                     <th style={{ padding: '6px 8px' }}>Deadline</th>
+                    <th style={{ padding: '6px 8px' }}>Target Kirim</th>
                     <th style={{ padding: '6px 8px', textAlign: 'right' }}>Nilai Order</th>
                     <th style={{ padding: '6px 8px', textAlign: 'right' }}>DP Masuk</th>
                     <th style={{ padding: '6px 8px', textAlign: 'right' }}>Kekurangan</th>
@@ -722,10 +723,22 @@ const ListPekerjaan = () => {
                     <tr key={i} style={{ borderBottom: '1px solid #eee' }}>
                       <td style={{ padding: '6px 8px' }}>
                         {row.customer || row.Buyer}
-                        {row.overdueDays && <span style={{ color: '#e74c3c', fontSize: 10, marginLeft: 4 }}>({row.overdueDays} hari)</span>}
+                        {row.overdueDays > 0 && <span style={{ color: '#e74c3c', fontSize: 10, marginLeft: 4 }}>⚠ {row.overdueDays}h overdue</span>}
                       </td>
                       <td style={{ padding: '6px 8px', color: '#013175' }}>{row.kodeInvoice}</td>
-                      <td style={{ padding: '6px 8px' }}>{row.Deadline ? new Date(row.Deadline).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }) : '-'}</td>
+                      <td style={{ padding: '6px 8px', color: '#666' }}>
+                        {row.Deadline ? new Date(row.Deadline).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }) : '-'}
+                      </td>
+                      <td style={{ padding: '6px 8px' }}>
+                        {row.TargetKirim
+                          ? <span>
+                              {new Date(row.TargetKirim).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
+                              {row.delayDays > 0 && <span style={{ color: '#e74c3c', fontSize: 10, marginLeft: 4 }}>+{row.delayDays}h terlambat</span>}
+                              {row.delayDays < 0 && <span style={{ color: '#27ae60', fontSize: 10, marginLeft: 4 }}>{Math.abs(row.delayDays)}h lebih awal</span>}
+                            </span>
+                          : <span style={{ color: '#aaa' }}>-</span>
+                        }
+                      </td>
                       <td style={{ padding: '6px 8px', textAlign: 'right' }}>Rp {row.nilaiOrder?.toLocaleString('id-ID')}</td>
                       <td style={{ padding: '6px 8px', textAlign: 'right' }}>Rp {row.dpMasuk?.toLocaleString('id-ID')}</td>
                       <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 600, color: row.kekurangan > 0 ? '#e74c3c' : '#27ae60' }}>

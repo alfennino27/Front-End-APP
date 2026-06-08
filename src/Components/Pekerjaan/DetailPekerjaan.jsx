@@ -83,6 +83,7 @@ const DetailPekerjaan = () => {
   const [buyerLocationInformation, setBuyerLocationInformation] = useState('');
   const [orderDateInformation, setOrderDateInformation] = useState('');
   const [deadlineInformation, setDeadlineInformation] = useState('');
+  const [targetKirimInformation, setTargetKirimInformation] = useState('');
   const [descriptionInformation, setDescriptionInformation] = useState('');
   const [ukuranQC, setUkuranQC] = useState('');
   const [finishingQC, setFinishingQC] = useState('');
@@ -627,6 +628,7 @@ const DetailPekerjaan = () => {
           Lokasi: buyerLocationInformation,
           Date: orderDateInformation,
           Deadline: deadlineInformation,
+          TargetKirim: targetKirimInformation || '',
           Percentage: percentageInformation,
           Status: statusInformation,
           Spesifikasi: descriptionInformation,
@@ -1053,6 +1055,7 @@ const DetailPekerjaan = () => {
         setBuyerLocationInformation(data.Lokasi);
         setOrderDateInformation(data.Date);
         setDeadlineInformation(data.Deadline);
+        setTargetKirimInformation(data.TargetKirim || '');
         setDescriptionInformation(data.Spesifikasi);
         setUkuranQC(data.UkuranQC);
         setFinishingQC(data.FinishingQC);
@@ -1747,6 +1750,19 @@ const DetailPekerjaan = () => {
             <small style={{ color: globalTheme == "light" ? "black" : "white" }}>
               <MdAccessTime /> Deadline : {dataProjectFromDB.length > 0 ? new Date(dataProjectFromDB[0].Deadline).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : ''}
             </small>
+            {dataProjectFromDB[0]?.TargetKirim && (
+              <><br /><small style={{ color: '#e67e22', fontWeight: 600 }}>
+                🚚 Target Kirim : {new Date(dataProjectFromDB[0].TargetKirim).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                {(() => {
+                  const d = new Date(dataProjectFromDB[0].Deadline);
+                  const t = new Date(dataProjectFromDB[0].TargetKirim);
+                  const diff = Math.ceil((t - d) / (1000 * 60 * 60 * 24));
+                  if (diff > 0) return <span style={{ color: '#e74c3c', marginLeft: 6 }}>({diff} hari terlambat)</span>;
+                  if (diff < 0) return <span style={{ color: '#27ae60', marginLeft: 6 }}>({Math.abs(diff)} hari lebih awal)</span>;
+                  return null;
+                })()}
+              </small></>
+            )}
             <h6 className='mt-4' style={{ color: globalTheme == "light" ? "black" : "white" }}>Gambar Produk</h6>
           </div>
 
@@ -1860,6 +1876,9 @@ const DetailPekerjaan = () => {
           <input className="form-control" type='date' value={orderDateInformation} onChange={(e) => setOrderDateInformation(e.target.value)} required></input>
           <label className='mt-3 fw-semibold'>Deadline :</label>
           <input className="form-control" type='date' value={deadlineInformation} onChange={(e) => setDeadlineInformation(e.target.value)} required></input>
+          <label className='mt-3 fw-semibold'>Target Kirim :</label>
+          <small style={{ color: '#888', display: 'block', marginBottom: 4 }}>Tanggal pengiriman yang direncanakan (untuk tracking)</small>
+          <input className="form-control" type='date' value={targetKirimInformation} onChange={(e) => setTargetKirimInformation(e.target.value)}></input>
           <label className='mt-3 fw-semibold'>Percentage :</label>
           <input className="form-control" type='number' value={percentageInformation} onChange={(e) => setPercentageInformation(e.target.value)} required></input>
           <label className='mt-3 fw-semibold'>Description :</label>

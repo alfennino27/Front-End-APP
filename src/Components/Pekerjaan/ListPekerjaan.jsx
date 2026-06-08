@@ -11,10 +11,11 @@ import React, { useRef, useEffect, useState } from 'react';
 import { MdFormatListBulletedAdd } from "react-icons/md";
 import { getApiBaseUrl } from '../../Config/APIurl';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Skeleton, Spin, Popover, Radio, DatePicker, Divider, Space } from 'antd';
+import { Skeleton, Spin, Popover, Radio, DatePicker, Divider, Space, Modal as AntModal, Statistic } from 'antd';
 import { IoSearch } from 'react-icons/io5';
 import { useTheme } from '../../ThemeContext';
 import { getImageUrl } from '../../Utils/image';
+import { TbTruckDelivery } from 'react-icons/tb';
 
 //tes
 const ListPekerjaan = () => {
@@ -56,6 +57,13 @@ const ListPekerjaan = () => {
 
   const [sortOrder, setSortOrder] = useState('oldest');
   const [selectedMonth, setSelectedMonth] = useState(null);
+
+  // Delivery Tracker
+  const [deliveryView, setDeliveryView] = useState('all'); // 'all' | 'thisWeek' | 'nextWeek' | 'overdue'
+  const [deliveryData, setDeliveryData] = useState(null);
+  const [deliveryLoading, setDeliveryLoading] = useState(false);
+  const [showPelunasanModal, setShowPelunasanModal] = useState(false);
+  const [userAccess, setUserAccess] = useState([]);
 
   const [cetakLabel, setCetakLabel] = useState([]);
   const [tipeLabel, setTipeLabel] = useState('Pengiriman');
@@ -262,6 +270,42 @@ const ListPekerjaan = () => {
   }, [filteredData]);
 
 
+
+  // Fetch delivery tracker data
+  const fetchDeliveryTracker = async () => {
+    setDeliveryLoading(true);
+    try {
+      const res = await fetch(`${baseUrl}/projects/delivery-tracker`);
+      const data = await res.json();
+      setDeliveryData(data);
+    } catch (e) { console.error('Failed to fetch delivery tracker:', e); }
+    setDeliveryLoading(false);
+  };
+
+  // Fetch user access for "Delivery Tracker" permission
+  const fetchUserAccess = async () => {
+    try {
+      const res = await fetch(`${baseUrl}/useraccess/get`);
+      const data = await res.json();
+      setUserAccess(Array.isArray(data) ? data : []);
+    } catch (e) { console.error(e); }
+  };
+
+  useEffect(() => {
+    fetchDeliveryTracker();
+    fetchUserAccess();
+  }, []);
+
+  const hasAccess = (menu) => userAccess.some(a => a.uid === user?.uid && a.menu === menu && a.value === true);
+
+  // Get project IDs for active delivery view (used to filter the list)
+  const deliveryProjectIds = React.useMemo(() => {
+    if (deliveryView === 'all' || !deliveryData) return null;
+    const items = deliveryView === 'thisWeek' ? deliveryData.thisWeek
+      : deliveryView === 'nextWeek' ? deliveryData.nextWeek
+      : deliveryData.overdue;
+    return new Set((items || []).map(i => i.id));
+  }, [deliveryView, deliveryData]);
 
   const [dataAllSPKproductFromDB, setDataAllSPKproductFromDB] = useState([]);
   const [dataAllSPKFromDB, setDataAllSPKFromDB] = useState([]);
@@ -474,7 +518,7 @@ const ListPekerjaan = () => {
 
 
   const content = (
-    <div style={{ minWidth: '200px' }}>
+    <div style={{ minWidth: '220px' }}>
       <div style={{ marginBottom: '10px' }}>
         <p style={{ fontWeight: 'bold', marginBottom: '8px' }}>Sort By Date</p>
         <Radio.Group
@@ -498,6 +542,31 @@ const ListPekerjaan = () => {
           style={{ width: '100%' }}
           placeholder="Pilih bulan"
         />
+      </div>
+
+      <Divider style={{ margin: '12px 0' }} />
+
+      <div>
+        <p style={{ fontWeight: 'bold', marginBottom: '8px' }}>
+          <TbTruckDelivery style={{ marginRight: 4 }} /> Delivery View
+        </p>
+        <Radio.Group
+          onChange={(e) => { setDeliveryView(e.target.value); setShowCompleted(false); }}
+          value={deliveryView}
+        >
+          <Space direction="vertical">
+            <Radio value="all">Semua</Radio>
+            <Radio value="thisWeek">
+              Minggu Ini {deliveryData ? <span style={{ color: '#888', fontSize: 11 }}>({deliveryData.thisWeek?.length || 0})</span> : null}
+            </Radio>
+            <Radio value="nextWeek">
+              Minggu Depan {deliveryData ? <span style={{ color: '#888', fontSize: 11 }}>({deliveryData.nextWeek?.length || 0})</span> : null}
+            </Radio>
+            <Radio value="overdue">
+              Overdue {deliveryData?.overdue?.length > 0 ? <span style={{ color: '#e74c3c', fontSize: 11, fontWeight: 600 }}>({deliveryData.overdue.length})</span> : <span style={{ color: '#888', fontSize: 11 }}>(0)</span>}
+            </Radio>
+          </Space>
+        </Radio.Group>
       </div>
     </div>
   );
@@ -563,7 +632,114 @@ const ListPekerjaan = () => {
 
       </h4>
 
+      {/* Delivery Tracker Banner — only for users with Delivery Tracker access */}
+      {deliveryView !== 'all' && hasAccess('Delivery Tracker') && deliveryData && (
+        <div
+          onClick={() => setShowPelunasanModal(true)}
+          style={{
+            position: 'sticky', top: '48px', zIndex: 2,
+            margin: '0 8px 8px 8px', padding: '8px 12px',
+            borderRadius: '10px', cursor: 'pointer',
+            background: globalTheme === 'light' ? '#eef4ff' : '#1a2744',
+            border: `1px solid ${globalTheme === 'light' ? '#b8d4fe' : '#2d4a7a'}`,
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          }}
+        >
+          <div>
+            <small style={{ color: globalTheme === 'light' ? '#013175' : '#6fa8ff', fontWeight: 600 }}>
+              <TbTruckDelivery style={{ marginRight: 4 }} />
+              {deliveryView === 'thisWeek' ? 'Pelunasan Minggu Ini' : deliveryView === 'nextWeek' ? 'Pelunasan Minggu Depan' : 'Pelunasan Overdue'}
+            </small>
+          </div>
+          <div style={{ fontWeight: 700, fontSize: '14px', color: globalTheme === 'light' ? '#013175' : '#6fa8ff' }}>
+            Rp {(deliveryData.totals?.[deliveryView] || 0).toLocaleString('id-ID')}
+          </div>
+        </div>
+      )}
 
+      {/* Pelunasan Detail Modal */}
+      <AntModal
+        title={
+          <span style={{ fontWeight: 700 }}>
+            <TbTruckDelivery style={{ marginRight: 6 }} />
+            Detail Pelunasan — {deliveryView === 'thisWeek' ? 'Minggu Ini' : deliveryView === 'nextWeek' ? 'Minggu Depan' : 'Overdue'}
+          </span>
+        }
+        open={showPelunasanModal}
+        onCancel={() => setShowPelunasanModal(false)}
+        footer={null}
+        width={700}
+      >
+        {deliveryData && (() => {
+          const items = deliveryView === 'thisWeek' ? deliveryData.thisWeek
+            : deliveryView === 'nextWeek' ? deliveryData.nextWeek
+            : deliveryData.overdue;
+          if (!items || items.length === 0) return <p style={{ textAlign: 'center', color: '#999' }}>Tidak ada data.</p>;
+
+          // Group by invoice to avoid duplicate rows
+          const seen = new Set();
+          const invoiceRows = [];
+          for (const item of items) {
+            if (!item.idInvoice || seen.has(item.idInvoice)) continue;
+            seen.add(item.idInvoice);
+            const pel = deliveryData.pelunasanMap?.[item.idInvoice];
+            if (pel) invoiceRows.push({ ...pel, Buyer: item.Buyer, NamaBarang: item.NamaBarang, Deadline: item.Deadline, overdueDays: item.overdueDays });
+          }
+
+          // Also list items without invoice
+          const noInvoice = items.filter(i => !i.idInvoice);
+
+          return (
+            <div>
+              <div style={{ display: 'flex', gap: 16, marginBottom: 16 }}>
+                <Statistic title="Total Pelunasan" value={`Rp ${(deliveryData.totals?.[deliveryView] || 0).toLocaleString('id-ID')}`} valueStyle={{ fontSize: 18, fontWeight: 700, color: '#013175' }} />
+                <Statistic title="Jumlah Item" value={items.length} />
+              </div>
+
+              <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ borderBottom: '2px solid #ddd', textAlign: 'left' }}>
+                    <th style={{ padding: '6px 8px' }}>Customer</th>
+                    <th style={{ padding: '6px 8px' }}>Kode Invoice</th>
+                    <th style={{ padding: '6px 8px' }}>Deadline</th>
+                    <th style={{ padding: '6px 8px', textAlign: 'right' }}>Nilai Order</th>
+                    <th style={{ padding: '6px 8px', textAlign: 'right' }}>DP Masuk</th>
+                    <th style={{ padding: '6px 8px', textAlign: 'right' }}>Kekurangan</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {invoiceRows.map((row, i) => (
+                    <tr key={i} style={{ borderBottom: '1px solid #eee' }}>
+                      <td style={{ padding: '6px 8px' }}>
+                        {row.customer || row.Buyer}
+                        {row.overdueDays && <span style={{ color: '#e74c3c', fontSize: 10, marginLeft: 4 }}>({row.overdueDays} hari)</span>}
+                      </td>
+                      <td style={{ padding: '6px 8px', color: '#013175' }}>{row.kodeInvoice}</td>
+                      <td style={{ padding: '6px 8px' }}>{row.Deadline ? new Date(row.Deadline).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }) : '-'}</td>
+                      <td style={{ padding: '6px 8px', textAlign: 'right' }}>Rp {row.nilaiOrder?.toLocaleString('id-ID')}</td>
+                      <td style={{ padding: '6px 8px', textAlign: 'right' }}>Rp {row.dpMasuk?.toLocaleString('id-ID')}</td>
+                      <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 600, color: row.kekurangan > 0 ? '#e74c3c' : '#27ae60' }}>
+                        Rp {row.kekurangan?.toLocaleString('id-ID')}
+                      </td>
+                    </tr>
+                  ))}
+                  {noInvoice.length > 0 && noInvoice.map((item, i) => (
+                    <tr key={`no-inv-${i}`} style={{ borderBottom: '1px solid #eee', color: '#999' }}>
+                      <td style={{ padding: '6px 8px' }}>
+                        {item.Buyer} — {item.NamaBarang}
+                        {item.overdueDays && <span style={{ color: '#e74c3c', fontSize: 10, marginLeft: 4 }}>({item.overdueDays} hari)</span>}
+                      </td>
+                      <td style={{ padding: '6px 8px', fontStyle: 'italic' }}>Belum ada invoice</td>
+                      <td style={{ padding: '6px 8px' }}>{item.Deadline ? new Date(item.Deadline).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }) : '-'}</td>
+                      <td colSpan={3} style={{ padding: '6px 8px', textAlign: 'center', fontStyle: 'italic' }}>-</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          );
+        })()}
+      </AntModal>
 
       {/* Modal */}
       <Modal className={`${globalTheme === 'light' ? 'modalKLFlight' : 'modalKLF'}`} show={showSupplier} onHide={() => setShowSupplier(false)}>
@@ -937,6 +1113,12 @@ const ListPekerjaan = () => {
 
 
       {filteredData
+        // 0. Filter Delivery View (if active)
+        .filter(p => {
+          if (!deliveryProjectIds) return true;
+          return deliveryProjectIds.has(p.id);
+        })
+
         // 1. Filter Bulan (berdasarkan submitDate)
         .filter(p => {
           if (!selectedMonth) return true;

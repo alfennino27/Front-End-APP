@@ -421,6 +421,10 @@ const UserManagement = () => {
                                                                 onChange={(e) => handleCheckboxChange(item.uid, "KLF AI", e.target.checked)}
                                                             >KLF AI</Checkbox><br />
                                                             <Checkbox
+                                                                checked={getCheckboxState(item.uid, "Delivery Tracker")}
+                                                                onChange={(e) => handleCheckboxChange(item.uid, "Delivery Tracker", e.target.checked)}
+                                                            >Delivery Tracker</Checkbox><br />
+                                                            <Checkbox
                                                                 disabled
                                                                 checked={["fYpdHwXRDLhj5XGxM5FZIAvxp9E2", "w4M5JJjgGQeHFbS2nkyoCfUBE532"].includes(item.uid)}
                                                             >

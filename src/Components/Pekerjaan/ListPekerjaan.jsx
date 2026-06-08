@@ -691,17 +691,19 @@ const ListPekerjaan = () => {
 
           return (
             <div>
-              <div style={{ display: 'flex', gap: 16, marginBottom: 16 }}>
-                <Statistic
-                  title={<span style={{ color: '#555', fontSize: 12 }}>Total Pelunasan</span>}
-                  value={`Rp ${(deliveryData.totals?.[deliveryView] || 0).toLocaleString('id-ID')}`}
-                  valueStyle={{ fontSize: 18, fontWeight: 700, color: '#013175' }}
-                />
-                <Statistic
-                  title={<span style={{ color: '#555', fontSize: 12 }}>Jumlah Item</span>}
-                  value={items.length}
-                  valueStyle={{ fontSize: 18, fontWeight: 700, color: '#333' }}
-                />
+              <div style={{ display: 'flex', gap: 20, marginBottom: 16, padding: '12px 16px', background: '#f0f5ff', borderRadius: 8, border: '1px solid #d0e0ff' }}>
+                <div>
+                  <div style={{ fontSize: 11, color: '#666', marginBottom: 4 }}>Total Pelunasan</div>
+                  <div style={{ fontSize: 20, fontWeight: 700, color: '#013175' }}>
+                    Rp {(deliveryData.totals?.[deliveryView] || 0).toLocaleString('id-ID')}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, color: '#666', marginBottom: 4 }}>Jumlah Item</div>
+                  <div style={{ fontSize: 20, fontWeight: 700, color: '#333' }}>
+                    {items.length}
+                  </div>
+                </div>
               </div>
 
               <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>

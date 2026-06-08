@@ -692,8 +692,16 @@ const ListPekerjaan = () => {
           return (
             <div>
               <div style={{ display: 'flex', gap: 16, marginBottom: 16 }}>
-                <Statistic title="Total Pelunasan" value={`Rp ${(deliveryData.totals?.[deliveryView] || 0).toLocaleString('id-ID')}`} valueStyle={{ fontSize: 18, fontWeight: 700, color: '#013175' }} />
-                <Statistic title="Jumlah Item" value={items.length} />
+                <Statistic
+                  title={<span style={{ color: '#555', fontSize: 12 }}>Total Pelunasan</span>}
+                  value={`Rp ${(deliveryData.totals?.[deliveryView] || 0).toLocaleString('id-ID')}`}
+                  valueStyle={{ fontSize: 18, fontWeight: 700, color: '#013175' }}
+                />
+                <Statistic
+                  title={<span style={{ color: '#555', fontSize: 12 }}>Jumlah Item</span>}
+                  value={items.length}
+                  valueStyle={{ fontSize: 18, fontWeight: 700, color: '#333' }}
+                />
               </div>
 
               <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>

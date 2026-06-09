@@ -69,6 +69,7 @@ const ListPekerjaan = () => {
   const [tipeLabel, setTipeLabel] = useState('Pengiriman');
   const [pdfSupplierCategory, setPdfSupplierCategory] = useState('Besi');
   const [pdfSupplierName, setPdfSupplierName] = useState('');
+  const [pdfTargetKirimFilter, setPdfTargetKirimFilter] = useState('semua'); // 'semua' | 'thisWeek' | 'nextWeek'
 
   const handleSearchClick = () => {
     setShowSearch(!showSearch);
@@ -436,7 +437,31 @@ const ListPekerjaan = () => {
 
   const handlePrint = () => {
     if (tipeLabel === 'PDF Supplier') {
-      const filtered = masterDataFalse.filter(p => p[`Supplier${pdfSupplierCategory}`] === pdfSupplierName);
+      // Helper: get week boundaries
+      const getWeekBounds = (offsetWeeks = 0) => {
+        const now = new Date();
+        const day = now.getDay();
+        const mondayOffset = day === 0 ? -6 : 1 - day;
+        const start = new Date(now);
+        start.setDate(now.getDate() + mondayOffset + offsetWeeks * 7);
+        start.setHours(0, 0, 0, 0);
+        const end = new Date(start);
+        end.setDate(start.getDate() + 6);
+        end.setHours(23, 59, 59, 999);
+        return { start, end };
+      };
+
+      let filtered = masterDataFalse.filter(p => p[`Supplier${pdfSupplierCategory}`] === pdfSupplierName);
+
+      if (pdfTargetKirimFilter !== 'semua') {
+        const { start, end } = pdfTargetKirimFilter === 'thisWeek' ? getWeekBounds(0) : getWeekBounds(1);
+        filtered = filtered.filter(p => {
+          const dateStr = p.TargetKirim || p.Deadline;
+          if (!dateStr) return false;
+          const d = new Date(dateStr);
+          return d >= start && d <= end;
+        });
+      }
       sessionStorage.setItem('cetakLabelSupplier', JSON.stringify({
         items: filtered,
         category: pdfSupplierCategory,
@@ -1026,6 +1051,14 @@ const ListPekerjaan = () => {
                   {dataSupplierFromDB.filter(s => s.category === pdfSupplierCategory).map((s, i) => (
                     <option key={i} value={s.supplierName}>{s.supplierName}</option>
                   ))}
+                </Form.Select>
+              </Form.Group>
+              <Form.Group className="mb-2">
+                <Form.Label>Target Kirim</Form.Label>
+                <Form.Select value={pdfTargetKirimFilter} onChange={(e) => setPdfTargetKirimFilter(e.target.value)}>
+                  <option value="semua">Semua</option>
+                  <option value="thisWeek">Minggu Ini</option>
+                  <option value="nextWeek">Minggu Depan</option>
                 </Form.Select>
               </Form.Group>
             </>

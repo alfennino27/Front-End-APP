@@ -39,6 +39,8 @@ const Invoice = () => {
   const [kodeCustomer, setKodeCustomer] = useState('');
   const [customer, setCustomer] = useState('');
   const [kodeInvoice, setKodeInvoice] = useState('');
+  const [crmCampaignId, setCrmCampaignId] = useState('organic');
+  const [crmCampaigns, setCrmCampaigns] = useState([]);
   const [tanggalMulaiInvoice, setTanggalMulaiInvoice] = useState('');
   const [deadlineInvoice, setDeadlineInvoice] = useState('');
   const [ongkirPackingInvoice, setOngkirPackingInvoice] = useState(0);
@@ -155,6 +157,11 @@ const Invoice = () => {
 
   useEffect(() => {
     fetchDataInvoice();
+    // Fetch CRM campaigns for invoice source selector
+    fetch(`${baseUrl}/crm/campaigns/get`)
+      .then(r => r.json())
+      .then(d => setCrmCampaigns(Array.isArray(d) ? d : []))
+      .catch(() => {});
   }, []);
 
 
@@ -201,7 +208,8 @@ const Invoice = () => {
           ongkirPackingInvoice,
           adminInvoice,
           discountInvoice,
-          ongkirCustInvoice
+          ongkirCustInvoice,
+          crmCampaignId,
         }),
       });
 
@@ -2260,6 +2268,14 @@ const Invoice = () => {
             <input className="form-control" type='number' onChange={useCallback(debounce((e) => setDiscountInvoice(e.target.value), 300), [])}></input>
             <label className='mt-2'>Ongkir Cust :</label>
             <input className="form-control" type='number' onChange={useCallback(debounce((e) => setOngkirCustInvoice(e.target.value), 300), [])}></input>
+            <label className='mt-2'>Sumber / Campaign :</label>
+            <small style={{ display: 'block', color: '#888', marginBottom: 4 }}>Dari mana customer ini berasal? (akan otomatis masuk ke CRM sebagai Deal)</small>
+            <select className="form-control" value={crmCampaignId} onChange={(e) => setCrmCampaignId(e.target.value)}>
+              <option value="organic">Organic / Tidak ada campaign</option>
+              {crmCampaigns.map(c => (
+                <option key={c.id} value={c.id}>{c.nama}</option>
+              ))}
+            </select>
           </Modal.Body>
           <Modal.Footer>
             <Button variant="primary" onClick={handleSubmitInvoice}>Submit</Button>

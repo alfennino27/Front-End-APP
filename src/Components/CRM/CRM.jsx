@@ -1,206 +1,367 @@
-import React, { useRef, useEffect, useState } from 'react';
-import { Col, Row, Modal, Button, Container } from 'react-bootstrap';
-import { Link } from 'react-router-dom';
-import { useParams } from 'react-router-dom';
-import { useNavigate } from 'react-router-dom';
-import '../Pekerjaan/pekerjaan.css';
-import Box from '@mui/material/Box';
-import Backdrop from '@mui/material/Backdrop';
-import SpeedDial from '@mui/material/SpeedDial';
-import SpeedDialIcon from '@mui/material/SpeedDialIcon';
-import SpeedDialAction from '@mui/material/SpeedDialAction';
-import { FaPlus } from "react-icons/fa";
+import React, { useState, useEffect, useCallback } from 'react';
+import { Container, Modal, Button, Form, Badge, Spinner } from 'react-bootstrap';
+import { getApiBaseUrl } from '../../Config/APIurl';
+import { useTheme } from '../../ThemeContext';
+import { MdAdd, MdEdit, MdDelete } from 'react-icons/md';
 
-const CRM = () => {
+const STAGES = [
+  { key: 'leads',     label: 'Leads Baru',     color: '#378ADD', bg: '#EAF3FB' },
+  { key: 'good',      label: 'Prospek Bagus',  color: '#EF9F27', bg: '#FDF3E3' },
+  { key: 'quotation', label: 'Quotation',      color: '#7F77DD', bg: '#EEEDFE' },
+  { key: 'deal',      label: 'Deal',           color: '#639922', bg: '#EDF5E1' },
+];
+const PLATFORMS = [
+  { value: 'instagram', label: 'Instagram Ads' },
+  { value: 'google', label: 'Google Ads' },
+  { value: 'marketplace', label: 'Marketplace' },
+  { value: 'dm_b2b', label: 'DM B2B' },
+  { value: 'organic', label: 'Organic / Referral' },
+  { value: 'other', label: 'Lainnya' },
+];
+const fmtRp = (n) => 'Rp ' + Number(n||0).toLocaleString('id-ID');
+const fmtDate = (d) => d ? new Date(d).toLocaleDateString('id-ID', { day:'numeric', month:'short', year:'numeric' }) : '-';
+const daysSince = (d) => { if(!d) return null; const diff = Math.floor((Date.now()-new Date(d))/86400000); return diff===0?'Hari ini':diff+' hari lalu'; };
 
-  const userData = localStorage.getItem('user');
-  const user = userData ? JSON.parse(userData) : null;
-  useEffect(() => {
-    const cekLogin = () => {
-      if (user == null) {
-        window.location.replace('/login');
-      }
-      if (user.uid === 'fYpdHwXRDLhj5XGxM5FZIAvxp9E2' || user.uid === 'w4M5JJjgGQeHFbS2nkyoCfUBE532' || user.uid === '4WGPaHicKWYr0Ny84IUh8xb9Bo62' || user.uid === 'ANGTwgX8KxXQy5Ww3cwpLrG0tFT2' || user.uid === 'gwsOqUgVXSPyWFMMHr4bJteBoYs1' || user.uid === '6D4XVa5BSSOl1ugUlkDlTea2COX2' || user.uid === 'MjOCxfNdGtf0q12BPzj0EYAcVJD3' || user.uid === 'knydS6fIBdOwHS37dDm3ZDNQXKQ2' || user.uid === 'Q3LWLX4D7Ye8hMnQVF9fa7SZb953' || user.uid === 'ep15dsFMceTBAyZvpZDiAJ4kMME3') {
-        console.log('success');
-      } else {
-        window.location.replace('/accounting');
-      }
-    };
+export default function CRM() {
+  const baseUrl = getApiBaseUrl();
+  const { globalTheme } = useTheme();
+  const dark = globalTheme === 'dark';
+  const [activeTab, setActiveTab] = useState('pipeline');
+  const [leads, setLeads] = useState([]);
+  const [campaigns, setCampaigns] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showLeadModal, setShowLeadModal] = useState(false);
+  const [showLeadDetail, setShowLeadDetail] = useState(false);
+  const [showCampaignModal, setShowCampaignModal] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [editingLead, setEditingLead] = useState(null);
+  const [leadForm, setLeadForm] = useState({ nama:'', wa:'', campaign_id:'', notes:'', stage:'leads' });
+  const [detailLead, setDetailLead] = useState(null);
+  const [dealValue, setDealValue] = useState('');
+  const [grossProfit, setGrossProfit] = useState('');
+  const [editingCampaign, setEditingCampaign] = useState(null);
+  const [campForm, setCampForm] = useState({ nama:'', platform:'instagram', bulan:'', spend:'', status:'active' });
 
-    cekLogin();
-  }, []);
+  const fetchAll = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [lr, cr] = await Promise.all([fetch(baseUrl+'/crm/leads/get'), fetch(baseUrl+'/crm/campaigns/get')]);
+      const [ld, cd] = await Promise.all([lr.json(), cr.json()]);
+      setLeads(Array.isArray(ld)?ld:[]);
+      setCampaigns(Array.isArray(cd)?cd:[]);
+    } catch(e) { console.error(e); }
+    setLoading(false);
+  }, [baseUrl]);
 
-  const isMobile = window.innerWidth <= 768;
+  useEffect(() => { fetchAll(); }, [fetchAll]);
 
-  const actions =
-    [
-      { icon: <FaPlus />, name: 'Add Data', onClick: () => { } },
-    ]
+  const handleSaveLead = async () => {
+    const url = editingLead ? baseUrl+'/crm/leads/update/'+editingLead.id : baseUrl+'/crm/leads/create';
+    const method = editingLead ? 'PUT' : 'POST';
+    const body = editingLead ? {...leadForm} : {...leadForm, stage_dates:{leads:new Date().toISOString(),good:null,quotation:null,deal:null,lost:null}};
+    await fetch(url, {method, headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+    setShowLeadModal(false); setEditingLead(null); setLeadForm({nama:'',wa:'',campaign_id:'',notes:'',stage:'leads'}); fetchAll();
+  };
 
+  const handleMoveStage = async (lead, dir) => {
+    const order = ['leads','good','quotation','deal'];
+    const idx = order.indexOf(lead.stage);
+    if(dir==='forward'&&idx>=order.length-1) return;
+    if(dir==='back'&&idx<=0) return;
+    const ns = dir==='forward' ? order[idx+1] : order[idx-1];
+    const sd = {...lead.stage_dates, [ns]: dir==='forward'?new Date().toISOString():null};
+    await fetch(baseUrl+'/crm/leads/update/'+lead.id, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({stage:ns,stage_dates:sd})});
+    fetchAll();
+  };
 
+  const handleMarkLost = async (lead) => {
+    const sd = {...lead.stage_dates, lost:new Date().toISOString()};
+    await fetch(baseUrl+'/crm/leads/update/'+lead.id, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({stage:'lost',stage_dates:sd})});
+    setShowLeadDetail(false); fetchAll();
+  };
 
-  const [open, setOpen] = React.useState(false);
-  const handleOpen = () => setOpen(true);
-  const handleClose = () => setOpen(false);
+  const handleRestoreLead = async (lead) => {
+    await fetch(baseUrl+'/crm/leads/update/'+lead.id, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({stage:'leads',stage_dates:{...lead.stage_dates,lost:null}})});
+    fetchAll();
+  };
+
+  const handleSaveDealValue = async () => {
+    await fetch(baseUrl+'/crm/leads/update/'+detailLead.id, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({deal_value:Number(dealValue),gross_profit:Number(grossProfit)})});
+    setShowLeadDetail(false); fetchAll();
+  };
+
+  const handleDeleteConfirmed = async () => {
+    const {type, id} = deleteTarget;
+    await fetch(baseUrl+'/crm/'+(type==='lead'?'leads':'campaigns')+'/delete/'+id, {method:'DELETE'});
+    setShowDeleteConfirm(false); setShowLeadDetail(false); fetchAll();
+  };
+
+  const handleSaveCampaign = async () => {
+    const url = editingCampaign ? baseUrl+'/crm/campaigns/update/'+editingCampaign.id : baseUrl+'/crm/campaigns/create';
+    await fetch(url, {method:editingCampaign?'PUT':'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(campForm)});
+    setShowCampaignModal(false); setEditingCampaign(null); setCampForm({nama:'',platform:'instagram',bulan:'',spend:'',status:'active'}); fetchAll();
+  };
+
+  const getCampaignName = (id) => campaigns.find(c=>c.id===id)?.nama || id;
+  const activeLeads = leads.filter(l=>l.stage!=='lost');
+  const lostLeads = leads.filter(l=>l.stage==='lost');
+  const dealLeads = leads.filter(l=>l.stage==='deal');
+  const totalRevenue = dealLeads.reduce((s,l)=>s+(l.deal_value||0),0);
+  const totalGP = dealLeads.reduce((s,l)=>s+(l.gross_profit||0),0);
+  const convRate = leads.length>0 ? ((dealLeads.length/leads.length)*100).toFixed(1) : 0;
+
+  const cardBg=dark?'#1e1e2e':'#fff', border=dark?'1px solid #333':'1px solid #e8e8e8', text=dark?'white':'#1a1a1a', muted=dark?'#aaa':'#666', mc=dark?'modalKLF':'modalKLFlight';
 
   return (
-    <>
-      <Container>
-        <Col md={12} className='lowonganPekerjaan overflow-auto pekerjaan p-2'>
+    <Container fluid className="py-3 px-3">
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
+        <div><h4 style={{color:text,fontWeight:700,margin:0}}>CRM</h4><small style={{color:muted}}>Customer Relationship Management</small></div>
+        <div style={{display:'flex',gap:8}}>
+          {activeTab==='pipeline'&&<Button size="sm" variant="primary" onClick={()=>{setEditingLead(null);setLeadForm({nama:'',wa:'',campaign_id:'',notes:'',stage:'leads'});setShowLeadModal(true);}}><MdAdd/> Tambah Lead</Button>}
+          {activeTab==='campaigns'&&<Button size="sm" variant="primary" onClick={()=>{setEditingCampaign(null);setCampForm({nama:'',platform:'instagram',bulan:'',spend:'',status:'active'});setShowCampaignModal(true);}}><MdAdd/> Tambah Campaign</Button>}
+        </div>
+      </div>
+      <div style={{display:'flex',gap:4,marginBottom:20,borderBottom:'2px solid '+(dark?'#333':'#eee')}}>
+        {[['pipeline','Pipeline'],['campaigns','Kampanye'],['analytics','Analitik']].map(([k,l])=>(
+          <button key={k} onClick={()=>setActiveTab(k)} className="no-active" style={{padding:'8px 16px',border:'none',background:'none',cursor:'pointer',fontWeight:activeTab===k?700:400,color:activeTab===k?'#013175':muted,borderBottom:activeTab===k?'2px solid #013175':'2px solid transparent',marginBottom:-2}}>{l}</button>
+        ))}
+      </div>
+      {loading ? <div style={{textAlign:'center',padding:60}}><Spinner/></div> : <>
+        {activeTab==='pipeline'&&<>
+          <div style={{display:'flex',gap:12,marginBottom:20,flexWrap:'wrap'}}>
+            {[{label:'Leads Aktif',value:activeLeads.length,color:'#378ADD'},{label:'Quotation',value:activeLeads.filter(l=>l.stage==='quotation').length,color:'#7F77DD'},{label:'Deal',value:dealLeads.length,color:'#639922'},{label:'Revenue',value:fmtRp(totalRevenue),color:'#013175'}].map((m,i)=>(
+              <div key={i} style={{background:cardBg,border,borderRadius:10,padding:'12px 18px',flex:'1 1 130px'}}>
+                <div style={{fontSize:11,color:muted,marginBottom:2}}>{m.label}</div>
+                <div style={{fontSize:20,fontWeight:700,color:m.color}}>{m.value}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(220px, 1fr))',gap:12}}>
+            {STAGES.map(stage=>{
+              const sl=activeLeads.filter(l=>l.stage===stage.key);
+              return <div key={stage.key} style={{background:cardBg,border,borderRadius:12,overflow:'hidden'}}>
+                <div style={{background:stage.bg,padding:'10px 14px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                  <span style={{fontWeight:700,color:stage.color,fontSize:13}}>{stage.label}</span>
+                  <Badge style={{background:stage.color}}>{sl.length}</Badge>
+                </div>
+                <div style={{padding:8,display:'flex',flexDirection:'column',gap:8,minHeight:80}}>
+                  {sl.map(lead=>(
+                    <div key={lead.id} style={{background:dark?'#252535':'#fafafa',border,borderRadius:8,padding:'10px 12px',cursor:'pointer'}} onClick={()=>{setDetailLead(lead);setDealValue(lead.deal_value||'');setGrossProfit(lead.gross_profit||'');setShowLeadDetail(true);}}>
+                      <div style={{fontWeight:600,color:text,fontSize:13,marginBottom:2}}>{lead.nama}</div>
+                      {lead.wa&&<div style={{fontSize:11,color:'#378ADD',marginBottom:2}}>📱 {lead.wa}</div>}
+                      {lead.campaign_id&&<div style={{fontSize:10,color:'#7F77DD',marginBottom:2}}>📢 {getCampaignName(lead.campaign_id)}</div>}
+                      {lead.kode_invoice&&<div style={{fontSize:10,color:'#639922'}}>🧾 {lead.kode_invoice}</div>}
+                      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:6}}>
+                        <span style={{fontSize:10,color:muted}}>{daysSince(lead.stage_dates?.[lead.stage])}</span>
+                        <div style={{display:'flex',gap:4}}>
+                          {lead.stage!=='leads'&&<button onClick={e=>{e.stopPropagation();handleMoveStage(lead,'back');}} style={{border:'none',background:'#eee',borderRadius:4,padding:'2px 6px',cursor:'pointer',fontSize:12}}>‹</button>}
+                          {lead.stage!=='deal'&&<button onClick={e=>{e.stopPropagation();handleMoveStage(lead,'forward');}} style={{border:'none',background:stage.bg,color:stage.color,borderRadius:4,padding:'2px 6px',cursor:'pointer',fontSize:12,fontWeight:700}}>›</button>}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  {sl.length===0&&<div style={{textAlign:'center',color:muted,fontSize:12,padding:'12px 0'}}>Kosong</div>}
+                </div>
+              </div>;
+            })}
+          </div>
+          {lostLeads.length>0&&<div style={{marginTop:24}}>
+            <div style={{color:muted,fontWeight:600,fontSize:13,marginBottom:8}}>Lost ({lostLeads.length})</div>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill, minmax(200px, 1fr))',gap:8}}>
+              {lostLeads.map(lead=>(
+                <div key={lead.id} style={{background:cardBg,border:'1px solid #ffd5d5',borderRadius:8,padding:'8px 12px',opacity:0.8}}>
+                  <div style={{fontWeight:600,color:'#a32d2d',fontSize:13}}>{lead.nama}</div>
+                  <div style={{fontSize:11,color:muted,marginTop:2}}>Lost {fmtDate(lead.stage_dates?.lost)}</div>
+                  <button onClick={()=>handleRestoreLead(lead)} style={{marginTop:6,border:'1px solid #ccc',background:'none',borderRadius:4,padding:'2px 8px',fontSize:11,cursor:'pointer',color:muted}}>Restore</button>
+                </div>
+              ))}
+            </div>
+          </div>}
+        </>}
 
+        {activeTab==='campaigns'&&<div>
+          {campaigns.length===0 ? <div style={{textAlign:'center',color:muted,padding:60}}>Belum ada campaign.</div> :
+          <div style={{overflowX:'auto'}}>
+            <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
+              <thead><tr style={{borderBottom:'2px solid '+(dark?'#333':'#eee'),textAlign:'left'}}>
+                {['Nama','Platform','Bulan','Spend','Leads','Deal','Revenue','ROAS','Status',''].map((h,i)=><th key={i} style={{padding:'8px 10px',color:muted,fontWeight:600,whiteSpace:'nowrap'}}>{h}</th>)}
+              </tr></thead>
+              <tbody>
+                {campaigns.map(camp=>{
+                  const cl=leads.filter(l=>l.campaign_id===camp.id), cd=cl.filter(l=>l.stage==='deal');
+                  const rev=cd.reduce((s,l)=>s+(l.deal_value||0),0), roas=camp.spend>0?(rev/camp.spend).toFixed(1):'-';
+                  const rc=roas==='-'?muted:roas>=8?'#639922':roas>=3?'#EF9F27':'#a32d2d';
+                  const sc={active:'#639922',paused:'#EF9F27',stopped:'#a32d2d'};
+                  return <tr key={camp.id} style={{borderBottom:'1px solid '+(dark?'#2a2a2a':'#f0f0f0')}}>
+                    <td style={{padding:10,fontWeight:600,color:text}}>{camp.nama}</td>
+                    <td style={{padding:10,color:muted}}>{PLATFORMS.find(p=>p.value===camp.platform)?.label||camp.platform}</td>
+                    <td style={{padding:10,color:muted}}>{camp.bulan||'-'}</td>
+                    <td style={{padding:10,color:text}}>{camp.spend?fmtRp(camp.spend):'-'}</td>
+                    <td style={{padding:10,textAlign:'center'}}>{cl.length}</td>
+                    <td style={{padding:10,textAlign:'center'}}>{cd.length}</td>
+                    <td style={{padding:10,color:'#639922',fontWeight:600}}>{fmtRp(rev)}</td>
+                    <td style={{padding:10,fontWeight:700,color:rc}}>{roas==='-'?'-':roas+'x'}</td>
+                    <td style={{padding:10}}><span style={{color:sc[camp.status]||muted,fontWeight:600,fontSize:11,textTransform:'capitalize'}}>● {camp.status}</span></td>
+                    <td style={{padding:10}}>
+                      <div style={{display:'flex',gap:4}}>
+                        <button onClick={()=>{setEditingCampaign(camp);setCampForm({nama:camp.nama,platform:camp.platform,bulan:camp.bulan||'',spend:camp.spend||'',status:camp.status});setShowCampaignModal(true);}} style={{border:'none',background:'none',cursor:'pointer',color:'#013175',fontSize:16}}><MdEdit/></button>
+                        <button onClick={()=>{setDeleteTarget({type:'campaign',id:camp.id,label:camp.nama});setShowDeleteConfirm(true);}} style={{border:'none',background:'none',cursor:'pointer',color:'#a32d2d',fontSize:16}}><MdDelete/></button>
+                      </div>
+                    </td>
+                  </tr>;
+                })}
+              </tbody>
+            </table>
+          </div>}
+        </div>}
 
-          <div style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            position: 'sticky',
-            ...(isMobile ? { top: -1 } : { top: 0 }),
-            backgroundColor: 'white',
-            zIndex: 1,
-            padding: '10px',
-          }}>
-            <h4 style={{ margin: 0 }}>Customer Relationship Management</h4>
-
-            <div>
-              <select style={{
-                fontSize: '16px',
-                padding: '0px 12px',
-                borderRadius: '10px',
-                border: '1px solid #ccc',
-                outline: 'none',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                backgroundColor: '#fff',
-                marginRight: '5px'
-              }}>
-                <option value="All">All</option>
-                <option value="September">September</option>
-                <option value="Oktober">Oktober</option>
-              </select>
-
-              <select style={{
-                fontSize: '16px',
-                padding: '0px 12px',
-                borderRadius: '10px',
-                border: '1px solid #ccc',
-                outline: 'none',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                backgroundColor: '#fff',
-              }}>
-                <option value="All">All</option>
-                <option value="Status 1">Status 1</option>
-                <option value="Status 2">Status 2</option>
-                <option value="Status 3">Status 3</option>
-                <option value="Status 4">Status 4</option>
-                <option value="Status 5">Status 5</option>
-              </select>
+        {activeTab==='analytics'&&<div>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(150px, 1fr))',gap:12,marginBottom:24}}>
+            {[{label:'Total Leads',value:leads.length,color:'#378ADD'},{label:'Deal',value:dealLeads.length,color:'#639922'},{label:'Conversion Rate',value:convRate+'%',color:'#7F77DD'},{label:'Total Revenue',value:fmtRp(totalRevenue),color:'#013175'},{label:'Gross Profit',value:fmtRp(totalGP),color:'#EF9F27'}].map((m,i)=>(
+              <div key={i} style={{background:cardBg,border,borderRadius:10,padding:'14px 18px'}}>
+                <div style={{fontSize:11,color:muted,marginBottom:4}}>{m.label}</div>
+                <div style={{fontSize:18,fontWeight:700,color:m.color}}>{m.value}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{background:cardBg,border,borderRadius:12,padding:20,marginBottom:20}}>
+            <h6 style={{color:text,fontWeight:700,marginBottom:16}}>Funnel Konversi</h6>
+            <div style={{display:'flex',gap:0}}>
+              {STAGES.map((stage,i)=>{
+                const count=leads.filter(l=>l.stage_dates?.[stage.key]).length;
+                const pct=leads.length>0?((count/leads.length)*100).toFixed(0):0;
+                return <div key={stage.key} style={{flex:1,textAlign:'center',padding:'14px 8px',background:stage.bg,borderLeft:i>0?'2px solid #fff':'none',borderRadius:i===0?'8px 0 0 8px':i===STAGES.length-1?'0 8px 8px 0':0}}>
+                  <div style={{fontSize:24,fontWeight:800,color:stage.color}}>{count}</div>
+                  <div style={{fontSize:11,color:stage.color,fontWeight:600}}>{stage.label}</div>
+                  <div style={{fontSize:10,color:muted,marginTop:2}}>{pct}%</div>
+                </div>;
+              })}
             </div>
           </div>
+          {campaigns.length>0&&<div style={{background:cardBg,border,borderRadius:12,padding:20}}>
+            <h6 style={{color:text,fontWeight:700,marginBottom:12}}>Performa per Campaign</h6>
+            <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
+              <thead><tr style={{borderBottom:'2px solid '+(dark?'#333':'#eee')}}>
+                {['Campaign','Leads','Deal','Conv.','Revenue','ROAS'].map((h,i)=><th key={i} style={{padding:'6px 10px',color:muted,fontWeight:600,textAlign:i>1?'center':'left'}}>{h}</th>)}
+              </tr></thead>
+              <tbody>
+                {campaigns.map(camp=>{
+                  const cl=leads.filter(l=>l.campaign_id===camp.id), cd=cl.filter(l=>l.stage==='deal');
+                  const rev=cd.reduce((s,l)=>s+(l.deal_value||0),0), roas=camp.spend>0?(rev/camp.spend).toFixed(1):'-';
+                  const conv=cl.length>0?((cd.length/cl.length)*100).toFixed(0):0;
+                  return <tr key={camp.id} style={{borderBottom:'1px solid '+(dark?'#2a2a2a':'#f5f5f5')}}>
+                    <td style={{padding:'8px 10px',fontWeight:600,color:text}}>{camp.nama}</td>
+                    <td style={{padding:'8px 10px',textAlign:'center'}}>{cl.length}</td>
+                    <td style={{padding:'8px 10px',textAlign:'center',color:'#639922',fontWeight:700}}>{cd.length}</td>
+                    <td style={{padding:'8px 10px',textAlign:'center'}}>{conv}%</td>
+                    <td style={{padding:'8px 10px',textAlign:'center',color:'#639922'}}>{fmtRp(rev)}</td>
+                    <td style={{padding:'8px 10px',textAlign:'center',fontWeight:700,color:roas>=8?'#639922':roas>=3?'#EF9F27':'#a32d2d'}}>{roas==='-'?'-':roas+'x'}</td>
+                  </tr>;
+                })}
+              </tbody>
+            </table>
+          </div>}
+        </div>}
+      </>}
 
+      {/* LEAD FORM */}
+      <Modal show={showLeadModal} onHide={()=>setShowLeadModal(false)} className={mc}>
+        <Modal.Header closeButton><Modal.Title style={{color:dark?'white':'black'}}>{editingLead?'Edit Lead':'Tambah Lead Baru'}</Modal.Title></Modal.Header>
+        <Modal.Body>
+          <Form.Group className="mb-2"><Form.Label style={{color:dark?'white':'black'}}>Nama Customer *</Form.Label><Form.Control value={leadForm.nama} onChange={e=>setLeadForm(f=>({...f,nama:e.target.value}))} placeholder="Nama customer"/></Form.Group>
+          <Form.Group className="mb-2"><Form.Label style={{color:dark?'white':'black'}}>No. WhatsApp</Form.Label><Form.Control value={leadForm.wa} onChange={e=>setLeadForm(f=>({...f,wa:e.target.value}))} placeholder="+62 8xx xxxx xxxx"/></Form.Group>
+          <Form.Group className="mb-2"><Form.Label style={{color:dark?'white':'black'}}>Campaign Sumber</Form.Label>
+            <Form.Select value={leadForm.campaign_id} onChange={e=>setLeadForm(f=>({...f,campaign_id:e.target.value}))}>
+              <option value="">Organic / Tidak ada</option>
+              {campaigns.map(c=><option key={c.id} value={c.id}>{c.nama}</option>)}
+            </Form.Select>
+          </Form.Group>
+          <Form.Group className="mb-2"><Form.Label style={{color:dark?'white':'black'}}>Stage Awal</Form.Label>
+            <Form.Select value={leadForm.stage} onChange={e=>setLeadForm(f=>({...f,stage:e.target.value}))}>
+              {STAGES.map(s=><option key={s.key} value={s.key}>{s.label}</option>)}
+            </Form.Select>
+          </Form.Group>
+          <Form.Group className="mb-2"><Form.Label style={{color:dark?'white':'black'}}>Catatan</Form.Label><Form.Control as="textarea" rows={3} value={leadForm.notes} onChange={e=>setLeadForm(f=>({...f,notes:e.target.value}))} placeholder="Produk diminati, budget, dll..."/></Form.Group>
+        </Modal.Body>
+        <Modal.Footer><Button variant="secondary" onClick={()=>setShowLeadModal(false)}>Batal</Button><Button variant="primary" onClick={handleSaveLead} disabled={!leadForm.nama.trim()}>Simpan</Button></Modal.Footer>
+      </Modal>
 
-          <div className='SPK mt-1 shadow'>
-            <div className='p-2'>
-              <table>
-                <thead>
-                  <tr>
-                    <th className='tableStyle text-center'>No</th>
-                    <th className='tableStyle text-center'>Tanggal</th>
-                    <th className='tableStyle text-center'>Nama</th>
-                    <th className='tableStyle text-center'>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-
-                  {/* {dataPengeluaranFromDB.map((pengeluaran, index) => (
-                  <tr key={index} onClick={() => handleEditPengeluaran(pengeluaran.id, pengeluaran.tanggalPengeluaran, pengeluaran.kategoriPengeluaran, pengeluaran.keteranganPengeluaran, pengeluaran.nominalPengeluaran)}>
-                    <td className='tableStyle text-center'>{index + 1}</td>
-                    <td className='tableStyle text-center'>{new Date(pengeluaran.tanggalPengeluaran).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</td>
-                    <td className='tableStyle text-center'>{pengeluaran.kategoriPengeluaran}</td>
-                    <td className='tableStyle text-center'>{pengeluaran.keteranganPengeluaran}</td>
-                    <td className='tableStyle text-center'>Rp. {Number(pengeluaran.nominalPengeluaran).toLocaleString('id-ID')}</td>
-                  </tr>
-                ))} */}
-
-
-                  <tr >
-                    <td className='tableStyle text-center'>1</td>
-                    <td className='tableStyle text-center'>25 September 2024</td>
-                    <td className='tableStyle text-center'>Joe Biden</td>
-                    <td className='tableStyle text-center'><span className='bg-success text-white border border-secondary rounded p-1'>Status 5</span></td>
-                  </tr>
-                  <tr >
-                    <td className='tableStyle text-center'>2</td>
-                    <td className='tableStyle text-center'>25 September 2024</td>
-                    <td className='tableStyle text-center'>Vladimir Putin</td>
-                    <td className='tableStyle text-center'><span className='bg-primary text-white border border-secondary rounded p-1'>Status 3</span></td>
-                  </tr>
-                  <tr >
-                    <td className='tableStyle text-center'>3</td>
-                    <td className='tableStyle text-center'>26 September 2024</td>
-                    <td className='tableStyle text-center'>Erdogan</td>
-                    <td className='tableStyle text-center'><span className='bg-warning text-white border border-secondary rounded p-1'>Status 2</span></td>
-                  </tr>
-                  <tr >
-                    <td className='tableStyle text-center'>4</td>
-                    <td className='tableStyle text-center'>27 September 2024</td>
-                    <td className='tableStyle text-center'>Prabowo Subianto</td>
-                    <td className='tableStyle text-center'><span className='bg-primary text-white border border-secondary rounded p-1'>Status 3</span></td>
-                  </tr>
-                  <tr >
-                    <td className='tableStyle text-center'>5</td>
-                    <td className='tableStyle text-center'>28 September 2024</td>
-                    <td className='tableStyle text-center'>Xi Jinping</td>
-                    <td className='tableStyle text-center'><span className='bg-danger text-white border border-secondary rounded p-1'>Status 1</span></td>
-                  </tr>
-
-                </tbody>
-              </table>
+      {/* LEAD DETAIL */}
+      <Modal show={showLeadDetail} onHide={()=>setShowLeadDetail(false)} className={mc}>
+        {detailLead&&<>
+          <Modal.Header closeButton><Modal.Title style={{color:dark?'white':'black'}}>{detailLead.nama}</Modal.Title></Modal.Header>
+          <Modal.Body>
+            <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:16}}>
+              {STAGES.map(s=>{const active=detailLead.stage===s.key;return <span key={s.key} style={{padding:'4px 10px',borderRadius:20,fontSize:11,fontWeight:600,background:active?s.bg:(dark?'#333':'#f5f5f5'),color:active?s.color:muted,border:active?'1.5px solid '+s.color:'1.5px solid transparent'}}>{s.label}</span>;})}
             </div>
-          </div>
+            <table style={{width:'100%',fontSize:13,marginBottom:12}}><tbody>
+              {[['WhatsApp', detailLead.wa ? <a href={'https://wa.me/'+detailLead.wa.replace(/\D/g,'')} target="_blank" rel="noreferrer" style={{color:'#25D366'}}>📱 {detailLead.wa}</a> : '-'],
+                ['Sumber', detailLead.campaign_id ? getCampaignName(detailLead.campaign_id) : 'Organic'],
+                ['Invoice', detailLead.kode_invoice||'-'],
+                ['Deal Value', detailLead.deal_value ? fmtRp(detailLead.deal_value) : '-'],
+                ['Dibuat', fmtDate(detailLead.created_at)]
+              ].map(([label,val],i)=><tr key={i}><td style={{color:muted,paddingBottom:6,width:90}}>{label}</td><td style={{color:text,fontWeight:500,paddingBottom:6}}>{val}</td></tr>)}
+            </tbody></table>
+            {detailLead.notes&&<div style={{background:dark?'#1a1a2e':'#f8f9fa',borderRadius:8,padding:'10px 12px',marginBottom:12,fontSize:13,color:text}}>{detailLead.notes}</div>}
+            <div style={{marginBottom:16}}>
+              <div style={{fontSize:12,color:muted,fontWeight:600,marginBottom:8}}>Timeline</div>
+              {STAGES.map(s=>detailLead.stage_dates?.[s.key]&&<div key={s.key} style={{display:'flex',alignItems:'center',gap:8,marginBottom:4}}>
+                <span style={{width:8,height:8,borderRadius:'50%',background:s.color,flexShrink:0}}/>
+                <span style={{fontSize:12,color:s.color,fontWeight:600,width:110}}>{s.label}</span>
+                <span style={{fontSize:12,color:muted}}>{fmtDate(detailLead.stage_dates[s.key])}</span>
+              </div>)}
+            </div>
+            {detailLead.stage==='deal'&&<div style={{borderTop:'1px solid '+(dark?'#333':'#eee'),paddingTop:12}}>
+              <div style={{fontSize:12,color:muted,fontWeight:600,marginBottom:8}}>Nilai Deal</div>
+              <div style={{display:'flex',gap:8}}>
+                <Form.Control size="sm" type="number" placeholder="Deal Value (Rp)" value={dealValue} onChange={e=>setDealValue(e.target.value)}/>
+                <Form.Control size="sm" type="number" placeholder="Gross Profit (Rp)" value={grossProfit} onChange={e=>setGrossProfit(e.target.value)}/>
+                <Button size="sm" variant="success" onClick={handleSaveDealValue}>Simpan</Button>
+              </div>
+            </div>}
+          </Modal.Body>
+          <Modal.Footer style={{justifyContent:'space-between'}}>
+            <div style={{display:'flex',gap:6}}>
+              <Button size="sm" variant="outline-primary" onClick={()=>{setEditingLead(detailLead);setLeadForm({nama:detailLead.nama,wa:detailLead.wa||'',campaign_id:detailLead.campaign_id||'',notes:detailLead.notes||'',stage:detailLead.stage});setShowLeadDetail(false);setShowLeadModal(true);}}><MdEdit/> Edit</Button>
+              {detailLead.stage!=='lost'&&<Button size="sm" variant="outline-danger" onClick={()=>handleMarkLost(detailLead)}>Lost</Button>}
+              <Button size="sm" variant="outline-danger" onClick={()=>{setDeleteTarget({type:'lead',id:detailLead.id,label:detailLead.nama});setShowDeleteConfirm(true);}}><MdDelete/></Button>
+            </div>
+            <div style={{display:'flex',gap:6}}>
+              {detailLead.stage!=='leads'&&detailLead.stage!=='lost'&&<Button size="sm" variant="outline-secondary" onClick={()=>{handleMoveStage(detailLead,'back');setShowLeadDetail(false);}}>‹ Mundur</Button>}
+              {detailLead.stage!=='deal'&&detailLead.stage!=='lost'&&<Button size="sm" variant="primary" onClick={()=>{handleMoveStage(detailLead,'forward');setShowLeadDetail(false);}}>Maju ›</Button>}
+            </div>
+          </Modal.Footer>
+        </>}
+      </Modal>
 
+      {/* CAMPAIGN FORM */}
+      <Modal show={showCampaignModal} onHide={()=>setShowCampaignModal(false)} className={mc}>
+        <Modal.Header closeButton><Modal.Title style={{color:dark?'white':'black'}}>{editingCampaign?'Edit Campaign':'Tambah Campaign'}</Modal.Title></Modal.Header>
+        <Modal.Body>
+          <Form.Group className="mb-2"><Form.Label style={{color:dark?'white':'black'}}>Nama *</Form.Label><Form.Control value={campForm.nama} onChange={e=>setCampForm(f=>({...f,nama:e.target.value}))} placeholder="Nama campaign"/></Form.Group>
+          <Form.Group className="mb-2"><Form.Label style={{color:dark?'white':'black'}}>Platform</Form.Label>
+            <Form.Select value={campForm.platform} onChange={e=>setCampForm(f=>({...f,platform:e.target.value}))}>
+              {PLATFORMS.map(p=><option key={p.value} value={p.value}>{p.label}</option>)}
+            </Form.Select>
+          </Form.Group>
+          <Form.Group className="mb-2"><Form.Label style={{color:dark?'white':'black'}}>Bulan</Form.Label><Form.Control type="month" value={campForm.bulan} onChange={e=>setCampForm(f=>({...f,bulan:e.target.value}))}/></Form.Group>
+          <Form.Group className="mb-2"><Form.Label style={{color:dark?'white':'black'}}>Total Spend (Rp)</Form.Label><Form.Control type="number" value={campForm.spend} onChange={e=>setCampForm(f=>({...f,spend:e.target.value}))} placeholder="0"/></Form.Group>
+          <Form.Group className="mb-2"><Form.Label style={{color:dark?'white':'black'}}>Status</Form.Label>
+            <Form.Select value={campForm.status} onChange={e=>setCampForm(f=>({...f,status:e.target.value}))}>
+              <option value="active">Active</option><option value="paused">Paused</option><option value="stopped">Stopped</option>
+            </Form.Select>
+          </Form.Group>
+        </Modal.Body>
+        <Modal.Footer><Button variant="secondary" onClick={()=>setShowCampaignModal(false)}>Batal</Button><Button variant="primary" onClick={handleSaveCampaign} disabled={!campForm.nama.trim()}>Simpan</Button></Modal.Footer>
+      </Modal>
 
-
-
-
-        </Col>
-      </Container>
-
-
-
-      <Box sx={{ height: 150, transform: 'translateZ(0px)', flexGrow: 1, position: 'fixed', bottom: 16, right: 16 }}>
-        <SpeedDial
-          ariaLabel="SpeedDial tooltip example"
-          icon={<SpeedDialIcon />}
-          onClose={handleClose}
-          onOpen={handleOpen}
-          open={open}
-        >
-          {actions.map((action) => (
-            <SpeedDialAction
-              key={action.name}
-              icon={action.icon}
-              tooltipTitle={action.name}
-              onClick={action.onClick}
-              tooltipOpen
-              sx={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'flex-start',
-                '& .MuiSpeedDialAction-staticTooltipLabel': {
-                  display: 'flex',
-                  alignItems: 'center',
-                  padding: '8px 12px',
-                  minWidth: '160px', // Adjust this to ensure enough space for text
-                  whiteSpace: 'nowrap',
-                },
-              }}
-            />
-          ))}
-        </SpeedDial>
-      </Box>
-    </>
+      {/* DELETE CONFIRM */}
+      <Modal show={showDeleteConfirm} onHide={()=>setShowDeleteConfirm(false)} className={mc}>
+        <Modal.Header closeButton><Modal.Title style={{color:dark?'white':'black'}}>Konfirmasi Hapus</Modal.Title></Modal.Header>
+        <Modal.Body><p style={{color:dark?'white':'black'}}>Hapus <strong>{deleteTarget?.label}</strong>? Tindakan ini tidak bisa dibatalkan.</p></Modal.Body>
+        <Modal.Footer><Button variant="secondary" onClick={()=>setShowDeleteConfirm(false)}>Batal</Button><Button variant="danger" onClick={handleDeleteConfirmed}>Hapus</Button></Modal.Footer>
+      </Modal>
+    </Container>
   );
-};
-
-
-
-export default CRM;
+}

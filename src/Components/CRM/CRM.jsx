@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Container, Modal, Button, Form, Badge, Spinner } from 'react-bootstrap';
 import { getApiBaseUrl } from '../../Config/APIurl';
 import { useTheme } from '../../ThemeContext';
-import { MdAdd, MdEdit, MdDelete } from 'react-icons/md';
+import { MdAdd, MdEdit, MdDelete, MdFileUpload } from 'react-icons/md';
 
 const STAGES = [
   { key: 'leads',     label: 'Leads Baru',     color: '#378ADD', bg: '#EAF3FB' },
@@ -42,6 +42,10 @@ export default function CRM() {
   const [grossProfit, setGrossProfit] = useState('');
   const [editingCampaign, setEditingCampaign] = useState(null);
   const [campForm, setCampForm] = useState({ nama:'', platform:'instagram', bulan:'', spend:'', status:'active' });
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importPreview, setImportPreview] = useState([]);
+  const [importLoading, setImportLoading] = useState(false);
+  const fileInputRef = useRef(null);
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
@@ -103,6 +107,108 @@ export default function CRM() {
     setShowCampaignModal(false); setEditingCampaign(null); setCampForm({nama:'',platform:'instagram',bulan:'',spend:'',status:'active'}); fetchAll();
   };
 
+  const parseCSVLine = (line) => {
+    const result = []; let cur = ''; let inQ = false;
+    for (let i = 0; i < line.length; i++) {
+      if (line[i] === '"') { inQ = !inQ; }
+      else if (line[i] === ',' && !inQ) { result.push(cur); cur = ''; }
+      else { cur += line[i]; }
+    }
+    result.push(cur);
+    return result;
+  };
+
+  const handleCSVFile = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const text = ev.target.result;
+      const lines = text.trim().split('\n').filter(l => l.trim());
+      const headers = parseCSVLine(lines[0]).map(h => h.trim().replace(/^"|"$/g, ''));
+
+      const idx = {
+        date:     headers.indexOf('Reporting starts'),
+        adset:    headers.indexOf('Ad set name'),
+        spend:    headers.indexOf('Amount spent (IDR)'),
+        results:  headers.indexOf('Results'),
+        cpl:      headers.indexOf('Cost per results'),
+        cpm:      headers.indexOf('CPM (cost per 1,000 impressions) (IDR)'),
+        imp:      headers.indexOf('Impressions'),
+        reach:    headers.indexOf('Reach'),
+        freq:     headers.indexOf('Frequency'),
+        ctr:      headers.indexOf('CTR (link click-through rate)'),
+        starts:   headers.indexOf('Starts'),
+        ends:     headers.indexOf('Ends'),
+        bulan:    headers.indexOf('Reporting starts'),
+      };
+
+      const map = {};
+      lines.slice(1).forEach(line => {
+        const v = parseCSVLine(line).map(x => x.trim().replace(/^"|"$/g, ''));
+        const name = v[idx.adset];
+        if (!name) return;
+        const spend = parseFloat(v[idx.spend]) || 0;
+        const results = parseFloat(v[idx.results]) || 0;
+        const imp = parseFloat(v[idx.imp]) || 0;
+        const reach = parseFloat(v[idx.reach]) || 0;
+        const cpm = parseFloat(v[idx.cpm]) || 0;
+        const ctr = parseFloat(v[idx.ctr]) || 0;
+        const freq = parseFloat(v[idx.freq]) || 0;
+
+        if (!map[name]) {
+          map[name] = { nama: name, spend:0, results:0, impressions:0, reach:0,
+            _cpmW:0, _ctrW:0, _freqW:0, _impTotal:0,
+            start_date: v[idx.starts]||'', end_date: v[idx.ends]||'',
+            bulan: v[idx.bulan]?.substring(0,7)||'' };
+        }
+        map[name].spend      += spend;
+        map[name].results    += results;
+        map[name].impressions+= imp;
+        map[name].reach      += reach;
+        map[name]._cpmW      += cpm * imp;
+        map[name]._ctrW      += ctr * imp;
+        map[name]._freqW     += freq * imp;
+        map[name]._impTotal  += imp;
+      });
+
+      const parsed = Object.values(map).map(c => {
+        const imp = c._impTotal || 1;
+        return {
+          nama: c.nama, platform: 'instagram', bulan: c.bulan,
+          spend: Math.round(c.spend),
+          results: Math.round(c.results),
+          impressions: Math.round(c.impressions),
+          reach: Math.round(c.reach),
+          cpl: c.results > 0 ? Math.round(c.spend / c.results) : 0,
+          cpm: Math.round(c._cpmW / imp),
+          ctr: parseFloat((c._ctrW / imp).toFixed(3)),
+          frequency: parseFloat((c._freqW / imp).toFixed(2)),
+          start_date: c.start_date, end_date: c.end_date,
+        };
+      });
+      setImportPreview(parsed);
+      setShowImportModal(true);
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
+  const handleImportConfirm = async () => {
+    setImportLoading(true);
+    try {
+      const res = await fetch(baseUrl+'/crm/campaigns/import-meta', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ campaigns: importPreview }),
+      });
+      const data = await res.json();
+      alert(data.message);
+      setShowImportModal(false); setImportPreview([]);
+      fetchAll();
+    } catch(e) { alert('Gagal import'); }
+    setImportLoading(false);
+  };
+
   const getCampaignName = (id) => campaigns.find(c=>c.id===id)?.nama || id;
   const activeLeads = leads.filter(l=>l.stage!=='lost');
   const lostLeads = leads.filter(l=>l.stage==='lost');
@@ -119,7 +225,11 @@ export default function CRM() {
         <div><h4 style={{color:text,fontWeight:700,margin:0}}>CRM</h4><small style={{color:muted}}>Customer Relationship Management</small></div>
         <div style={{display:'flex',gap:8}}>
           {activeTab==='pipeline'&&<Button size="sm" variant="primary" onClick={()=>{setEditingLead(null);setLeadForm({nama:'',wa:'',campaign_id:'',notes:'',stage:'leads'});setShowLeadModal(true);}}><MdAdd/> Tambah Lead</Button>}
-          {activeTab==='campaigns'&&<Button size="sm" variant="primary" onClick={()=>{setEditingCampaign(null);setCampForm({nama:'',platform:'instagram',bulan:'',spend:'',status:'active'});setShowCampaignModal(true);}}><MdAdd/> Tambah Campaign</Button>}
+          {activeTab==='campaigns'&&<>
+            <input ref={fileInputRef} type="file" accept=".csv" style={{display:'none'}} onChange={handleCSVFile}/>
+            <Button size="sm" variant="outline-success" onClick={()=>fileInputRef.current?.click()}><MdFileUpload/> Import Meta Ads</Button>
+            <Button size="sm" variant="primary" onClick={()=>{setEditingCampaign(null);setCampForm({nama:'',platform:'instagram',bulan:'',spend:'',status:'active'});setShowCampaignModal(true);}}><MdAdd/> Tambah Campaign</Button>
+          </>}
         </div>
       </div>
       <div style={{display:'flex',gap:4,marginBottom:20,borderBottom:'2px solid '+(dark?'#333':'#eee')}}>
@@ -185,7 +295,7 @@ export default function CRM() {
           <div style={{overflowX:'auto'}}>
             <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
               <thead><tr style={{borderBottom:'2px solid '+(dark?'#333':'#eee'),textAlign:'left'}}>
-                {['Nama','Platform','Bulan','Spend','Leads','Deal','Revenue','ROAS','Status',''].map((h,i)=><th key={i} style={{padding:'8px 10px',color:muted,fontWeight:600,whiteSpace:'nowrap'}}>{h}</th>)}
+                {['Nama','Platform','Bulan','Spend','Results','CPL','CPM','Impresi','CTR','Leads','Deal','Revenue','ROAS','Status',''].map((h,i)=><th key={i} style={{padding:'8px 10px',color:muted,fontWeight:600,whiteSpace:'nowrap'}}>{h}</th>)}
               </tr></thead>
               <tbody>
                 {campaigns.map(camp=>{
@@ -193,11 +303,20 @@ export default function CRM() {
                   const rev=cd.reduce((s,l)=>s+(l.deal_value||0),0), roas=camp.spend>0?(rev/camp.spend).toFixed(1):'-';
                   const rc=roas==='-'?muted:roas>=8?'#639922':roas>=3?'#EF9F27':'#a32d2d';
                   const sc={active:'#639922',paused:'#EF9F27',stopped:'#a32d2d'};
+                  const hasMeta = camp.source==='meta_ads';
                   return <tr key={camp.id} style={{borderBottom:'1px solid '+(dark?'#2a2a2a':'#f0f0f0')}}>
-                    <td style={{padding:10,fontWeight:600,color:text}}>{camp.nama}</td>
+                    <td style={{padding:10,fontWeight:600,color:text}}>
+                      {camp.nama}
+                      {hasMeta&&<span style={{marginLeft:6,fontSize:10,background:'#E7F3FF',color:'#1877F2',padding:'1px 5px',borderRadius:4,fontWeight:600}}>Meta</span>}
+                    </td>
                     <td style={{padding:10,color:muted}}>{PLATFORMS.find(p=>p.value===camp.platform)?.label||camp.platform}</td>
-                    <td style={{padding:10,color:muted}}>{camp.bulan||'-'}</td>
+                    <td style={{padding:10,color:muted,whiteSpace:'nowrap'}}>{camp.bulan||'-'}</td>
                     <td style={{padding:10,color:text}}>{camp.spend?fmtRp(camp.spend):'-'}</td>
+                    <td style={{padding:10,textAlign:'center',fontWeight:600,color:'#378ADD'}}>{hasMeta?(camp.results||0):'-'}</td>
+                    <td style={{padding:10,color:muted}}>{hasMeta&&camp.cpl?fmtRp(camp.cpl):'-'}</td>
+                    <td style={{padding:10,color:muted}}>{hasMeta&&camp.cpm?fmtRp(camp.cpm):'-'}</td>
+                    <td style={{padding:10,color:muted}}>{hasMeta&&camp.impressions?Number(camp.impressions).toLocaleString('id-ID'):'-'}</td>
+                    <td style={{padding:10,color:muted}}>{hasMeta&&camp.ctr?(camp.ctr*100).toFixed(2)+'%':'-'}</td>
                     <td style={{padding:10,textAlign:'center'}}>{cl.length}</td>
                     <td style={{padding:10,textAlign:'center'}}>{cd.length}</td>
                     <td style={{padding:10,color:'#639922',fontWeight:600}}>{fmtRp(rev)}</td>
@@ -354,6 +473,47 @@ export default function CRM() {
           </Form.Group>
         </Modal.Body>
         <Modal.Footer><Button variant="secondary" onClick={()=>setShowCampaignModal(false)}>Batal</Button><Button variant="primary" onClick={handleSaveCampaign} disabled={!campForm.nama.trim()}>Simpan</Button></Modal.Footer>
+      </Modal>
+
+      {/* IMPORT META ADS */}
+      <Modal show={showImportModal} onHide={()=>setShowImportModal(false)} size="xl" className={mc}>
+        <Modal.Header closeButton><Modal.Title style={{color:dark?'white':'black'}}>Preview Import Meta Ads ({importPreview.length} Ad Set)</Modal.Title></Modal.Header>
+        <Modal.Body>
+          <div style={{overflowX:'auto'}}>
+            <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
+              <thead><tr style={{borderBottom:'2px solid '+(dark?'#333':'#eee')}}>
+                {['Ad Set','Bulan','Spend','Results','CPL','CPM','Impresi','Reach','Freq.','CTR'].map((h,i)=>(
+                  <th key={i} style={{padding:'6px 8px',color:muted,fontWeight:600,whiteSpace:'nowrap',textAlign:i>1?'right':'left'}}>{h}</th>
+                ))}
+              </tr></thead>
+              <tbody>
+                {importPreview.map((c,i)=>(
+                  <tr key={i} style={{borderBottom:'1px solid '+(dark?'#2a2a2a':'#f5f5f5')}}>
+                    <td style={{padding:'6px 8px',fontWeight:600,color:text}}>{c.nama}</td>
+                    <td style={{padding:'6px 8px',color:muted}}>{c.bulan||'-'}</td>
+                    <td style={{padding:'6px 8px',textAlign:'right',color:text}}>{fmtRp(c.spend)}</td>
+                    <td style={{padding:'6px 8px',textAlign:'right',fontWeight:700,color:'#378ADD'}}>{c.results}</td>
+                    <td style={{padding:'6px 8px',textAlign:'right',color:muted}}>{c.cpl?fmtRp(c.cpl):'-'}</td>
+                    <td style={{padding:'6px 8px',textAlign:'right',color:muted}}>{c.cpm?fmtRp(c.cpm):'-'}</td>
+                    <td style={{padding:'6px 8px',textAlign:'right',color:muted}}>{c.impressions?.toLocaleString('id-ID')}</td>
+                    <td style={{padding:'6px 8px',textAlign:'right',color:muted}}>{c.reach?.toLocaleString('id-ID')}</td>
+                    <td style={{padding:'6px 8px',textAlign:'right',color:muted}}>{c.frequency}</td>
+                    <td style={{padding:'6px 8px',textAlign:'right',color:muted}}>{c.ctr?(c.ctr*100).toFixed(2)+'%':'-'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <small style={{color:muted,marginTop:8,display:'block'}}>
+            * Ad set yang sudah ada akan diupdate. Ad set baru akan dibuat.
+          </small>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={()=>setShowImportModal(false)}>Batal</Button>
+          <Button variant="success" onClick={handleImportConfirm} disabled={importLoading}>
+            {importLoading?<Spinner size="sm"/>:'Import Sekarang'}
+          </Button>
+        </Modal.Footer>
       </Modal>
 
       {/* DELETE CONFIRM */}

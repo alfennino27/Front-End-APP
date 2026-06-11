@@ -17,7 +17,7 @@ import { format } from "date-fns";
 import { id } from 'date-fns/locale';
 import { Drawer, Divider, Avatar, Switch, Popover, notification } from 'antd';
 import { FaChartBar, FaCode, FaFileInvoiceDollar, FaLayerGroup, FaPaintBrush, FaPencilAlt, FaRegCalendarAlt, FaRegFileAlt, FaRegFolderOpen, FaRegIdBadge, FaRegImages } from 'react-icons/fa';
-import { BsBook, BsCashCoin, BsCurrencyDollar, BsFillClipboard2DataFill, BsFillPersonVcardFill } from 'react-icons/bs';
+import { BsBook, BsCashCoin, BsCurrencyDollar, BsFillClipboard2DataFill, BsFillPersonVcardFill, BsPeopleFill } from 'react-icons/bs';
 import { LuClipboardList } from "react-icons/lu";
 import { SiWikibooks } from "react-icons/si";
 import { IoCloseSharp, IoPeople } from 'react-icons/io5';
@@ -977,7 +977,7 @@ const NavigationBar = () => {
             role="button"
             onClick={() => setOpenOperations(!openOperations)}
             style={
-              ["/invoice", "/project", "/spk", "/category", "/todo", "/books"].some((path) => location.pathname.startsWith(path))
+              ["/invoice", "/project", "/spk", "/category", "/todo", "/books", "/crm"].some((path) => location.pathname.startsWith(path))
                 ? { color: "#234dba", fontWeight: 600 }
                 : { color: globalTheme === "light" ? "black" : "white" }
             }
@@ -1082,6 +1082,20 @@ const NavigationBar = () => {
                 >
                   <BsBook />
                   <span className="fw-semibold">Books</span>
+                </Link>
+                <hr className="my-1" style={dividerStyle} />
+
+                <Link
+                  to={hasMenuAccess(user.uid, "CRM") ? "/crm" : "#"}
+                  className={`d-flex align-items-center gap-2 py-2 text-decoration-none link-hover ${!hasMenuAccess(user.uid, "CRM") ? "disabled-link" : ""
+                    }`}
+                  style={isActive("/crm")}
+                  onClick={(e) => {
+                    if (!hasMenuAccess(user.uid, "CRM")) e.preventDefault();
+                  }}
+                >
+                  <BsPeopleFill />
+                  <span className="fw-semibold">CRM</span>
                 </Link>
               </motion.div>
             )}

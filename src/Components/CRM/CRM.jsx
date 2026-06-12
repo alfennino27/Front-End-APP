@@ -303,9 +303,12 @@ export default function CRM() {
                 <div style={{padding:8,display:'flex',flexDirection:'column',gap:8,minHeight:80}}>
                   {sl.map(lead=>(
                     <div key={lead.id} style={{background:dark?'#252535':'#fafafa',border,borderRadius:8,padding:'10px 12px',cursor:'pointer'}} onClick={()=>{setDetailLead(lead);setDealValue(lead.deal_value||'');setGrossProfit(lead.gross_profit||'');setShowLeadDetail(true);}}>
-                      <div style={{fontWeight:600,color:text,fontSize:13,marginBottom:2}}>{lead.nama}</div>
+                      <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:2}}>
+                        <span style={{fontWeight:600,color:text,fontSize:13}}>{lead.nama}</span>
+                        {lead.is_repeat_order&&<span style={{fontSize:9,background:'#FFF3CD',color:'#856404',padding:'1px 5px',borderRadius:3,fontWeight:700,whiteSpace:'nowrap'}}>↩ Repeat</span>}
+                      </div>
                       {lead.wa&&<div style={{fontSize:11,color:'#378ADD',marginBottom:2}}>📱 {lead.wa}</div>}
-                      {lead.campaign_id&&<div style={{fontSize:10,color:'#7F77DD',marginBottom:2}}>📢 {getCampaignName(lead.campaign_id)}</div>}
+                      {lead.campaign_id&&<div style={{fontSize:10,color:'#7F77DD',marginBottom:2}}>📢 {getCampaignName(lead.campaign_id)}{lead.is_repeat_order&&<span style={{color:'#856404'}}> (asal)</span>}</div>}
                       {lead.kode_invoice&&<div style={{fontSize:10,color:'#639922'}}>🧾 {lead.kode_invoice}</div>}
                       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:6}}>
                         <span style={{fontSize:10,color:muted}}>{daysSince(lead.stage_dates?.[lead.stage])}</span>
@@ -472,7 +475,7 @@ export default function CRM() {
               <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
                 <thead>
                   <tr style={{borderBottom:'2px solid '+(dark?'#333':'#eee')}}>
-                    {['Sumber','Spend','Leads Meta','Leads CRM','Good','Quot.','Deal','Revenue','Conv. Rate','ROAS','Gross Profit','Ads Profit','Status'].map((h,i)=>(
+                    {['Sumber','Spend','Leads Meta','Leads CRM','Good','Quot.','Deal (New)','Rev. New','Deal (Repeat)','Rev. Repeat','Conv. Rate','ROAS','Gross Profit','Ads Profit','Status'].map((h,i)=>(
                       <th key={i} style={{padding:'8px 8px',color:muted,fontWeight:600,whiteSpace:'nowrap',textAlign:i>0?'center':'left'}}>{h}</th>
                     ))}
                   </tr>
@@ -483,13 +486,16 @@ export default function CRM() {
                     const cl=filteredLeads.filter(l=>l.campaign_id===camp.id);
                     const cgood=cl.filter(l=>l.stage==='good').length;
                     const cquot=cl.filter(l=>l.stage==='quotation').length;
-                    const cdeal=cl.filter(l=>l.stage==='deal');
-                    const rev=cdeal.reduce((s,l)=>s+(l.deal_value||0),0);
-                    const gp=cdeal.reduce((s,l)=>s+(l.gross_profit||0),0);
+                    // Pisah new vs repeat
+                    const cnew=cl.filter(l=>l.stage==='deal'&&!l.is_repeat_order);
+                    const crepeat=cl.filter(l=>l.stage==='deal'&&l.is_repeat_order);
+                    const revNew=cnew.reduce((s,l)=>s+(l.deal_value||0),0);
+                    const revRepeat=crepeat.reduce((s,l)=>s+(l.deal_value||0),0);
+                    const gp=cnew.reduce((s,l)=>s+(l.gross_profit||0),0); // GP dari new only
                     const adsProfit=gp-(camp.spend||0);
-                    const roas=camp.spend>0?rev/camp.spend:null;
+                    const roas=camp.spend>0&&revNew>0?revNew/camp.spend:null; // ROAS dari new only
                     const convBase=hasMeta?(camp.results||0):cl.length;
-                    const convRate=convBase>0?((cdeal.length/convBase)*100).toFixed(0):0;
+                    const convRate=convBase>0?((cnew.length/convBase)*100).toFixed(0):0;
                     const winning=adsProfit>0;
                     return <tr key={camp.id} style={{borderBottom:'1px solid '+(dark?'#2a2a2a':'#f5f5f5')}}>
                       <td style={{padding:'8px 8px',minWidth:140}}>
@@ -501,8 +507,10 @@ export default function CRM() {
                       <td style={{padding:'8px 8px',textAlign:'center'}}>{cl.length}</td>
                       <td style={{padding:'8px 8px',textAlign:'center'}}>{cgood||0}</td>
                       <td style={{padding:'8px 8px',textAlign:'center'}}>{cquot||0}</td>
-                      <td style={{padding:'8px 8px',textAlign:'center',fontWeight:700,color:'#639922'}}>{cdeal.length}</td>
-                      <td style={{padding:'8px 8px',textAlign:'center',color:'#639922',fontWeight:600}}>{cdeal.length>0?fmtRp(rev):'—'}</td>
+                      <td style={{padding:'8px 8px',textAlign:'center',fontWeight:700,color:'#013175'}}>{cnew.length}</td>
+                      <td style={{padding:'8px 8px',textAlign:'center',color:'#013175',fontWeight:600}}>{cnew.length>0?fmtRp(revNew):'—'}</td>
+                      <td style={{padding:'8px 8px',textAlign:'center',fontWeight:700,color:'#EF9F27'}}>{crepeat.length||'—'}</td>
+                      <td style={{padding:'8px 8px',textAlign:'center',color:'#EF9F27',fontWeight:600}}>{crepeat.length>0?fmtRp(revRepeat):'—'}</td>
                       <td style={{padding:'8px 8px',textAlign:'center'}}>{convBase>0?convRate+'%':'—'}</td>
                       <td style={{padding:'8px 8px',textAlign:'center',fontWeight:700,color:roas===null?muted:roas>=8?'#639922':roas>=3?'#EF9F27':'#a32d2d'}}>{roas===null?'—':roas.toFixed(1)+'x'}</td>
                       <td style={{padding:'8px 8px',textAlign:'center',color:'#EF9F27',fontWeight:600}}>{gp>0?fmtRp(gp):'—'}</td>
@@ -519,10 +527,48 @@ export default function CRM() {
                 </tbody>
               </table>
               <div style={{fontSize:10,color:muted,marginTop:8}}>
-                * Conv. Rate = Deal ÷ Leads Meta (jika data Meta tersedia), atau Deal ÷ Leads CRM
+                * Conv. Rate = Deal (New) ÷ Leads Meta. ROAS dihitung dari Revenue New Customer saja.
               </div>
             </div>
           </div>
+
+          {/* Customer Lifetime Value section */}
+          {filteredCampaigns.some(c=>filteredLeads.some(l=>l.campaign_id===c.id&&l.is_repeat_order))&&(
+            <div style={{background:cardBg,border,borderRadius:12,padding:20,marginTop:20}}>
+              <div style={{fontSize:11,fontWeight:700,color:muted,letterSpacing:1,marginBottom:16}}>CUSTOMER LIFETIME VALUE PER CAMPAIGN</div>
+              <div style={{overflowX:'auto'}}>
+                <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
+                  <thead>
+                    <tr style={{borderBottom:'2px solid '+(dark?'#333':'#eee')}}>
+                      {['Campaign','New Customer','Rev. New','Repeat Orders','Rev. Repeat','CLV Total','CLV per Deal'].map((h,i)=>(
+                        <th key={i} style={{padding:'8px 8px',color:muted,fontWeight:600,whiteSpace:'nowrap',textAlign:i>0?'center':'left'}}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredCampaigns.map(camp=>{
+                      const cnew=filteredLeads.filter(l=>l.campaign_id===camp.id&&l.stage==='deal'&&!l.is_repeat_order);
+                      const crepeat=filteredLeads.filter(l=>l.campaign_id===camp.id&&l.stage==='deal'&&l.is_repeat_order);
+                      const revNew=cnew.reduce((s,l)=>s+(l.deal_value||0),0);
+                      const revRepeat=crepeat.reduce((s,l)=>s+(l.deal_value||0),0);
+                      const clvTotal=revNew+revRepeat;
+                      const totalDeals=cnew.length+crepeat.length;
+                      if(totalDeals===0) return null;
+                      return <tr key={camp.id} style={{borderBottom:'1px solid '+(dark?'#2a2a2a':'#f5f5f5')}}>
+                        <td style={{padding:'8px 8px',fontWeight:600,color:text}}>{camp.nama}</td>
+                        <td style={{padding:'8px 8px',textAlign:'center',color:'#013175',fontWeight:700}}>{cnew.length}</td>
+                        <td style={{padding:'8px 8px',textAlign:'center',color:'#013175'}}>{fmtRp(revNew)}</td>
+                        <td style={{padding:'8px 8px',textAlign:'center',color:'#EF9F27',fontWeight:700}}>{crepeat.length||'—'}</td>
+                        <td style={{padding:'8px 8px',textAlign:'center',color:'#EF9F27'}}>{crepeat.length>0?fmtRp(revRepeat):'—'}</td>
+                        <td style={{padding:'8px 8px',textAlign:'center',fontWeight:800,color:'#639922',fontSize:14}}>{fmtRp(clvTotal)}</td>
+                        <td style={{padding:'8px 8px',textAlign:'center',color:muted}}>{totalDeals>0?fmtRp(Math.round(clvTotal/totalDeals)):'—'}</td>
+                      </tr>;
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>}
       </>}
 

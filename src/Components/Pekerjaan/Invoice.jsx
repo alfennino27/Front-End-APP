@@ -41,6 +41,8 @@ const Invoice = () => {
   const [kodeInvoice, setKodeInvoice] = useState('');
   const [crmCampaignId, setCrmCampaignId] = useState('organic');
   const [crmCampaigns, setCrmCampaigns] = useState([]);
+  const [isRepeatOrder, setIsRepeatOrder] = useState(false);
+  const [repeatRefCampaignId, setRepeatRefCampaignId] = useState('');
   const [tanggalMulaiInvoice, setTanggalMulaiInvoice] = useState('');
   const [deadlineInvoice, setDeadlineInvoice] = useState('');
   const [ongkirPackingInvoice, setOngkirPackingInvoice] = useState(0);
@@ -209,7 +211,9 @@ const Invoice = () => {
           adminInvoice,
           discountInvoice,
           ongkirCustInvoice,
-          crmCampaignId,
+          crmCampaignId: isRepeatOrder ? null : crmCampaignId,
+          is_repeat_order: isRepeatOrder,
+          repeat_ref_campaign_id: isRepeatOrder ? repeatRefCampaignId : null,
         }),
       });
 
@@ -259,6 +263,8 @@ const Invoice = () => {
       setDiscountInvoice(selectedInvoice.discountInvoice);
       setOngkirCustInvoice(selectedInvoice.ongkirCustInvoice);
       setCrmCampaignId(selectedInvoice.crmCampaignId || 'organic');
+      setIsRepeatOrder(selectedInvoice.is_repeat_order || false);
+      setRepeatRefCampaignId(selectedInvoice.repeat_ref_campaign_id || '');
       setDataInvoiceFromDB([selectedInvoice]);
     }
   }, [slug, backUpDataInvoice, showUpdateInvoiceModal]);
@@ -365,7 +371,9 @@ const Invoice = () => {
           adminInvoice,
           discountInvoice,
           ongkirCustInvoice,
-          crmCampaignId,
+          crmCampaignId: isRepeatOrder ? null : crmCampaignId,
+          is_repeat_order: isRepeatOrder,
+          repeat_ref_campaign_id: isRepeatOrder ? repeatRefCampaignId : null,
         }),
       });
 
@@ -2270,14 +2278,31 @@ const Invoice = () => {
             <input className="form-control" type='number' onChange={useCallback(debounce((e) => setDiscountInvoice(e.target.value), 300), [])}></input>
             <label className='mt-2'>Ongkir Cust :</label>
             <input className="form-control" type='number' onChange={useCallback(debounce((e) => setOngkirCustInvoice(e.target.value), 300), [])}></input>
-            <label className='mt-2'>Sumber / Campaign :</label>
-            <small style={{ display: 'block', color: '#888', marginBottom: 4 }}>Dari mana customer ini berasal? (akan otomatis masuk ke CRM sebagai Deal)</small>
-            <select className="form-control" value={crmCampaignId} onChange={(e) => setCrmCampaignId(e.target.value)}>
-              <option value="organic">Organic / Tidak ada campaign</option>
-              {crmCampaigns.map(c => (
-                <option key={c.id} value={c.id}>{c.nama}</option>
-              ))}
-            </select>
+            <label className='mt-2'>Tipe Order :</label>
+            <div style={{ display: 'flex', gap: 10, marginTop: 6, marginBottom: 8 }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontWeight: isRepeatOrder ? 400 : 600, color: !isRepeatOrder ? '#013175' : '#888' }}>
+                <input type="radio" name="orderType" checked={!isRepeatOrder} onChange={() => setIsRepeatOrder(false)} /> New Customer
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontWeight: isRepeatOrder ? 600 : 400, color: isRepeatOrder ? '#EF9F27' : '#888' }}>
+                <input type="radio" name="orderType" checked={isRepeatOrder} onChange={() => setIsRepeatOrder(true)} /> ↩ Repeat Order
+              </label>
+            </div>
+            {!isRepeatOrder && <>
+              <label className='mt-1'>Sumber / Campaign :</label>
+              <small style={{ display: 'block', color: '#888', marginBottom: 4 }}>Campaign yang menarik customer ini (masuk ROAS)</small>
+              <select className="form-control" value={crmCampaignId} onChange={(e) => setCrmCampaignId(e.target.value)}>
+                <option value="organic">Organic / Tidak ada campaign</option>
+                {crmCampaigns.map(c => (<option key={c.id} value={c.id}>{c.nama}</option>))}
+              </select>
+            </>}
+            {isRepeatOrder && <>
+              <label className='mt-1'>Campaign Asal Customer <span style={{color:'red'}}>*</span> :</label>
+              <small style={{ display: 'block', color: '#888', marginBottom: 4 }}>Campaign dari mana customer ini pertama kali beli (masuk CLV, bukan ROAS)</small>
+              <select className="form-control" value={repeatRefCampaignId} onChange={(e) => setRepeatRefCampaignId(e.target.value)}>
+                <option value="">— Pilih Campaign Asal —</option>
+                {crmCampaigns.map(c => (<option key={c.id} value={c.id}>{c.nama}</option>))}
+              </select>
+            </>}
           </Modal.Body>
           <Modal.Footer>
             <Button variant="primary" onClick={handleSubmitInvoice}>Submit</Button>
@@ -2331,14 +2356,31 @@ const Invoice = () => {
             <label className='mt-2'>Ongkir Cust :</label>
             <input className="form-control" type='number' defaultValue={ongkirCustInvoice} onChange={useCallback(debounce((e) => setOngkirCustInvoice(e.target.value), 300), [])}></input>
 
-            <label className='mt-2'>Sumber / Campaign CRM :</label>
-            <small style={{ display: 'block', color: '#888', marginBottom: 4 }}>Hubungkan invoice ini ke campaign Meta Ads / sumber lead di CRM</small>
-            <select className="form-control" value={crmCampaignId} onChange={(e) => setCrmCampaignId(e.target.value)}>
-              <option value="organic">Organic / Tidak ada campaign</option>
-              {crmCampaigns.map(c => (
-                <option key={c.id} value={c.id}>{c.nama}</option>
-              ))}
-            </select>
+            <label className='mt-2'>Tipe Order :</label>
+            <div style={{ display: 'flex', gap: 10, marginTop: 6, marginBottom: 8 }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontWeight: isRepeatOrder ? 400 : 600, color: !isRepeatOrder ? '#013175' : '#888' }}>
+                <input type="radio" name="orderTypeUpdate" checked={!isRepeatOrder} onChange={() => setIsRepeatOrder(false)} /> New Customer
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontWeight: isRepeatOrder ? 600 : 400, color: isRepeatOrder ? '#EF9F27' : '#888' }}>
+                <input type="radio" name="orderTypeUpdate" checked={isRepeatOrder} onChange={() => setIsRepeatOrder(true)} /> ↩ Repeat Order
+              </label>
+            </div>
+            {!isRepeatOrder && <>
+              <label className='mt-1'>Sumber / Campaign CRM :</label>
+              <small style={{ display: 'block', color: '#888', marginBottom: 4 }}>Campaign yang menarik customer ini (masuk ROAS)</small>
+              <select className="form-control" value={crmCampaignId} onChange={(e) => setCrmCampaignId(e.target.value)}>
+                <option value="organic">Organic / Tidak ada campaign</option>
+                {crmCampaigns.map(c => (<option key={c.id} value={c.id}>{c.nama}</option>))}
+              </select>
+            </>}
+            {isRepeatOrder && <>
+              <label className='mt-1'>Campaign Asal Customer <span style={{color:'red'}}>*</span> :</label>
+              <small style={{ display: 'block', color: '#888', marginBottom: 4 }}>Campaign dari mana customer ini pertama kali beli (masuk CLV, bukan ROAS)</small>
+              <select className="form-control" value={repeatRefCampaignId} onChange={(e) => setRepeatRefCampaignId(e.target.value)}>
+                <option value="">— Pilih Campaign Asal —</option>
+                {crmCampaigns.map(c => (<option key={c.id} value={c.id}>{c.nama}</option>))}
+              </select>
+            </>}
 
           </Modal.Body>
           <Modal.Footer>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Container, Modal, Button, Form, Badge, Spinner } from 'react-bootstrap';
 import { getApiBaseUrl } from '../../Config/APIurl';
 import { useTheme } from '../../ThemeContext';
@@ -234,6 +234,25 @@ export default function CRM() {
   const totalGP = dealLeads.reduce((s,l)=>s+(l.gross_profit||0),0);
   const convRate = filteredLeads.length>0 ? ((dealLeads.length/filteredLeads.length)*100).toFixed(1) : 0;
 
+  // Periods available from campaigns + leads for dropdown filter
+  const availablePeriods = useMemo(() => {
+    const months = new Set();
+    campaigns.forEach(c => { if (c.bulan) months.add(c.bulan); });
+    leads.forEach(l => {
+      const m = (l.tanggal_masuk || l.created_at || '').slice(0,7);
+      if (m) months.add(m);
+    });
+    return Array.from(months).sort().reverse();
+  }, [campaigns, leads]);
+
+  // Analytics calculations
+  const metaLeadsTotal = filteredCampaigns.filter(c=>c.source==='meta_ads').reduce((s,c)=>s+(c.results||0),0);
+  const totalSpend = filteredCampaigns.reduce((s,c)=>s+(c.spend||0),0);
+  const revenueByDeal = dealLeads.reduce((s,l)=>s+(l.deal_value||0),0);
+  const totalGrossProfit = dealLeads.reduce((s,l)=>s+(l.gross_profit||0),0);
+  const totalProfitFromAds = totalGrossProfit - totalSpend;
+  const convRateMeta = metaLeadsTotal>0 ? ((dealLeads.length/metaLeadsTotal)*100).toFixed(1) : null;
+
   const cardBg=dark?'#1e1e2e':'#fff', border=dark?'1px solid #333':'1px solid #e8e8e8', text=dark?'white':'#1a1a1a', muted=dark?'#aaa':'#666', mc=dark?'modalKLF':'modalKLFlight';
 
   return (
@@ -256,10 +275,11 @@ export default function CRM() {
           ))}
         </div>
         <div style={{display:'flex',alignItems:'center',gap:8,paddingBottom:6}}>
-          <span style={{fontSize:12,color:muted,fontWeight:600}}>Filter:</span>
-          <input type="month" value={filterBulan} onChange={e=>setFilterBulan(e.target.value)}
-            style={{fontSize:12,padding:'3px 8px',borderRadius:6,border:'1px solid '+(dark?'#444':'#ddd'),background:dark?'#1e1e2e':'#fff',color:text,cursor:'pointer'}}/>
-          {filterBulan&&<button onClick={()=>setFilterBulan('')} style={{fontSize:11,padding:'3px 8px',border:'1px solid '+(dark?'#444':'#ddd'),borderRadius:6,background:'none',color:muted,cursor:'pointer'}}>Semua</button>}
+          <select value={filterBulan} onChange={e=>setFilterBulan(e.target.value)}
+            style={{fontSize:12,padding:'4px 10px',borderRadius:6,border:'1px solid '+(dark?'#444':'#ddd'),background:dark?'#1e1e2e':'#fff',color:text,cursor:'pointer',fontWeight:500}}>
+            <option value="">Semua Periode</option>
+            {availablePeriods.map(m=><option key={m} value={m}>{m}</option>)}
+          </select>
         </div>
       </div>
       {loading ? <div style={{textAlign:'center',padding:60}}><Spinner/></div> : <>
@@ -384,51 +404,125 @@ export default function CRM() {
         </div>}
 
         {activeTab==='analytics'&&<div>
-          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(150px, 1fr))',gap:12,marginBottom:24}}>
-            {[{label:'Total Leads',value:filteredLeads.length,color:'#378ADD'},{label:'Deal',value:dealLeads.length,color:'#639922'},{label:'Conversion Rate',value:convRate+'%',color:'#7F77DD'},{label:'Total Revenue',value:fmtRp(totalRevenue),color:'#013175'},{label:'Gross Profit',value:fmtRp(totalGP),color:'#EF9F27'}].map((m,i)=>(
-              <div key={i} style={{background:cardBg,border,borderRadius:10,padding:'14px 18px'}}>
-                <div style={{fontSize:11,color:muted,marginBottom:4}}>{m.label}</div>
-                <div style={{fontSize:18,fontWeight:700,color:m.color}}>{m.value}</div>
+          {/* Action buttons */}
+          <div style={{display:'flex',gap:8,marginBottom:20}}>
+            <Button size="sm" variant="dark" onClick={()=>{
+              const exportData={period:filterBulan||'Semua',metaLeads:metaLeadsTotal,totalDeals:dealLeads.length,convRate:convRateMeta,revenue:revenueByDeal,grossProfit:totalGrossProfit,totalProfitFromAds,campaigns:filteredCampaigns.map(c=>({nama:c.nama,spend:c.spend,results:c.results,leads:filteredLeads.filter(l=>l.campaign_id===c.id).length,deal:filteredLeads.filter(l=>l.campaign_id===c.id&&l.stage==='deal').length}))};
+              const blob=new Blob([JSON.stringify(exportData,null,2)],{type:'application/json'});
+              const url=URL.createObjectURL(blob);
+              const a=document.createElement('a');a.href=url;a.download=`crm-analytics-${filterBulan||'all'}.json`;a.click();URL.revokeObjectURL(url);
+            }}>⬇ Export JSON</Button>
+          </div>
+
+          {/* Summary Cards Row 1 */}
+          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(200px,1fr))',gap:12,marginBottom:12}}>
+            {[
+              {label:'Meta Leads',value:metaLeadsTotal,color:'#378ADD',sub:'dari campaign Meta Ads'},
+              {label:'Total Deals',value:dealLeads.length,color:'#639922',sub:''},
+              {label:'Conversion Rate',value:(convRateMeta||convRate)+'%',color:'#7F77DD',sub:metaLeadsTotal>0?'Deal ÷ Leads Meta':'Deal ÷ Leads CRM'},
+              {label:'Revenue (deal)',value:fmtRp(revenueByDeal),color:'#013175',sub:'by tgl closing'},
+            ].map((m,i)=>(
+              <div key={i} style={{background:cardBg,border,borderRadius:10,padding:'16px 18px'}}>
+                <div style={{fontSize:11,color:muted,marginBottom:4,fontWeight:500}}>{m.label}</div>
+                <div style={{fontSize:20,fontWeight:700,color:m.color}}>{m.value}</div>
+                {m.sub&&<div style={{fontSize:10,color:muted,marginTop:2}}>{m.sub}</div>}
               </div>
             ))}
           </div>
+          {/* Summary Cards Row 2 */}
+          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(200px,1fr))',gap:12,marginBottom:24}}>
+            {[
+              {label:'Gross Profit',value:fmtRp(totalGrossProfit),color:'#EF9F27',sub:'dari semua deal'},
+              {label:'Total Spend Ads',value:fmtRp(totalSpend),color:'#a32d2d',sub:'dari semua campaign'},
+              {label:'Total Profit from Ads',value:fmtRp(totalProfitFromAds),color:totalProfitFromAds>=0?'#639922':'#a32d2d',sub:'Gross Profit − Spend'},
+            ].map((m,i)=>(
+              <div key={i} style={{background:cardBg,border,borderRadius:10,padding:'16px 18px'}}>
+                <div style={{fontSize:11,color:muted,marginBottom:4,fontWeight:500}}>{m.label}</div>
+                <div style={{fontSize:20,fontWeight:700,color:m.color}}>{(totalProfitFromAds>=0||i<2)?m.value:(m.value)}</div>
+                {m.sub&&<div style={{fontSize:10,color:muted,marginTop:2}}>{m.sub}</div>}
+              </div>
+            ))}
+          </div>
+
+          {/* Funnel Konversi */}
           <div style={{background:cardBg,border,borderRadius:12,padding:20,marginBottom:20}}>
-            <h6 style={{color:text,fontWeight:700,marginBottom:16}}>Funnel Konversi</h6>
-            <div style={{display:'flex',gap:0}}>
-              {STAGES.map((stage,i)=>{
-                const count=filteredLeads.filter(l=>l.stage_dates?.[stage.key]).length;
-                const pct=filteredLeads.length>0?((count/filteredLeads.length)*100).toFixed(0):0;
-                return <div key={stage.key} style={{flex:1,textAlign:'center',padding:'14px 8px',background:stage.bg,borderLeft:i>0?'2px solid #fff':'none',borderRadius:i===0?'8px 0 0 8px':i===STAGES.length-1?'0 8px 8px 0':0}}>
-                  <div style={{fontSize:24,fontWeight:800,color:stage.color}}>{count}</div>
-                  <div style={{fontSize:11,color:stage.color,fontWeight:600}}>{stage.label}</div>
-                  <div style={{fontSize:10,color:muted,marginTop:2}}>{pct}%</div>
+            <div style={{fontSize:11,fontWeight:700,color:muted,letterSpacing:1,marginBottom:16}}>FUNNEL KONVERSI</div>
+            <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:3}}>
+              {[
+                {label:'Leads',count:metaLeadsTotal||filteredLeads.length,color:'#378ADD',bg:'#EAF3FB',pct:100},
+                ...STAGES.slice(1).map(stage=>{
+                  const count=filteredLeads.filter(l=>l.stage_dates?.[stage.key]).length;
+                  const base=metaLeadsTotal||filteredLeads.length||1;
+                  return {label:stage.label,count,color:stage.color,bg:stage.bg,pct:((count/base)*100).toFixed(0)};
+                })
+              ].map((item,i,arr)=>{
+                const widthPct = 100 - i*13;
+                return <div key={i} style={{width:`${widthPct}%`,background:item.bg,borderRadius:4,padding:'12px 8px',textAlign:'center',position:'relative'}}>
+                  <span style={{fontSize:26,fontWeight:800,color:item.color}}>{item.count}</span>
+                  <span style={{fontSize:12,color:item.color,fontWeight:600,marginLeft:8}}>{i===0?'100% Leads':`${item.pct}% ${item.label}`}</span>
                 </div>;
               })}
             </div>
           </div>
-          {filteredCampaigns.length>0&&<div style={{background:cardBg,border,borderRadius:12,padding:20}}>
-            <h6 style={{color:text,fontWeight:700,marginBottom:12}}>Performa per Campaign</h6>
-            <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
-              <thead><tr style={{borderBottom:'2px solid '+(dark?'#333':'#eee')}}>
-                {['Campaign','Leads','Deal','Conv.','Revenue','ROAS'].map((h,i)=><th key={i} style={{padding:'6px 10px',color:muted,fontWeight:600,textAlign:i>1?'center':'left'}}>{h}</th>)}
-              </tr></thead>
-              <tbody>
-                {filteredCampaigns.map(camp=>{
-                  const cl=filteredLeads.filter(l=>l.campaign_id===camp.id), cd=cl.filter(l=>l.stage==='deal');
-                  const rev=cd.reduce((s,l)=>s+(l.deal_value||0),0), roas=camp.spend>0?(rev/camp.spend).toFixed(1):'-';
-                  const conv=cl.length>0?((cd.length/cl.length)*100).toFixed(0):0;
-                  return <tr key={camp.id} style={{borderBottom:'1px solid '+(dark?'#2a2a2a':'#f5f5f5')}}>
-                    <td style={{padding:'8px 10px',fontWeight:600,color:text}}>{camp.nama}</td>
-                    <td style={{padding:'8px 10px',textAlign:'center'}}>{cl.length}</td>
-                    <td style={{padding:'8px 10px',textAlign:'center',color:'#639922',fontWeight:700}}>{cd.length}</td>
-                    <td style={{padding:'8px 10px',textAlign:'center'}}>{conv}%</td>
-                    <td style={{padding:'8px 10px',textAlign:'center',color:'#639922'}}>{fmtRp(rev)}</td>
-                    <td style={{padding:'8px 10px',textAlign:'center',fontWeight:700,color:roas>=8?'#639922':roas>=3?'#EF9F27':'#a32d2d'}}>{roas==='-'?'-':roas+'x'}</td>
-                  </tr>;
-                })}
-              </tbody>
-            </table>
-          </div>}
+
+          {/* Performa per Sumber */}
+          <div style={{background:cardBg,border,borderRadius:12,padding:20}}>
+            <div style={{fontSize:11,fontWeight:700,color:muted,letterSpacing:1,marginBottom:16}}>PERFORMA PER SUMBER</div>
+            <div style={{overflowX:'auto'}}>
+              <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
+                <thead>
+                  <tr style={{borderBottom:'2px solid '+(dark?'#333':'#eee')}}>
+                    {['Sumber','Spend','Leads Meta','Leads CRM','Good','Quot.','Deal','Revenue','Conv. Rate','ROAS','Gross Profit','Ads Profit','Status'].map((h,i)=>(
+                      <th key={i} style={{padding:'8px 8px',color:muted,fontWeight:600,whiteSpace:'nowrap',textAlign:i>0?'center':'left'}}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredCampaigns.map(camp=>{
+                    const hasMeta=camp.source==='meta_ads';
+                    const cl=filteredLeads.filter(l=>l.campaign_id===camp.id);
+                    const cgood=cl.filter(l=>l.stage==='good').length;
+                    const cquot=cl.filter(l=>l.stage==='quotation').length;
+                    const cdeal=cl.filter(l=>l.stage==='deal');
+                    const rev=cdeal.reduce((s,l)=>s+(l.deal_value||0),0);
+                    const gp=cdeal.reduce((s,l)=>s+(l.gross_profit||0),0);
+                    const adsProfit=gp-(camp.spend||0);
+                    const roas=camp.spend>0?rev/camp.spend:null;
+                    const convBase=hasMeta?(camp.results||0):cl.length;
+                    const convRate=convBase>0?((cdeal.length/convBase)*100).toFixed(0):0;
+                    const winning=adsProfit>0;
+                    return <tr key={camp.id} style={{borderBottom:'1px solid '+(dark?'#2a2a2a':'#f5f5f5')}}>
+                      <td style={{padding:'8px 8px',minWidth:140}}>
+                        <div style={{fontWeight:600,color:text,fontSize:13}}>{camp.nama}</div>
+                        {hasMeta&&<span style={{fontSize:10,background:'#E7F3FF',color:'#1877F2',padding:'1px 5px',borderRadius:3,fontWeight:600}}>Meta Ad Set</span>}
+                      </td>
+                      <td style={{padding:'8px 8px',textAlign:'center',color:text}}>{camp.spend?fmtRp(camp.spend):'—'}</td>
+                      <td style={{padding:'8px 8px',textAlign:'center',fontWeight:600,color:'#378ADD'}}>{hasMeta?(camp.results||0):'—'}</td>
+                      <td style={{padding:'8px 8px',textAlign:'center'}}>{cl.length}</td>
+                      <td style={{padding:'8px 8px',textAlign:'center'}}>{cgood||0}</td>
+                      <td style={{padding:'8px 8px',textAlign:'center'}}>{cquot||0}</td>
+                      <td style={{padding:'8px 8px',textAlign:'center',fontWeight:700,color:'#639922'}}>{cdeal.length}</td>
+                      <td style={{padding:'8px 8px',textAlign:'center',color:'#639922',fontWeight:600}}>{cdeal.length>0?fmtRp(rev):'—'}</td>
+                      <td style={{padding:'8px 8px',textAlign:'center'}}>{convBase>0?convRate+'%':'—'}</td>
+                      <td style={{padding:'8px 8px',textAlign:'center',fontWeight:700,color:roas===null?muted:roas>=8?'#639922':roas>=3?'#EF9F27':'#a32d2d'}}>{roas===null?'—':roas.toFixed(1)+'x'}</td>
+                      <td style={{padding:'8px 8px',textAlign:'center',color:'#EF9F27',fontWeight:600}}>{gp>0?fmtRp(gp):'—'}</td>
+                      <td style={{padding:'8px 8px',textAlign:'center',fontWeight:700,color:camp.spend>0?(winning?'#639922':'#a32d2d'):muted}}>
+                        {camp.spend>0?(winning?'+':'')+fmtRp(adsProfit):'—'}
+                      </td>
+                      <td style={{padding:'8px 8px',textAlign:'center'}}>
+                        {camp.spend>0?<span style={{fontSize:11,fontWeight:700,color:winning?'#639922':'#a32d2d',background:winning?'#EDF5E1':'#FFF0F0',padding:'2px 8px',borderRadius:12}}>
+                          {winning?'▲ Winning':'▼ Losing'}
+                        </span>:'—'}
+                      </td>
+                    </tr>;
+                  })}
+                </tbody>
+              </table>
+              <div style={{fontSize:10,color:muted,marginTop:8}}>
+                * Conv. Rate = Deal ÷ Leads Meta (jika data Meta tersedia), atau Deal ÷ Leads CRM
+              </div>
+            </div>
+          </div>
         </div>}
       </>}
 

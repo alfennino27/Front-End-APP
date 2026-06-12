@@ -258,6 +258,7 @@ const Invoice = () => {
       setAdminInvoice(selectedInvoice.adminInvoice);
       setDiscountInvoice(selectedInvoice.discountInvoice);
       setOngkirCustInvoice(selectedInvoice.ongkirCustInvoice);
+      setCrmCampaignId(selectedInvoice.crmCampaignId || 'organic');
       setDataInvoiceFromDB([selectedInvoice]);
     }
   }, [slug, backUpDataInvoice, showUpdateInvoiceModal]);
@@ -364,6 +365,7 @@ const Invoice = () => {
           adminInvoice,
           discountInvoice,
           ongkirCustInvoice,
+          crmCampaignId,
         }),
       });
 
@@ -2329,6 +2331,14 @@ const Invoice = () => {
             <label className='mt-2'>Ongkir Cust :</label>
             <input className="form-control" type='number' defaultValue={ongkirCustInvoice} onChange={useCallback(debounce((e) => setOngkirCustInvoice(e.target.value), 300), [])}></input>
 
+            <label className='mt-2'>Sumber / Campaign CRM :</label>
+            <small style={{ display: 'block', color: '#888', marginBottom: 4 }}>Hubungkan invoice ini ke campaign Meta Ads / sumber lead di CRM</small>
+            <select className="form-control" value={crmCampaignId} onChange={(e) => setCrmCampaignId(e.target.value)}>
+              <option value="organic">Organic / Tidak ada campaign</option>
+              {crmCampaigns.map(c => (
+                <option key={c.id} value={c.id}>{c.nama}</option>
+              ))}
+            </select>
 
           </Modal.Body>
           <Modal.Footer>

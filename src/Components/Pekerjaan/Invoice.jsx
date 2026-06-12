@@ -941,6 +941,18 @@ const Invoice = () => {
     calculateGrossProfit();
   }, [dataProductFromDB, dataSPKproductFromDB, dataPengeluaranFromDB]);
 
+  // Auto-sync deal_value & gross_profit ke CRM setiap kali nilai berubah
+  useEffect(() => {
+    if (!slug || slug === 'undefined' || dataProductFromDB.length === 0) return;
+    const dealValue = totalPenjualan + Number(ongkirCustInvoice) - Number(discountInvoice);
+    const grossProfitValue = totalProfit + Number(ongkirCustInvoice) - Number(ongkirPackingInvoice) - Number(adminInvoice) - Number(discountInvoice);
+    fetch(`${baseUrl}/crm/leads/sync-deal`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ invoice_id: slug, deal_value: dealValue, gross_profit: grossProfitValue }),
+    }).catch(() => {}); // silent fail — CRM sync tidak boleh ganggu invoice
+  }, [totalProfit, totalPenjualan, slug, ongkirCustInvoice, ongkirPackingInvoice, adminInvoice, discountInvoice]);
+
   const calculateGrossProfit = () => {
     const totalProfit = dataProductFromDB.reduce((sum, product) => {
       const spkStainless = dataSPKproductFromDB.filter(item => item.idProduct === product.id && item.category === "Stainless").reduce((s, i) => s + Number(i.harga), 0);

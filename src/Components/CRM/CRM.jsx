@@ -225,8 +225,38 @@ export default function CRM() {
   const getCampaignName = (id) => campaigns.find(c=>c.id===id)?.nama || id;
 
   const getLeadMonth = (l) => (l.tanggal_masuk || l.created_at || '').slice(0,7);
+
+  // Agregat metrik dari list daily (weighted by impressions untuk rata2)
+  const aggDaily = (days) => {
+    const spend = days.reduce((s,d)=>s+(Number(d.spend)||0),0);
+    const results = days.reduce((s,d)=>s+(Number(d.results)||0),0);
+    const impressions = days.reduce((s,d)=>s+(Number(d.impressions)||0),0);
+    const reach = days.reduce((s,d)=>s+(Number(d.reach)||0),0);
+    const impW = impressions||1;
+    const cpm = Math.round(days.reduce((s,d)=>s+(Number(d.cpm)||0)*(Number(d.impressions)||0),0)/impW);
+    const ctr = +(days.reduce((s,d)=>s+(Number(d.ctr)||0)*(Number(d.impressions)||0),0)/impW).toFixed(3);
+    const frequency = +(days.reduce((s,d)=>s+(Number(d.frequency)||0)*(Number(d.impressions)||0),0)/impW).toFixed(2);
+    const cpl = results>0 ? Math.round(spend/results) : 0;
+    return { spend, results, cpl, cpm, impressions, reach, frequency, ctr, daily: days, active: true };
+  };
+
+  // Metrik campaign untuk bulan tertentu (diturunkan dari daily_data). null = tidak aktif di bulan itu.
+  const getCampaignMonthData = (camp, month) => {
+    const daily = Array.isArray(camp.daily_data) ? camp.daily_data : [];
+    if (!month) {
+      if (daily.length > 0) return aggDaily(daily);
+      return { spend:camp.spend||0, results:camp.results||0, cpl:camp.cpl||0, cpm:camp.cpm||0, impressions:camp.impressions||0, reach:camp.reach||0, frequency:camp.frequency||0, ctr:camp.ctr||0, daily:[], active:true };
+    }
+    if (daily.length > 0) {
+      const days = daily.filter(d => (d.date||'').slice(0,7) === month);
+      return days.length ? aggDaily(days) : null;
+    }
+    // tanpa daily_data: pakai field bulan
+    return camp.bulan === month ? { spend:camp.spend||0, results:camp.results||0, cpl:camp.cpl||0, cpm:camp.cpm||0, impressions:camp.impressions||0, reach:camp.reach||0, frequency:camp.frequency||0, ctr:camp.ctr||0, daily:[], active:true } : null;
+  };
+
   const filteredLeads = filterBulan ? leads.filter(l => getLeadMonth(l) === filterBulan) : leads;
-  const filteredCampaigns = filterBulan ? campaigns.filter(c => c.bulan === filterBulan) : campaigns;
+  const filteredCampaigns = filterBulan ? campaigns.filter(c => getCampaignMonthData(c, filterBulan) !== null) : campaigns;
 
   const activeLeads = filteredLeads.filter(l=>l.stage!=='lost');
   const lostLeads = filteredLeads.filter(l=>l.stage==='lost');
@@ -235,10 +265,14 @@ export default function CRM() {
   const totalGP = dealLeads.reduce((s,l)=>s+(l.gross_profit||0),0);
   const convRate = filteredLeads.length>0 ? ((dealLeads.length/filteredLeads.length)*100).toFixed(1) : 0;
 
-  // Periods available from campaigns + leads for dropdown filter
+  // Periods available — dari daily_data campaign + tanggal lead
   const availablePeriods = useMemo(() => {
     const months = new Set();
-    campaigns.forEach(c => { if (c.bulan) months.add(c.bulan); });
+    campaigns.forEach(c => {
+      const daily = Array.isArray(c.daily_data) ? c.daily_data : [];
+      if (daily.length > 0) daily.forEach(d => { const m=(d.date||'').slice(0,7); if(m) months.add(m); });
+      else if (c.bulan) months.add(c.bulan);
+    });
     leads.forEach(l => {
       const m = (l.tanggal_masuk || l.created_at || '').slice(0,7);
       if (m) months.add(m);
@@ -247,8 +281,9 @@ export default function CRM() {
   }, [campaigns, leads]);
 
   // Analytics calculations (Model B: atribusi by tanggal lead masuk)
-  const metaLeadsTotal = filteredCampaigns.filter(c=>c.source==='meta_ads').reduce((s,c)=>s+(c.results||0),0);
-  const totalSpend = filteredCampaigns.reduce((s,c)=>s+(c.spend||0),0);
+  // Spend & results diturunkan per bulan dari daily_data
+  const metaLeadsTotal = filteredCampaigns.filter(c=>c.source==='meta_ads').reduce((s,c)=>s+((getCampaignMonthData(c,filterBulan)?.results)||0),0);
+  const totalSpend = filteredCampaigns.reduce((s,c)=>s+((getCampaignMonthData(c,filterBulan)?.spend)||0),0);
 
   // Deal "from Ads" = new customer dari campaign (exclude repeat & organic)
   const adsDealLeads = dealLeads.filter(l => l.campaign_id && !l.is_repeat_order);
@@ -359,13 +394,16 @@ export default function CRM() {
               </tr></thead>
               <tbody>
                 {filteredCampaigns.map(camp=>{
+                  const md = getCampaignMonthData(camp, filterBulan) || {};
                   const cl=leads.filter(l=>l.campaign_id===camp.id), cd=cl.filter(l=>l.stage==='deal');
-                  const rev=cd.reduce((s,l)=>s+(l.deal_value||0),0), roas=camp.spend>0?(rev/camp.spend).toFixed(1):'-';
+                  const rev=cd.reduce((s,l)=>s+(l.deal_value||0),0), roas=md.spend>0?(rev/md.spend).toFixed(1):'-';
                   const rc=roas==='-'?muted:roas>=8?'#639922':roas>=3?'#EF9F27':'#a32d2d';
                   const sc={active:'#639922',paused:'#EF9F27',stopped:'#a32d2d'};
                   const hasMeta = camp.source==='meta_ads';
                   const isExpanded = expandedCamp === camp.id;
-                  const hasDailyData = hasMeta && Array.isArray(camp.daily_data) && camp.daily_data.length > 0;
+                  const monthDaily = Array.isArray(md.daily) ? md.daily : [];
+                  const hasDailyData = hasMeta && monthDaily.length > 0;
+                  const periodLabel = monthDaily.length ? `${monthDaily[0].date} — ${monthDaily[monthDaily.length-1].date}` : '';
                   return <>
                     <tr key={camp.id} style={{borderBottom:'1px solid '+(dark?'#2a2a2a':'#f0f0f0'),background: isExpanded?(dark?'#1a2035':'#f0f5ff'):''}}>
                       <td style={{padding:'8px 6px',textAlign:'center',width:28}}>
@@ -374,16 +412,16 @@ export default function CRM() {
                       <td style={{padding:'8px 6px',fontWeight:600,color:text}}>
                         {camp.nama}
                         {hasMeta&&<span style={{marginLeft:6,fontSize:10,background:'#E7F3FF',color:'#1877F2',padding:'1px 5px',borderRadius:4,fontWeight:600}}>Meta</span>}
-                        {hasDailyData&&<span style={{marginLeft:4,fontSize:10,color:muted}}>{camp.start_date?.slice(0,10)} — {camp.end_date?.slice(0,10)}</span>}
+                        {periodLabel&&<span style={{marginLeft:4,fontSize:10,color:muted}}>{periodLabel}</span>}
                       </td>
-                      <td style={{padding:'8px 6px',color:text}}>{camp.spend?fmtRp(camp.spend):'-'}</td>
-                      <td style={{padding:'8px 6px',textAlign:'center',fontWeight:600,color:'#378ADD'}}>{hasMeta?(camp.results||0):'-'}</td>
-                      <td style={{padding:'8px 6px',color:muted}}>{hasMeta&&camp.cpl?fmtRp(camp.cpl):'-'}</td>
-                      <td style={{padding:'8px 6px',color:muted}}>{hasMeta&&camp.cpm?fmtRp(camp.cpm):'-'}</td>
-                      <td style={{padding:'8px 6px',color:muted}}>{hasMeta&&camp.impressions?Number(camp.impressions).toLocaleString('id-ID'):'-'}</td>
-                      <td style={{padding:'8px 6px',color:muted}}>{hasMeta&&camp.reach?Number(camp.reach).toLocaleString('id-ID'):'-'}</td>
-                      <td style={{padding:'8px 6px',color:muted}}>{hasMeta&&camp.frequency?camp.frequency:'-'}</td>
-                      <td style={{padding:'8px 6px',color:muted}}>{hasMeta&&camp.ctr?camp.ctr.toFixed(2)+'%':'-'}</td>
+                      <td style={{padding:'8px 6px',color:text}}>{md.spend?fmtRp(md.spend):'-'}</td>
+                      <td style={{padding:'8px 6px',textAlign:'center',fontWeight:600,color:'#378ADD'}}>{hasMeta?(md.results||0):'-'}</td>
+                      <td style={{padding:'8px 6px',color:muted}}>{hasMeta&&md.cpl?fmtRp(md.cpl):'-'}</td>
+                      <td style={{padding:'8px 6px',color:muted}}>{hasMeta&&md.cpm?fmtRp(md.cpm):'-'}</td>
+                      <td style={{padding:'8px 6px',color:muted}}>{hasMeta&&md.impressions?Number(md.impressions).toLocaleString('id-ID'):'-'}</td>
+                      <td style={{padding:'8px 6px',color:muted}}>{hasMeta&&md.reach?Number(md.reach).toLocaleString('id-ID'):'-'}</td>
+                      <td style={{padding:'8px 6px',color:muted}}>{hasMeta&&md.frequency?md.frequency:'-'}</td>
+                      <td style={{padding:'8px 6px',color:muted}}>{hasMeta&&md.ctr?md.ctr.toFixed(2)+'%':'-'}</td>
                       <td style={{padding:'8px 6px',textAlign:'center'}}>{cl.length}</td>
                       <td style={{padding:'8px 6px',textAlign:'center'}}>{cd.length}</td>
                       <td style={{padding:'8px 6px',color:'#639922',fontWeight:600}}>{fmtRp(rev)}</td>
@@ -396,7 +434,7 @@ export default function CRM() {
                         </div>
                       </td>
                     </tr>
-                    {isExpanded && hasDailyData && camp.daily_data.map((day,di)=>(
+                    {isExpanded && hasDailyData && monthDaily.map((day,di)=>(
                       <tr key={`${camp.id}-day-${di}`} style={{background:dark?'#111827':'#f8f9ff',borderBottom:'1px solid '+(dark?'#1e2540':'#e8edff')}}>
                         <td style={{padding:'5px 6px'}}/>
                         <td style={{padding:'5px 6px',color:'#378ADD',fontWeight:600,fontSize:12,paddingLeft:20}}>{day.date}</td>
@@ -432,7 +470,7 @@ export default function CRM() {
               setSyncing(false);
             }}>{syncing?<Spinner size="sm"/>:'🔄 Sync Data Invoice'}</Button>
             <Button size="sm" variant="dark" onClick={()=>{
-              const exportData={period:filterBulan||'Semua',metaLeads:metaLeadsTotal,totalDeals:dealLeads.length,dealsFromAds:adsDealLeads.length,convRate:convRateMeta,totalRevenue:revenueTotal,revenueFromAds,totalGrossProfit:gpTotal,grossProfitFromAds:gpFromAds,totalSpendAds:totalSpend,totalProfitFromAds,campaigns:filteredCampaigns.map(c=>({nama:c.nama,spend:c.spend,results:c.results,leads:filteredLeads.filter(l=>l.campaign_id===c.id).length,deal:filteredLeads.filter(l=>l.campaign_id===c.id&&l.stage==='deal').length}))};
+              const exportData={period:filterBulan||'Semua',metaLeads:metaLeadsTotal,totalDeals:dealLeads.length,dealsFromAds:adsDealLeads.length,convRate:convRateMeta,totalRevenue:revenueTotal,revenueFromAds,totalGrossProfit:gpTotal,grossProfitFromAds:gpFromAds,totalSpendAds:totalSpend,totalProfitFromAds,campaigns:filteredCampaigns.map(c=>{const m=getCampaignMonthData(c,filterBulan)||{};return {nama:c.nama,spend:m.spend||0,results:m.results||0,leads:filteredLeads.filter(l=>l.campaign_id===c.id).length,deal:filteredLeads.filter(l=>l.campaign_id===c.id&&l.stage==='deal').length};})};
               const blob=new Blob([JSON.stringify(exportData,null,2)],{type:'application/json'});
               const url=URL.createObjectURL(blob);
               const a=document.createElement('a');a.href=url;a.download=`crm-analytics-${filterBulan||'all'}.json`;a.click();URL.revokeObjectURL(url);
@@ -519,6 +557,8 @@ export default function CRM() {
                 <tbody>
                   {filteredCampaigns.map(camp=>{
                     const hasMeta=camp.source==='meta_ads';
+                    const md=getCampaignMonthData(camp, filterBulan)||{};
+                    const mdSpend=md.spend||0, mdResults=md.results||0;
                     const cl=filteredLeads.filter(l=>l.campaign_id===camp.id);
                     const cgood=cl.filter(l=>l.stage==='good').length;
                     const cquot=cl.filter(l=>l.stage==='quotation').length;
@@ -528,9 +568,9 @@ export default function CRM() {
                     const revNew=cnew.reduce((s,l)=>s+(l.deal_value||0),0);
                     const revRepeat=crepeat.reduce((s,l)=>s+(l.deal_value||0),0);
                     const gp=cnew.reduce((s,l)=>s+(l.gross_profit||0),0); // GP dari new only
-                    const adsProfit=gp-(camp.spend||0);
-                    const roas=camp.spend>0&&revNew>0?revNew/camp.spend:null; // ROAS dari new only
-                    const convBase=hasMeta?(camp.results||0):cl.length;
+                    const adsProfit=gp-mdSpend;
+                    const roas=mdSpend>0&&revNew>0?revNew/mdSpend:null; // ROAS dari new only
+                    const convBase=hasMeta?mdResults:cl.length;
                     const convRate=convBase>0?((cnew.length/convBase)*100).toFixed(0):0;
                     const winning=adsProfit>0;
                     return <tr key={camp.id} style={{borderBottom:'1px solid '+(dark?'#2a2a2a':'#f5f5f5')}}>
@@ -538,8 +578,8 @@ export default function CRM() {
                         <div style={{fontWeight:600,color:text,fontSize:13}}>{camp.nama}</div>
                         {hasMeta&&<span style={{fontSize:10,background:'#E7F3FF',color:'#1877F2',padding:'1px 5px',borderRadius:3,fontWeight:600}}>Meta Ad Set</span>}
                       </td>
-                      <td style={{padding:'8px 8px',textAlign:'center',color:text}}>{camp.spend?fmtRp(camp.spend):'—'}</td>
-                      <td style={{padding:'8px 8px',textAlign:'center',fontWeight:600,color:'#378ADD'}}>{hasMeta?(camp.results||0):'—'}</td>
+                      <td style={{padding:'8px 8px',textAlign:'center',color:text}}>{mdSpend?fmtRp(mdSpend):'—'}</td>
+                      <td style={{padding:'8px 8px',textAlign:'center',fontWeight:600,color:'#378ADD'}}>{hasMeta?mdResults:'—'}</td>
                       <td style={{padding:'8px 8px',textAlign:'center'}}>{cl.length}</td>
                       <td style={{padding:'8px 8px',textAlign:'center'}}>{cgood||0}</td>
                       <td style={{padding:'8px 8px',textAlign:'center'}}>{cquot||0}</td>
@@ -550,11 +590,11 @@ export default function CRM() {
                       <td style={{padding:'8px 8px',textAlign:'center'}}>{convBase>0?convRate+'%':'—'}</td>
                       <td style={{padding:'8px 8px',textAlign:'center',fontWeight:700,color:roas===null?muted:roas>=8?'#639922':roas>=3?'#EF9F27':'#a32d2d'}}>{roas===null?'—':roas.toFixed(1)+'x'}</td>
                       <td style={{padding:'8px 8px',textAlign:'center',color:'#EF9F27',fontWeight:600}}>{gp>0?fmtRp(gp):'—'}</td>
-                      <td style={{padding:'8px 8px',textAlign:'center',fontWeight:700,color:camp.spend>0?(winning?'#639922':'#a32d2d'):muted}}>
-                        {camp.spend>0?(winning?'+':'')+fmtRp(adsProfit):'—'}
+                      <td style={{padding:'8px 8px',textAlign:'center',fontWeight:700,color:mdSpend>0?(winning?'#639922':'#a32d2d'):muted}}>
+                        {mdSpend>0?(winning?'+':'')+fmtRp(adsProfit):'—'}
                       </td>
                       <td style={{padding:'8px 8px',textAlign:'center'}}>
-                        {camp.spend>0?<span style={{fontSize:11,fontWeight:700,color:winning?'#639922':'#a32d2d',background:winning?'#EDF5E1':'#FFF0F0',padding:'2px 8px',borderRadius:12}}>
+                        {mdSpend>0?<span style={{fontSize:11,fontWeight:700,color:winning?'#639922':'#a32d2d',background:winning?'#EDF5E1':'#FFF0F0',padding:'2px 8px',borderRadius:12}}>
                           {winning?'▲ Winning':'▼ Losing'}
                         </span>:'—'}
                       </td>

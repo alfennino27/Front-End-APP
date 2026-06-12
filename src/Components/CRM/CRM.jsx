@@ -36,7 +36,8 @@ export default function CRM() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [editingLead, setEditingLead] = useState(null);
-  const [leadForm, setLeadForm] = useState({ nama:'', wa:'', campaign_id:'', notes:'', stage:'leads' });
+  const today = new Date().toISOString().slice(0,10);
+  const [leadForm, setLeadForm] = useState({ nama:'', wa:'', campaign_id:'', notes:'', stage:'leads', tanggal_masuk: today });
   const [detailLead, setDetailLead] = useState(null);
   const [dealValue, setDealValue] = useState('');
   const [grossProfit, setGrossProfit] = useState('');
@@ -46,6 +47,7 @@ export default function CRM() {
   const [importPreview, setImportPreview] = useState([]);
   const [importLoading, setImportLoading] = useState(false);
   const fileInputRef = useRef(null);
+  const [filterBulan, setFilterBulan] = useState('');
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
@@ -63,9 +65,9 @@ export default function CRM() {
   const handleSaveLead = async () => {
     const url = editingLead ? baseUrl+'/crm/leads/update/'+editingLead.id : baseUrl+'/crm/leads/create';
     const method = editingLead ? 'PUT' : 'POST';
-    const body = editingLead ? {...leadForm} : {...leadForm, stage_dates:{leads:new Date().toISOString(),good:null,quotation:null,deal:null,lost:null}};
+    const body = editingLead ? {...leadForm} : {...leadForm, tanggal_masuk: leadForm.tanggal_masuk || today, stage_dates:{leads:new Date().toISOString(),good:null,quotation:null,deal:null,lost:null}};
     await fetch(url, {method, headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
-    setShowLeadModal(false); setEditingLead(null); setLeadForm({nama:'',wa:'',campaign_id:'',notes:'',stage:'leads'}); fetchAll();
+    setShowLeadModal(false); setEditingLead(null); setLeadForm({nama:'',wa:'',campaign_id:'',notes:'',stage:'leads',tanggal_masuk:today}); fetchAll();
   };
 
   const handleMoveStage = async (lead, dir) => {
@@ -210,12 +212,17 @@ export default function CRM() {
   };
 
   const getCampaignName = (id) => campaigns.find(c=>c.id===id)?.nama || id;
-  const activeLeads = leads.filter(l=>l.stage!=='lost');
-  const lostLeads = leads.filter(l=>l.stage==='lost');
-  const dealLeads = leads.filter(l=>l.stage==='deal');
+
+  const getLeadMonth = (l) => (l.tanggal_masuk || l.created_at || '').slice(0,7);
+  const filteredLeads = filterBulan ? leads.filter(l => getLeadMonth(l) === filterBulan) : leads;
+  const filteredCampaigns = filterBulan ? campaigns.filter(c => c.bulan === filterBulan) : campaigns;
+
+  const activeLeads = filteredLeads.filter(l=>l.stage!=='lost');
+  const lostLeads = filteredLeads.filter(l=>l.stage==='lost');
+  const dealLeads = filteredLeads.filter(l=>l.stage==='deal');
   const totalRevenue = dealLeads.reduce((s,l)=>s+(l.deal_value||0),0);
   const totalGP = dealLeads.reduce((s,l)=>s+(l.gross_profit||0),0);
-  const convRate = leads.length>0 ? ((dealLeads.length/leads.length)*100).toFixed(1) : 0;
+  const convRate = filteredLeads.length>0 ? ((dealLeads.length/filteredLeads.length)*100).toFixed(1) : 0;
 
   const cardBg=dark?'#1e1e2e':'#fff', border=dark?'1px solid #333':'1px solid #e8e8e8', text=dark?'white':'#1a1a1a', muted=dark?'#aaa':'#666', mc=dark?'modalKLF':'modalKLFlight';
 
@@ -232,10 +239,18 @@ export default function CRM() {
           </>}
         </div>
       </div>
-      <div style={{display:'flex',gap:4,marginBottom:20,borderBottom:'2px solid '+(dark?'#333':'#eee')}}>
-        {[['pipeline','Pipeline'],['campaigns','Kampanye'],['analytics','Analitik']].map(([k,l])=>(
-          <button key={k} onClick={()=>setActiveTab(k)} className="no-active" style={{padding:'8px 16px',border:'none',background:'none',cursor:'pointer',fontWeight:activeTab===k?700:400,color:activeTab===k?'#013175':muted,borderBottom:activeTab===k?'2px solid #013175':'2px solid transparent',marginBottom:-2}}>{l}</button>
-        ))}
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-end',borderBottom:'2px solid '+(dark?'#333':'#eee'),marginBottom:20}}>
+        <div style={{display:'flex',gap:4}}>
+          {[['pipeline','Pipeline'],['campaigns','Kampanye'],['analytics','Analitik']].map(([k,l])=>(
+            <button key={k} onClick={()=>setActiveTab(k)} className="no-active" style={{padding:'8px 16px',border:'none',background:'none',cursor:'pointer',fontWeight:activeTab===k?700:400,color:activeTab===k?'#013175':muted,borderBottom:activeTab===k?'2px solid #013175':'2px solid transparent',marginBottom:-2}}>{l}</button>
+          ))}
+        </div>
+        <div style={{display:'flex',alignItems:'center',gap:8,paddingBottom:6}}>
+          <span style={{fontSize:12,color:muted,fontWeight:600}}>Filter:</span>
+          <input type="month" value={filterBulan} onChange={e=>setFilterBulan(e.target.value)}
+            style={{fontSize:12,padding:'3px 8px',borderRadius:6,border:'1px solid '+(dark?'#444':'#ddd'),background:dark?'#1e1e2e':'#fff',color:text,cursor:'pointer'}}/>
+          {filterBulan&&<button onClick={()=>setFilterBulan('')} style={{fontSize:11,padding:'3px 8px',border:'1px solid '+(dark?'#444':'#ddd'),borderRadius:6,background:'none',color:muted,cursor:'pointer'}}>Semua</button>}
+        </div>
       </div>
       {loading ? <div style={{textAlign:'center',padding:60}}><Spinner/></div> : <>
         {activeTab==='pipeline'&&<>
@@ -291,14 +306,14 @@ export default function CRM() {
         </>}
 
         {activeTab==='campaigns'&&<div>
-          {campaigns.length===0 ? <div style={{textAlign:'center',color:muted,padding:60}}>Belum ada campaign.</div> :
+          {filteredCampaigns.length===0 ? <div style={{textAlign:'center',color:muted,padding:60}}>{filterBulan?`Tidak ada campaign di ${filterBulan}.`:'Belum ada campaign.'}</div> :
           <div style={{overflowX:'auto'}}>
             <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
               <thead><tr style={{borderBottom:'2px solid '+(dark?'#333':'#eee'),textAlign:'left'}}>
-                {['Nama','Platform','Bulan','Spend','Results','CPL','CPM','Impresi','CTR','Leads','Deal','Revenue','ROAS','Status',''].map((h,i)=><th key={i} style={{padding:'8px 10px',color:muted,fontWeight:600,whiteSpace:'nowrap'}}>{h}</th>)}
+                {['Nama','Spend','Results','CPL','CPM','Impresi','Reach','Freq','CTR','Leads','Deal','Revenue','ROAS','Status',''].map((h,i)=><th key={i} style={{padding:'8px 10px',color:muted,fontWeight:600,whiteSpace:'nowrap'}}>{h}</th>)}
               </tr></thead>
               <tbody>
-                {campaigns.map(camp=>{
+                {filteredCampaigns.map(camp=>{
                   const cl=leads.filter(l=>l.campaign_id===camp.id), cd=cl.filter(l=>l.stage==='deal');
                   const rev=cd.reduce((s,l)=>s+(l.deal_value||0),0), roas=camp.spend>0?(rev/camp.spend).toFixed(1):'-';
                   const rc=roas==='-'?muted:roas>=8?'#639922':roas>=3?'#EF9F27':'#a32d2d';
@@ -309,14 +324,14 @@ export default function CRM() {
                       {camp.nama}
                       {hasMeta&&<span style={{marginLeft:6,fontSize:10,background:'#E7F3FF',color:'#1877F2',padding:'1px 5px',borderRadius:4,fontWeight:600}}>Meta</span>}
                     </td>
-                    <td style={{padding:10,color:muted}}>{PLATFORMS.find(p=>p.value===camp.platform)?.label||camp.platform}</td>
-                    <td style={{padding:10,color:muted,whiteSpace:'nowrap'}}>{camp.bulan||'-'}</td>
                     <td style={{padding:10,color:text}}>{camp.spend?fmtRp(camp.spend):'-'}</td>
                     <td style={{padding:10,textAlign:'center',fontWeight:600,color:'#378ADD'}}>{hasMeta?(camp.results||0):'-'}</td>
                     <td style={{padding:10,color:muted}}>{hasMeta&&camp.cpl?fmtRp(camp.cpl):'-'}</td>
                     <td style={{padding:10,color:muted}}>{hasMeta&&camp.cpm?fmtRp(camp.cpm):'-'}</td>
                     <td style={{padding:10,color:muted}}>{hasMeta&&camp.impressions?Number(camp.impressions).toLocaleString('id-ID'):'-'}</td>
-                    <td style={{padding:10,color:muted}}>{hasMeta&&camp.ctr?(camp.ctr*100).toFixed(2)+'%':'-'}</td>
+                    <td style={{padding:10,color:muted}}>{hasMeta&&camp.reach?Number(camp.reach).toLocaleString('id-ID'):'-'}</td>
+                    <td style={{padding:10,color:muted}}>{hasMeta&&camp.frequency?camp.frequency:'-'}</td>
+                    <td style={{padding:10,color:muted}}>{hasMeta&&camp.ctr?camp.ctr.toFixed(2)+'%':'-'}</td>
                     <td style={{padding:10,textAlign:'center'}}>{cl.length}</td>
                     <td style={{padding:10,textAlign:'center'}}>{cd.length}</td>
                     <td style={{padding:10,color:'#639922',fontWeight:600}}>{fmtRp(rev)}</td>
@@ -337,7 +352,7 @@ export default function CRM() {
 
         {activeTab==='analytics'&&<div>
           <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(150px, 1fr))',gap:12,marginBottom:24}}>
-            {[{label:'Total Leads',value:leads.length,color:'#378ADD'},{label:'Deal',value:dealLeads.length,color:'#639922'},{label:'Conversion Rate',value:convRate+'%',color:'#7F77DD'},{label:'Total Revenue',value:fmtRp(totalRevenue),color:'#013175'},{label:'Gross Profit',value:fmtRp(totalGP),color:'#EF9F27'}].map((m,i)=>(
+            {[{label:'Total Leads',value:filteredLeads.length,color:'#378ADD'},{label:'Deal',value:dealLeads.length,color:'#639922'},{label:'Conversion Rate',value:convRate+'%',color:'#7F77DD'},{label:'Total Revenue',value:fmtRp(totalRevenue),color:'#013175'},{label:'Gross Profit',value:fmtRp(totalGP),color:'#EF9F27'}].map((m,i)=>(
               <div key={i} style={{background:cardBg,border,borderRadius:10,padding:'14px 18px'}}>
                 <div style={{fontSize:11,color:muted,marginBottom:4}}>{m.label}</div>
                 <div style={{fontSize:18,fontWeight:700,color:m.color}}>{m.value}</div>
@@ -348,8 +363,8 @@ export default function CRM() {
             <h6 style={{color:text,fontWeight:700,marginBottom:16}}>Funnel Konversi</h6>
             <div style={{display:'flex',gap:0}}>
               {STAGES.map((stage,i)=>{
-                const count=leads.filter(l=>l.stage_dates?.[stage.key]).length;
-                const pct=leads.length>0?((count/leads.length)*100).toFixed(0):0;
+                const count=filteredLeads.filter(l=>l.stage_dates?.[stage.key]).length;
+                const pct=filteredLeads.length>0?((count/filteredLeads.length)*100).toFixed(0):0;
                 return <div key={stage.key} style={{flex:1,textAlign:'center',padding:'14px 8px',background:stage.bg,borderLeft:i>0?'2px solid #fff':'none',borderRadius:i===0?'8px 0 0 8px':i===STAGES.length-1?'0 8px 8px 0':0}}>
                   <div style={{fontSize:24,fontWeight:800,color:stage.color}}>{count}</div>
                   <div style={{fontSize:11,color:stage.color,fontWeight:600}}>{stage.label}</div>
@@ -358,15 +373,15 @@ export default function CRM() {
               })}
             </div>
           </div>
-          {campaigns.length>0&&<div style={{background:cardBg,border,borderRadius:12,padding:20}}>
+          {filteredCampaigns.length>0&&<div style={{background:cardBg,border,borderRadius:12,padding:20}}>
             <h6 style={{color:text,fontWeight:700,marginBottom:12}}>Performa per Campaign</h6>
             <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
               <thead><tr style={{borderBottom:'2px solid '+(dark?'#333':'#eee')}}>
                 {['Campaign','Leads','Deal','Conv.','Revenue','ROAS'].map((h,i)=><th key={i} style={{padding:'6px 10px',color:muted,fontWeight:600,textAlign:i>1?'center':'left'}}>{h}</th>)}
               </tr></thead>
               <tbody>
-                {campaigns.map(camp=>{
-                  const cl=leads.filter(l=>l.campaign_id===camp.id), cd=cl.filter(l=>l.stage==='deal');
+                {filteredCampaigns.map(camp=>{
+                  const cl=filteredLeads.filter(l=>l.campaign_id===camp.id), cd=cl.filter(l=>l.stage==='deal');
                   const rev=cd.reduce((s,l)=>s+(l.deal_value||0),0), roas=camp.spend>0?(rev/camp.spend).toFixed(1):'-';
                   const conv=cl.length>0?((cd.length/cl.length)*100).toFixed(0):0;
                   return <tr key={camp.id} style={{borderBottom:'1px solid '+(dark?'#2a2a2a':'#f5f5f5')}}>
@@ -389,6 +404,7 @@ export default function CRM() {
         <Modal.Header closeButton><Modal.Title style={{color:dark?'white':'black'}}>{editingLead?'Edit Lead':'Tambah Lead Baru'}</Modal.Title></Modal.Header>
         <Modal.Body>
           <Form.Group className="mb-2"><Form.Label style={{color:dark?'white':'black'}}>Nama Customer *</Form.Label><Form.Control value={leadForm.nama} onChange={e=>setLeadForm(f=>({...f,nama:e.target.value}))} placeholder="Nama customer"/></Form.Group>
+          <Form.Group className="mb-2"><Form.Label style={{color:dark?'white':'black'}}>Tanggal Lead Masuk</Form.Label><Form.Control type="date" value={leadForm.tanggal_masuk||today} onChange={e=>setLeadForm(f=>({...f,tanggal_masuk:e.target.value}))}/></Form.Group>
           <Form.Group className="mb-2"><Form.Label style={{color:dark?'white':'black'}}>No. WhatsApp</Form.Label><Form.Control value={leadForm.wa} onChange={e=>setLeadForm(f=>({...f,wa:e.target.value}))} placeholder="+62 8xx xxxx xxxx"/></Form.Group>
           <Form.Group className="mb-2"><Form.Label style={{color:dark?'white':'black'}}>Campaign Sumber</Form.Label>
             <Form.Select value={leadForm.campaign_id} onChange={e=>setLeadForm(f=>({...f,campaign_id:e.target.value}))}>
@@ -442,7 +458,7 @@ export default function CRM() {
           </Modal.Body>
           <Modal.Footer style={{justifyContent:'space-between'}}>
             <div style={{display:'flex',gap:6}}>
-              <Button size="sm" variant="outline-primary" onClick={()=>{setEditingLead(detailLead);setLeadForm({nama:detailLead.nama,wa:detailLead.wa||'',campaign_id:detailLead.campaign_id||'',notes:detailLead.notes||'',stage:detailLead.stage});setShowLeadDetail(false);setShowLeadModal(true);}}><MdEdit/> Edit</Button>
+              <Button size="sm" variant="outline-primary" onClick={()=>{setEditingLead(detailLead);setLeadForm({nama:detailLead.nama,wa:detailLead.wa||'',campaign_id:detailLead.campaign_id||'',notes:detailLead.notes||'',stage:detailLead.stage,tanggal_masuk:detailLead.tanggal_masuk||today});setShowLeadDetail(false);setShowLeadModal(true);}}><MdEdit/> Edit</Button>
               {detailLead.stage!=='lost'&&<Button size="sm" variant="outline-danger" onClick={()=>handleMarkLost(detailLead)}>Lost</Button>}
               <Button size="sm" variant="outline-danger" onClick={()=>{setDeleteTarget({type:'lead',id:detailLead.id,label:detailLead.nama});setShowDeleteConfirm(true);}}><MdDelete/></Button>
             </div>

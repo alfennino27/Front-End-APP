@@ -48,6 +48,7 @@ export default function CRM() {
   const [importLoading, setImportLoading] = useState(false);
   const fileInputRef = useRef(null);
   const [filterBulan, setFilterBulan] = useState('');
+  const [expandedCamp, setExpandedCamp] = useState(null);
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
@@ -157,12 +158,13 @@ export default function CRM() {
         const cpm = parseFloat(v[idx.cpm]) || 0;
         const ctr = parseFloat(v[idx.ctr]) || 0;
         const freq = parseFloat(v[idx.freq]) || 0;
+        const date = v[idx.date] || '';
 
         if (!map[name]) {
           map[name] = { nama: name, spend:0, results:0, impressions:0, reach:0,
             _cpmW:0, _ctrW:0, _freqW:0, _impTotal:0,
             start_date: v[idx.starts]||'', end_date: v[idx.ends]||'',
-            bulan: v[idx.bulan]?.substring(0,7)||'' };
+            bulan: v[idx.bulan]?.substring(0,7)||'', daily_data:[] };
         }
         map[name].spend      += spend;
         map[name].results    += results;
@@ -172,6 +174,13 @@ export default function CRM() {
         map[name]._ctrW      += ctr * imp;
         map[name]._freqW     += freq * imp;
         map[name]._impTotal  += imp;
+        // simpan daily row (hanya hari yang ada data)
+        if (spend > 0 || results > 0) {
+          map[name].daily_data.push({ date, spend: Math.round(spend), results: Math.round(results),
+            cpl: results > 0 ? Math.round(spend/results) : 0,
+            cpm: Math.round(cpm), impressions: Math.round(imp),
+            reach: Math.round(reach), frequency: parseFloat(freq.toFixed(2)), ctr: parseFloat(ctr.toFixed(3)) });
+        }
       });
 
       const parsed = Object.values(map).map(c => {
@@ -187,6 +196,7 @@ export default function CRM() {
           ctr: parseFloat((c._ctrW / imp).toFixed(3)),
           frequency: parseFloat((c._freqW / imp).toFixed(2)),
           start_date: c.start_date, end_date: c.end_date,
+          daily_data: c.daily_data.sort((a,b)=>a.date.localeCompare(b.date)),
         };
       });
       setImportPreview(parsed);
@@ -310,7 +320,7 @@ export default function CRM() {
           <div style={{overflowX:'auto'}}>
             <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
               <thead><tr style={{borderBottom:'2px solid '+(dark?'#333':'#eee'),textAlign:'left'}}>
-                {['Nama','Spend','Results','CPL','CPM','Impresi','Reach','Freq','CTR','Leads','Deal','Revenue','ROAS','Status',''].map((h,i)=><th key={i} style={{padding:'8px 10px',color:muted,fontWeight:600,whiteSpace:'nowrap'}}>{h}</th>)}
+                {['','Nama','Spend','Results','CPL','CPM','Impresi','Reach','Freq','CTR','Leads','Deal','Revenue','ROAS','Status',''].map((h,i)=><th key={i} style={{padding:'8px 6px',color:muted,fontWeight:600,whiteSpace:'nowrap'}}>{h}</th>)}
               </tr></thead>
               <tbody>
                 {filteredCampaigns.map(camp=>{
@@ -319,31 +329,54 @@ export default function CRM() {
                   const rc=roas==='-'?muted:roas>=8?'#639922':roas>=3?'#EF9F27':'#a32d2d';
                   const sc={active:'#639922',paused:'#EF9F27',stopped:'#a32d2d'};
                   const hasMeta = camp.source==='meta_ads';
-                  return <tr key={camp.id} style={{borderBottom:'1px solid '+(dark?'#2a2a2a':'#f0f0f0')}}>
-                    <td style={{padding:10,fontWeight:600,color:text}}>
-                      {camp.nama}
-                      {hasMeta&&<span style={{marginLeft:6,fontSize:10,background:'#E7F3FF',color:'#1877F2',padding:'1px 5px',borderRadius:4,fontWeight:600}}>Meta</span>}
-                    </td>
-                    <td style={{padding:10,color:text}}>{camp.spend?fmtRp(camp.spend):'-'}</td>
-                    <td style={{padding:10,textAlign:'center',fontWeight:600,color:'#378ADD'}}>{hasMeta?(camp.results||0):'-'}</td>
-                    <td style={{padding:10,color:muted}}>{hasMeta&&camp.cpl?fmtRp(camp.cpl):'-'}</td>
-                    <td style={{padding:10,color:muted}}>{hasMeta&&camp.cpm?fmtRp(camp.cpm):'-'}</td>
-                    <td style={{padding:10,color:muted}}>{hasMeta&&camp.impressions?Number(camp.impressions).toLocaleString('id-ID'):'-'}</td>
-                    <td style={{padding:10,color:muted}}>{hasMeta&&camp.reach?Number(camp.reach).toLocaleString('id-ID'):'-'}</td>
-                    <td style={{padding:10,color:muted}}>{hasMeta&&camp.frequency?camp.frequency:'-'}</td>
-                    <td style={{padding:10,color:muted}}>{hasMeta&&camp.ctr?camp.ctr.toFixed(2)+'%':'-'}</td>
-                    <td style={{padding:10,textAlign:'center'}}>{cl.length}</td>
-                    <td style={{padding:10,textAlign:'center'}}>{cd.length}</td>
-                    <td style={{padding:10,color:'#639922',fontWeight:600}}>{fmtRp(rev)}</td>
-                    <td style={{padding:10,fontWeight:700,color:rc}}>{roas==='-'?'-':roas+'x'}</td>
-                    <td style={{padding:10}}><span style={{color:sc[camp.status]||muted,fontWeight:600,fontSize:11,textTransform:'capitalize'}}>● {camp.status}</span></td>
-                    <td style={{padding:10}}>
-                      <div style={{display:'flex',gap:4}}>
-                        <button onClick={()=>{setEditingCampaign(camp);setCampForm({nama:camp.nama,platform:camp.platform,bulan:camp.bulan||'',spend:camp.spend||'',status:camp.status});setShowCampaignModal(true);}} style={{border:'none',background:'none',cursor:'pointer',color:'#013175',fontSize:16}}><MdEdit/></button>
-                        <button onClick={()=>{setDeleteTarget({type:'campaign',id:camp.id,label:camp.nama});setShowDeleteConfirm(true);}} style={{border:'none',background:'none',cursor:'pointer',color:'#a32d2d',fontSize:16}}><MdDelete/></button>
-                      </div>
-                    </td>
-                  </tr>;
+                  const isExpanded = expandedCamp === camp.id;
+                  const hasDailyData = hasMeta && Array.isArray(camp.daily_data) && camp.daily_data.length > 0;
+                  return <>
+                    <tr key={camp.id} style={{borderBottom:'1px solid '+(dark?'#2a2a2a':'#f0f0f0'),background: isExpanded?(dark?'#1a2035':'#f0f5ff'):''}}>
+                      <td style={{padding:'8px 6px',textAlign:'center',width:28}}>
+                        {hasDailyData&&<button onClick={()=>setExpandedCamp(isExpanded?null:camp.id)} style={{border:'none',background:'none',cursor:'pointer',color:'#013175',fontSize:16,lineHeight:1,padding:0}}>{isExpanded?'▾':'▸'}</button>}
+                      </td>
+                      <td style={{padding:'8px 6px',fontWeight:600,color:text}}>
+                        {camp.nama}
+                        {hasMeta&&<span style={{marginLeft:6,fontSize:10,background:'#E7F3FF',color:'#1877F2',padding:'1px 5px',borderRadius:4,fontWeight:600}}>Meta</span>}
+                        {hasDailyData&&<span style={{marginLeft:4,fontSize:10,color:muted}}>{camp.start_date?.slice(0,10)} — {camp.end_date?.slice(0,10)}</span>}
+                      </td>
+                      <td style={{padding:'8px 6px',color:text}}>{camp.spend?fmtRp(camp.spend):'-'}</td>
+                      <td style={{padding:'8px 6px',textAlign:'center',fontWeight:600,color:'#378ADD'}}>{hasMeta?(camp.results||0):'-'}</td>
+                      <td style={{padding:'8px 6px',color:muted}}>{hasMeta&&camp.cpl?fmtRp(camp.cpl):'-'}</td>
+                      <td style={{padding:'8px 6px',color:muted}}>{hasMeta&&camp.cpm?fmtRp(camp.cpm):'-'}</td>
+                      <td style={{padding:'8px 6px',color:muted}}>{hasMeta&&camp.impressions?Number(camp.impressions).toLocaleString('id-ID'):'-'}</td>
+                      <td style={{padding:'8px 6px',color:muted}}>{hasMeta&&camp.reach?Number(camp.reach).toLocaleString('id-ID'):'-'}</td>
+                      <td style={{padding:'8px 6px',color:muted}}>{hasMeta&&camp.frequency?camp.frequency:'-'}</td>
+                      <td style={{padding:'8px 6px',color:muted}}>{hasMeta&&camp.ctr?camp.ctr.toFixed(2)+'%':'-'}</td>
+                      <td style={{padding:'8px 6px',textAlign:'center'}}>{cl.length}</td>
+                      <td style={{padding:'8px 6px',textAlign:'center'}}>{cd.length}</td>
+                      <td style={{padding:'8px 6px',color:'#639922',fontWeight:600}}>{fmtRp(rev)}</td>
+                      <td style={{padding:'8px 6px',fontWeight:700,color:rc}}>{roas==='-'?'-':roas+'x'}</td>
+                      <td style={{padding:'8px 6px'}}><span style={{color:sc[camp.status]||muted,fontWeight:600,fontSize:11,textTransform:'capitalize'}}>● {camp.status}</span></td>
+                      <td style={{padding:'8px 6px'}}>
+                        <div style={{display:'flex',gap:4}}>
+                          <button onClick={()=>{setEditingCampaign(camp);setCampForm({nama:camp.nama,platform:camp.platform,bulan:camp.bulan||'',spend:camp.spend||'',status:camp.status});setShowCampaignModal(true);}} style={{border:'none',background:'none',cursor:'pointer',color:'#013175',fontSize:16}}><MdEdit/></button>
+                          <button onClick={()=>{setDeleteTarget({type:'campaign',id:camp.id,label:camp.nama});setShowDeleteConfirm(true);}} style={{border:'none',background:'none',cursor:'pointer',color:'#a32d2d',fontSize:16}}><MdDelete/></button>
+                        </div>
+                      </td>
+                    </tr>
+                    {isExpanded && hasDailyData && camp.daily_data.map((day,di)=>(
+                      <tr key={`${camp.id}-day-${di}`} style={{background:dark?'#111827':'#f8f9ff',borderBottom:'1px solid '+(dark?'#1e2540':'#e8edff')}}>
+                        <td style={{padding:'5px 6px'}}/>
+                        <td style={{padding:'5px 6px',color:'#378ADD',fontWeight:600,fontSize:12,paddingLeft:20}}>{day.date}</td>
+                        <td style={{padding:'5px 6px',fontSize:12,color:text}}>{day.spend?fmtRp(day.spend):'-'}</td>
+                        <td style={{padding:'5px 6px',fontSize:12,textAlign:'center',color:'#378ADD',fontWeight:600}}>{day.results||'-'}</td>
+                        <td style={{padding:'5px 6px',fontSize:12,color:muted}}>{day.cpl?fmtRp(day.cpl):'-'}</td>
+                        <td style={{padding:'5px 6px',fontSize:12,color:muted}}>{day.cpm?fmtRp(day.cpm):'-'}</td>
+                        <td style={{padding:'5px 6px',fontSize:12,color:muted}}>{day.impressions?Number(day.impressions).toLocaleString('id-ID'):'-'}</td>
+                        <td style={{padding:'5px 6px',fontSize:12,color:muted}}>{day.reach?Number(day.reach).toLocaleString('id-ID'):'-'}</td>
+                        <td style={{padding:'5px 6px',fontSize:12,color:muted}}>{day.frequency||'-'}</td>
+                        <td style={{padding:'5px 6px',fontSize:12,color:muted}}>{day.ctr?day.ctr.toFixed(2)+'%':'-'}</td>
+                        <td colSpan={6}/>
+                      </tr>
+                    ))}
+                  </>;
                 })}
               </tbody>
             </table>

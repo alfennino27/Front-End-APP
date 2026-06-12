@@ -49,6 +49,7 @@ export default function CRM() {
   const fileInputRef = useRef(null);
   const [filterBulan, setFilterBulan] = useState('');
   const [expandedCamp, setExpandedCamp] = useState(null);
+  const [syncing, setSyncing] = useState(false);
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
@@ -409,6 +410,16 @@ export default function CRM() {
         {activeTab==='analytics'&&<div>
           {/* Action buttons */}
           <div style={{display:'flex',gap:8,marginBottom:20}}>
+            <Button size="sm" variant="primary" disabled={syncing} onClick={async()=>{
+              setSyncing(true);
+              try {
+                const res=await fetch(baseUrl+'/crm/leads/recompute-all',{method:'POST'});
+                const data=await res.json();
+                alert(data.message||'Sync selesai');
+                fetchAll();
+              } catch(e){ alert('Gagal sync data'); }
+              setSyncing(false);
+            }}>{syncing?<Spinner size="sm"/>:'🔄 Sync Data Invoice'}</Button>
             <Button size="sm" variant="dark" onClick={()=>{
               const exportData={period:filterBulan||'Semua',metaLeads:metaLeadsTotal,totalDeals:dealLeads.length,convRate:convRateMeta,revenue:revenueByDeal,grossProfit:totalGrossProfit,totalProfitFromAds,campaigns:filteredCampaigns.map(c=>({nama:c.nama,spend:c.spend,results:c.results,leads:filteredLeads.filter(l=>l.campaign_id===c.id).length,deal:filteredLeads.filter(l=>l.campaign_id===c.id&&l.stage==='deal').length}))};
               const blob=new Blob([JSON.stringify(exportData,null,2)],{type:'application/json'});

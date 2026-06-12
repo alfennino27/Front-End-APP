@@ -246,13 +246,24 @@ export default function CRM() {
     return Array.from(months).sort().reverse();
   }, [campaigns, leads]);
 
-  // Analytics calculations
+  // Analytics calculations (Model B: atribusi by tanggal lead masuk)
   const metaLeadsTotal = filteredCampaigns.filter(c=>c.source==='meta_ads').reduce((s,c)=>s+(c.results||0),0);
   const totalSpend = filteredCampaigns.reduce((s,c)=>s+(c.spend||0),0);
-  const revenueByDeal = dealLeads.reduce((s,l)=>s+(l.deal_value||0),0);
-  const totalGrossProfit = dealLeads.reduce((s,l)=>s+(l.gross_profit||0),0);
-  const totalProfitFromAds = totalGrossProfit - totalSpend;
-  const convRateMeta = metaLeadsTotal>0 ? ((dealLeads.length/metaLeadsTotal)*100).toFixed(1) : null;
+
+  // Deal "from Ads" = new customer dari campaign (exclude repeat & organic)
+  const adsDealLeads = dealLeads.filter(l => l.campaign_id && !l.is_repeat_order);
+
+  // Total (semua deal: campaign + repeat + organic)
+  const revenueTotal = dealLeads.reduce((s,l)=>s+(l.deal_value||0),0);
+  const gpTotal = dealLeads.reduce((s,l)=>s+(l.gross_profit||0),0);
+
+  // From Ads (hanya new customer dari campaign)
+  const revenueFromAds = adsDealLeads.reduce((s,l)=>s+(l.deal_value||0),0);
+  const gpFromAds = adsDealLeads.reduce((s,l)=>s+(l.gross_profit||0),0);
+
+  // Total Profit from Ads = GP from Ads − Total Spend Ads (metrik keputusan)
+  const totalProfitFromAds = gpFromAds - totalSpend;
+  const convRateMeta = metaLeadsTotal>0 ? ((adsDealLeads.length/metaLeadsTotal)*100).toFixed(1) : null;
 
   const cardBg=dark?'#1e1e2e':'#fff', border=dark?'1px solid #333':'1px solid #e8e8e8', text=dark?'white':'#1a1a1a', muted=dark?'#aaa':'#666', mc=dark?'modalKLF':'modalKLFlight';
 
@@ -421,20 +432,20 @@ export default function CRM() {
               setSyncing(false);
             }}>{syncing?<Spinner size="sm"/>:'🔄 Sync Data Invoice'}</Button>
             <Button size="sm" variant="dark" onClick={()=>{
-              const exportData={period:filterBulan||'Semua',metaLeads:metaLeadsTotal,totalDeals:dealLeads.length,convRate:convRateMeta,revenue:revenueByDeal,grossProfit:totalGrossProfit,totalProfitFromAds,campaigns:filteredCampaigns.map(c=>({nama:c.nama,spend:c.spend,results:c.results,leads:filteredLeads.filter(l=>l.campaign_id===c.id).length,deal:filteredLeads.filter(l=>l.campaign_id===c.id&&l.stage==='deal').length}))};
+              const exportData={period:filterBulan||'Semua',metaLeads:metaLeadsTotal,totalDeals:dealLeads.length,dealsFromAds:adsDealLeads.length,convRate:convRateMeta,totalRevenue:revenueTotal,revenueFromAds,totalGrossProfit:gpTotal,grossProfitFromAds:gpFromAds,totalSpendAds:totalSpend,totalProfitFromAds,campaigns:filteredCampaigns.map(c=>({nama:c.nama,spend:c.spend,results:c.results,leads:filteredLeads.filter(l=>l.campaign_id===c.id).length,deal:filteredLeads.filter(l=>l.campaign_id===c.id&&l.stage==='deal').length}))};
               const blob=new Blob([JSON.stringify(exportData,null,2)],{type:'application/json'});
               const url=URL.createObjectURL(blob);
               const a=document.createElement('a');a.href=url;a.download=`crm-analytics-${filterBulan||'all'}.json`;a.click();URL.revokeObjectURL(url);
             }}>⬇ Export JSON</Button>
           </div>
 
-          {/* Summary Cards Row 1 */}
-          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(200px,1fr))',gap:12,marginBottom:12}}>
+          {/* Summary Cards Row 1 — supporting metrics */}
+          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))',gap:12,marginBottom:12}}>
             {[
-              {label:'Meta Leads',value:metaLeadsTotal,color:'#378ADD',sub:'dari campaign Meta Ads'},
-              {label:'Total Deals',value:dealLeads.length,color:'#639922',sub:''},
-              {label:'Conversion Rate',value:(convRateMeta||convRate)+'%',color:'#7F77DD',sub:metaLeadsTotal>0?'Deal ÷ Leads Meta':'Deal ÷ Leads CRM'},
-              {label:'Revenue (deal)',value:fmtRp(revenueByDeal),color:'#013175',sub:'by tgl closing'},
+              {label:'Meta Leads',value:metaLeadsTotal,color:'#378ADD',sub:'lead masuk dari campaign'},
+              {label:'Total Deals',value:dealLeads.length,color:'#639922',sub:`${adsDealLeads.length} dari ads`},
+              {label:'Conversion Rate',value:(convRateMeta||0)+'%',color:'#7F77DD',sub:'Deal Ads ÷ Leads Meta'},
+              {label:'Total Spend Ads',value:fmtRp(totalSpend),color:'#a32d2d',sub:'spend campaign bulan ini'},
             ].map((m,i)=>(
               <div key={i} style={{background:cardBg,border,borderRadius:10,padding:'16px 18px'}}>
                 <div style={{fontSize:11,color:muted,marginBottom:4,fontWeight:500}}>{m.label}</div>
@@ -443,19 +454,33 @@ export default function CRM() {
               </div>
             ))}
           </div>
-          {/* Summary Cards Row 2 */}
-          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(200px,1fr))',gap:12,marginBottom:24}}>
+
+          {/* Summary Cards Row 2 — Total vs From Ads (Revenue & Gross Profit) */}
+          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))',gap:12,marginBottom:12}}>
             {[
-              {label:'Gross Profit',value:fmtRp(totalGrossProfit),color:'#EF9F27',sub:'dari semua deal'},
-              {label:'Total Spend Ads',value:fmtRp(totalSpend),color:'#a32d2d',sub:'dari semua campaign'},
-              {label:'Total Profit from Ads',value:fmtRp(totalProfitFromAds),color:totalProfitFromAds>=0?'#639922':'#a32d2d',sub:'Gross Profit − Spend'},
+              {label:'Total Revenue',value:fmtRp(revenueTotal),color:'#013175',sub:'semua deal (ads + organic + repeat)'},
+              {label:'Revenue from Ads',value:fmtRp(revenueFromAds),color:'#1877F2',sub:'new customer dari campaign',highlight:true},
+              {label:'Total Gross Profit',value:fmtRp(gpTotal),color:'#EF9F27',sub:'semua deal'},
+              {label:'Gross Profit from Ads',value:fmtRp(gpFromAds),color:'#E07B00',sub:'new customer dari campaign',highlight:true},
             ].map((m,i)=>(
-              <div key={i} style={{background:cardBg,border,borderRadius:10,padding:'16px 18px'}}>
+              <div key={i} style={{background:m.highlight?(dark?'#1a2438':'#f0f6ff'):cardBg,border:m.highlight?'1px solid '+(dark?'#2a4a7a':'#bcd6ff'):border,borderRadius:10,padding:'16px 18px'}}>
                 <div style={{fontSize:11,color:muted,marginBottom:4,fontWeight:500}}>{m.label}</div>
-                <div style={{fontSize:20,fontWeight:700,color:m.color}}>{(totalProfitFromAds>=0||i<2)?m.value:(m.value)}</div>
+                <div style={{fontSize:20,fontWeight:700,color:m.color}}>{m.value}</div>
                 {m.sub&&<div style={{fontSize:10,color:muted,marginTop:2}}>{m.sub}</div>}
               </div>
             ))}
+          </div>
+
+          {/* Total Profit from Ads — metrik keputusan (highlight besar) */}
+          <div style={{background:totalProfitFromAds>=0?(dark?'#16291a':'#edf7ee'):(dark?'#2a1717':'#fdeeee'),border:'1.5px solid '+(totalProfitFromAds>=0?'#639922':'#a32d2d'),borderRadius:12,padding:'18px 22px',marginBottom:24,display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:12}}>
+            <div>
+              <div style={{fontSize:12,color:muted,fontWeight:600,marginBottom:4}}>TOTAL PROFIT FROM ADS</div>
+              <div style={{fontSize:13,color:muted}}>Gross Profit from Ads ({fmtRp(gpFromAds)}) − Total Spend Ads ({fmtRp(totalSpend)})</div>
+            </div>
+            <div style={{textAlign:'right'}}>
+              <div style={{fontSize:30,fontWeight:800,color:totalProfitFromAds>=0?'#639922':'#a32d2d'}}>{totalProfitFromAds>=0?'+':''}{fmtRp(totalProfitFromAds)}</div>
+              <div style={{fontSize:12,fontWeight:700,color:totalProfitFromAds>=0?'#639922':'#a32d2d'}}>{totalProfitFromAds>=0?'▲ Iklan membiayai diri sendiri':'▼ Iklan boncos — pertimbangkan ganti'}</div>
+            </div>
           </div>
 
           {/* Funnel Konversi */}
@@ -538,7 +563,7 @@ export default function CRM() {
                 </tbody>
               </table>
               <div style={{fontSize:10,color:muted,marginTop:8}}>
-                * Conv. Rate = Deal (New) ÷ Leads Meta. ROAS dihitung dari Revenue New Customer saja.
+                * Atribusi by tanggal lead masuk (deal bisa closing kapanpun). Conv. Rate = Deal (New) ÷ Leads Meta. ROAS & Ads Profit dari New Customer saja (exclude repeat & organic).
               </div>
             </div>
           </div>

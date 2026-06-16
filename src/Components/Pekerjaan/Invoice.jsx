@@ -412,6 +412,7 @@ const Invoice = () => {
       formData.append('Date', tanggalMulaiInvoice);
       formData.append('Deadline', deadlineInvoice);
       formData.append('Spesifikasi', spesifikasi);
+      formData.append('uid', user?.uid || '');
 
       if (fileToUpload) {
         formData.append('image', fileToUpload);
@@ -446,6 +447,7 @@ const Invoice = () => {
       formData.append('Spesifikasi', spesifikasiEdit);
       formData.append('Harga', hargaEdit);
       formData.append('Qty', qtyEdit);
+      formData.append('uid', user?.uid || '');
 
       // Hanya kirim gambar baru jika user upload ulang
       if (fileToUploadEdit) {

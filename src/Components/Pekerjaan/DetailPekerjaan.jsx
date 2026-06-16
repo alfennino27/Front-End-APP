@@ -161,6 +161,10 @@ const DetailPekerjaan = () => {
   const [orderDate, setOrderDate] = useState('');
   const [deadline, setDeadline] = useState('');
   const [description, setDescription] = useState('');
+  // Riwayat perubahan (versioning) deskripsi
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [historyData, setHistoryData] = useState([]);
+  const [historyTitle, setHistoryTitle] = useState('');
   const [showConfirmCategoryModal, setShowConfirmCategoryModal] = useState(false);
   const [showSPKImagePicker, setShowSPKImagePicker] = useState(false);
   const [spkImages, setSpkImages] = useState([]);
@@ -511,6 +515,37 @@ const DetailPekerjaan = () => {
     setSelectedImage(null);
   };
 
+  // Buka modal riwayat perubahan deskripsi (urut terbaru di atas)
+  const openHistory = (history, title) => {
+    const list = Array.isArray(history) ? [...history] : [];
+    list.sort((a, b) => new Date(b.ts) - new Date(a.ts));
+    setHistoryData(list);
+    setHistoryTitle(title);
+    setShowHistoryModal(true);
+  };
+
+  const formatHistoryDate = (ts) => {
+    if (!ts) return '-';
+    try {
+      return new Date(ts).toLocaleString('id-ID', {
+        day: 'numeric', month: 'long', year: 'numeric',
+        hour: '2-digit', minute: '2-digit',
+      });
+    } catch (e) {
+      return '-';
+    }
+  };
+
+  const historySourceLabel = (source) => {
+    switch (source) {
+      case 'projects': return 'Projects';
+      case 'invoice': return 'Invoice';
+      case 'image': return 'Gambar';
+      case 'baseline': return 'Data awal';
+      default: return source || '-';
+    }
+  };
+
   useEffect(() => {
     // console.log(category);
     commentsData();
@@ -544,7 +579,8 @@ const DetailPekerjaan = () => {
           deadline,
           description,
           categoryStatus,
-          selectedSPKId
+          selectedSPKId,
+          uid: user?.uid || ''
         }),
       });
 
@@ -641,6 +677,7 @@ const DetailPekerjaan = () => {
           JenisMarmerQC: updatedJenisMarmerQC,
           JenisKainQC: updatedJenisKainQC,
           StorageFolder: updatedStorageFolder,
+          uid: user?.uid || '',
         }),
       });
 
@@ -660,6 +697,7 @@ const DetailPekerjaan = () => {
   const handleSubmitImageEdit = async () => {
     setShowImageEdit(false);
     const formData = new FormData();
+    formData.append('uid', user?.uid || '');
 
     for (let i = 1; i <= jumlahImageEdit; i++) {
       const file = fileToUploadEdit[i];
@@ -689,6 +727,7 @@ const DetailPekerjaan = () => {
     try {
       const formData = new FormData();
       formData.append('category', category); // contoh: 'furniture'
+      formData.append('uid', user?.uid || '');
 
       for (let i = 1; i <= jumlahImageCategory; i++) {
         const file = fileToUploadCategoryEdit[i];
@@ -1843,7 +1882,16 @@ const DetailPekerjaan = () => {
           </div>
 
           <div onClick={handleShowInformationModal}>
-            <h6 className='mt-4' style={{ color: globalTheme == "light" ? "black" : "white" }}>Deskripsi Produk</h6>
+            <div className='mt-4 d-flex align-items-center' style={{ gap: '8px' }}>
+              <h6 className='mb-0' style={{ color: globalTheme == "light" ? "black" : "white" }}>Deskripsi Produk</h6>
+              <span
+                onClick={(e) => { e.stopPropagation(); openHistory(dataProjectFromDB[0]?.SpesifikasiHistory, 'Riwayat Deskripsi Produk'); }}
+                title="Lihat riwayat perubahan"
+                style={{ cursor: 'pointer', fontSize: '11px', padding: '1px 8px', borderRadius: '12px', border: `1px solid ${globalTheme == "light" ? "#ced4da" : "#6c757d"}`, color: globalTheme == "light" ? "#495057" : "#dee2e6", whiteSpace: 'nowrap' }}
+              >
+                🕘 Riwayat ({dataProjectFromDB[0]?.SpesifikasiHistory?.length || 0})
+              </span>
+            </div>
             <p style={{ whiteSpace: 'pre-line', color: globalTheme == "light" ? "black" : "white" }}>{dataProjectFromDB.length > 0 ? dataProjectFromDB[0].Spesifikasi : ''}</p>
             <small style={{ color: globalTheme == "light" ? "black" : "white" }}>
               <HiTemplate /> Quantity : {dataProjectFromDB.length > 0 ? dataProjectFromDB[0].Qty : ''}
@@ -2327,7 +2375,18 @@ const DetailPekerjaan = () => {
             </>
           )}
 
-          <h6 className='mt-4' style={{ color: globalTheme == "light" ? "black" : "white" }}>Deskripsi Spesifik</h6>
+          <div className='mt-4 d-flex align-items-center' style={{ gap: '8px' }}>
+            <h6 className='mb-0' style={{ color: globalTheme == "light" ? "black" : "white" }}>Deskripsi Spesifik</h6>
+            {category && (
+              <span
+                onClick={(e) => { e.stopPropagation(); openHistory(dataProjectFromDB[0]?.[`Description${category}History`], `Riwayat Deskripsi Spesifik (${category})`); }}
+                title="Lihat riwayat perubahan"
+                style={{ cursor: 'pointer', fontSize: '11px', padding: '1px 8px', borderRadius: '12px', border: `1px solid ${globalTheme == "light" ? "#ced4da" : "#6c757d"}`, color: globalTheme == "light" ? "#495057" : "#dee2e6", whiteSpace: 'nowrap' }}
+              >
+                🕘 Riwayat ({dataProjectFromDB[0]?.[`Description${category}History`]?.length || 0})
+              </span>
+            )}
+          </div>
           {dataProjectFromDB.length > 0 ? (
             <div>
               <p className='mt-2'
@@ -3499,6 +3558,69 @@ const DetailPekerjaan = () => {
           </div>
         </div>
       )}
+
+
+      {/* Modal Riwayat Perubahan Deskripsi (read-only) */}
+      <Modal size="lg" className={`${globalTheme === 'light' ? 'modalKLFlight' : 'modalKLF'}`} show={showHistoryModal} onHide={() => setShowHistoryModal(false)}>
+        <Modal.Header closeButton>
+          <Modal.Title style={{ fontSize: '1rem' }}>{historyTitle}</Modal.Title>
+        </Modal.Header>
+        <Modal.Body style={{ maxHeight: '70vh', overflowY: 'auto' }}>
+          {historyData.length === 0 ? (
+            <p className="text-center text-muted mb-0">Belum ada riwayat perubahan.</p>
+          ) : (
+            historyData.map((entry, idx) => {
+              const isLatest = idx === 0;
+              return (
+                <div
+                  key={idx}
+                  style={{
+                    border: `1px solid ${globalTheme == "light" ? "#e0e0e0" : "#444"}`,
+                    borderLeft: `4px solid ${isLatest ? '#0d6efd' : (globalTheme == "light" ? "#ced4da" : "#6c757d")}`,
+                    borderRadius: '8px',
+                    padding: '10px 12px',
+                    marginBottom: '10px',
+                  }}
+                >
+                  <div className="d-flex justify-content-between align-items-center flex-wrap" style={{ gap: '6px', marginBottom: '6px' }}>
+                    <div style={{ fontSize: '13px', fontWeight: 600, color: globalTheme == "light" ? "#212529" : "#f1f1f1" }}>
+                      {entry.source === 'baseline'
+                        ? 'Data awal'
+                        : (entry.username || dataUserFromDB.find(u => u.uid === entry.uid)?.name || 'Tidak diketahui')}
+                      {isLatest && (
+                        <span style={{ marginLeft: '8px', fontSize: '10px', background: '#0d6efd', color: '#fff', padding: '1px 7px', borderRadius: '10px' }}>Terbaru</span>
+                      )}
+                    </div>
+                    <div style={{ fontSize: '11px', color: globalTheme == "light" ? "#6c757d" : "#adb5bd" }}>
+                      {formatHistoryDate(entry.ts)}
+                      <span style={{ marginLeft: '8px', border: `1px solid ${globalTheme == "light" ? "#ced4da" : "#6c757d"}`, borderRadius: '8px', padding: '0 6px' }}>
+                        {historySourceLabel(entry.source)}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="d-flex" style={{ gap: '10px' }}>
+                    {entry.image ? (
+                      <img
+                        src={getImageUrl(entry.image)}
+                        alt=""
+                        onClick={() => openModalImg(entry.image)}
+                        style={{ width: '72px', height: '72px', objectFit: 'cover', borderRadius: '6px', cursor: 'pointer', flexShrink: 0 }}
+                      />
+                    ) : null}
+                    <p style={{ whiteSpace: 'pre-line', fontSize: '13px', margin: 0, color: globalTheme == "light" ? "#212529" : "#e9ecef" }}>
+                      {entry.text || <span className="text-muted">(kosong)</span>}
+                    </p>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </Modal.Body>
+        <Modal.Footer>
+          <small className="text-muted me-auto">Riwayat hanya untuk dilihat. Untuk memakai versi lama, salin teksnya lalu simpan ulang.</small>
+          <button className="btn btn-sm btn-secondary" onClick={() => setShowHistoryModal(false)}>Tutup</button>
+        </Modal.Footer>
+      </Modal>
 
 
       {/* Modal */}

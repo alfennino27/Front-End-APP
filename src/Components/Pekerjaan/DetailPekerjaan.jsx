@@ -154,6 +154,8 @@ const DetailPekerjaan = () => {
   const [dataCommentsFromDB, setDataCommentsFromDB] = useState([]);
   const [dataRepliesFromDB, setDataRepliesFromDB] = useState([]);
   const [dataUserFromDB, setDataUserFromDB] = useState([]);
+  // Item SPK milik project ini (untuk tampilkan harga SPK per kategori)
+  const [spkProductList, setSpkProductList] = useState([]);
   const [category, setCategory] = useState('');
   const [lastReply, setLastReply] = useState('');
 
@@ -1014,6 +1016,23 @@ const DetailPekerjaan = () => {
     }
   };
 
+  // Ambil semua item SPK milik project ini (untuk harga SPK per kategori)
+  const fetchSpkProducts = async () => {
+    if (!slug || slug === 'salah') return;
+    try {
+      const res = await fetch(`${baseUrl}/spkproduct/byproduct/get?idProduct=${encodeURIComponent(slug)}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      setSpkProductList(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Error ambil SPKproduct:', err.message);
+    }
+  };
+
+  useEffect(() => {
+    fetchSpkProducts();
+  }, [slug]);
+
 
   const commentsData = async () => {
     try {
@@ -1265,6 +1284,22 @@ const DetailPekerjaan = () => {
     '4WGPaHicKWYr0Ny84IUh8xb9Bo62', // P. Dhe
     '6D4XVa5BSSOl1ugUlkDlTea2COX2', // Azwad
   ];
+
+  // Harga SPK per kategori hanya tampil untuk user & kategori tertentu
+  const SPK_PRICE_AUTHORIZED_UIDS = [
+    'fYpdHwXRDLhj5XGxM5FZIAvxp9E2', // Alfen
+    '4WGPaHicKWYr0Ny84IUh8xb9Bo62', // P. Dhe
+  ];
+  const SPK_PRICE_CATEGORIES = ['Kayu', 'Besi', 'Marmer'];
+
+  // Total harga SPK untuk kategori yang sedang dibuka (Σ harga item SPKproduct)
+  const spkCategoryTotal = spkProductList
+    .filter((s) => s.category === category)
+    .reduce((sum, s) => sum + (Number(s.harga) || 0), 0);
+  const spkCategoryCount = spkProductList.filter((s) => s.category === category).length;
+  const showSpkPrice =
+    SPK_PRICE_AUTHORIZED_UIDS.includes(user?.uid) &&
+    SPK_PRICE_CATEGORIES.includes(category);
 
   const handlePrintSPK = () => {
     const project = dataProjectFromDB[0];
@@ -2171,6 +2206,25 @@ const DetailPekerjaan = () => {
           </div>
           {dataProjectFromDB.length > 0 && (
             <h6 className="fw-semibold" style={{ color: globalTheme == "light" ? "black" : "white" }}>Supplier : {dataProjectFromDB[0][`Supplier${category}`] ? dataProjectFromDB[0][`Supplier${category}`] : '-'}</h6>
+          )}
+          {showSpkPrice && (
+            <div
+              className="fw-semibold"
+              style={{
+                display: 'inline-block',
+                marginBottom: '4px',
+                padding: '3px 10px',
+                borderRadius: '8px',
+                fontSize: isMobile ? '13px' : '15px',
+                background: globalTheme == "light" ? '#e7f1ff' : '#1c3a5e',
+                color: globalTheme == "light" ? '#0d6efd' : '#9ec5fe',
+                border: `1px solid ${globalTheme == "light" ? '#b6d4fe' : '#2c5d94'}`,
+              }}
+            >
+              💰 Harga SPK : {spkCategoryCount > 0
+                ? `Rp ${spkCategoryTotal.toLocaleString('id-ID')}`
+                : <span style={{ fontWeight: 400, opacity: 0.8 }}>Belum ada SPK</span>}
+            </div>
           )}
           {dataProjectFromDB.length > 0 && (
             <small style={{ color: globalTheme == "light" ? "black" : "white" }}>

@@ -3570,26 +3570,28 @@ const DetailPekerjaan = () => {
             <p className="text-center text-muted mb-0">Belum ada riwayat perubahan.</p>
           ) : (
             historyData.map((entry, idx) => {
+              const total = historyData.length;
+              const versionNum = total - idx;
               const isLatest = idx === 0;
               return (
                 <div
                   key={idx}
                   style={{
                     border: `1px solid ${globalTheme == "light" ? "#e0e0e0" : "#444"}`,
-                    borderLeft: `4px solid ${isLatest ? '#0d6efd' : (globalTheme == "light" ? "#ced4da" : "#6c757d")}`,
+                    borderLeft: `4px solid ${isLatest ? '#dc3545' : (globalTheme == "light" ? "#ced4da" : "#6c757d")}`,
                     borderRadius: '8px',
                     padding: '10px 12px',
                     marginBottom: '10px',
                   }}
                 >
                   <div className="d-flex justify-content-between align-items-center flex-wrap" style={{ gap: '6px', marginBottom: '6px' }}>
-                    <div style={{ fontSize: '13px', fontWeight: 600, color: globalTheme == "light" ? "#212529" : "#f1f1f1" }}>
-                      {entry.source === 'baseline'
-                        ? 'Data awal'
-                        : (entry.username || dataUserFromDB.find(u => u.uid === entry.uid)?.name || 'Tidak diketahui')}
-                      {isLatest && (
-                        <span style={{ marginLeft: '8px', fontSize: '10px', background: '#0d6efd', color: '#fff', padding: '1px 7px', borderRadius: '10px' }}>Terbaru</span>
-                      )}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ fontWeight: 700, fontSize: '13px', color: '#dc3545' }}>v{versionNum}</span>
+                      <span style={{ fontSize: '13px', fontWeight: 600, color: globalTheme == "light" ? "#212529" : "#f1f1f1" }}>
+                        {entry.source === 'baseline'
+                          ? 'Data awal'
+                          : (entry.username || dataUserFromDB.find(u => u.uid === entry.uid)?.name || 'Tidak diketahui')}
+                      </span>
                     </div>
                     <div style={{ fontSize: '11px', color: globalTheme == "light" ? "#6c757d" : "#adb5bd" }}>
                       {formatHistoryDate(entry.ts)}

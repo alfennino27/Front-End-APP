@@ -3585,19 +3585,14 @@ const DetailPekerjaan = () => {
                   }}
                 >
                   <div className="d-flex justify-content-between align-items-center flex-wrap" style={{ gap: '6px', marginBottom: '6px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span style={{ fontWeight: 700, fontSize: '13px', color: '#dc3545' }}>v{versionNum}</span>
-                      <span style={{ fontSize: '13px', fontWeight: 600, color: globalTheme == "light" ? "#212529" : "#f1f1f1" }}>
-                        {entry.source === 'baseline'
-                          ? 'Data awal'
-                          : (entry.username || dataUserFromDB.find(u => u.uid === entry.uid)?.name || 'Tidak diketahui')}
-                      </span>
+                    <div style={{ fontSize: '13px', fontWeight: 600, color: globalTheme == "light" ? "#212529" : "#f1f1f1" }}>
+                      {entry.source === 'baseline'
+                        ? 'Data awal'
+                        : (entry.username || dataUserFromDB.find(u => u.uid === entry.uid)?.name || 'Tidak diketahui')}
                     </div>
-                    <div style={{ fontSize: '11px', color: globalTheme == "light" ? "#6c757d" : "#adb5bd" }}>
+                    <div style={{ fontSize: '11px', color: globalTheme == "light" ? "#6c757d" : "#adb5bd", display: 'flex', alignItems: 'center', gap: '8px' }}>
                       {formatHistoryDate(entry.ts)}
-                      <span style={{ marginLeft: '8px', border: `1px solid ${globalTheme == "light" ? "#ced4da" : "#6c757d"}`, borderRadius: '8px', padding: '0 6px' }}>
-                        {historySourceLabel(entry.source)}
-                      </span>
+                      <span style={{ fontWeight: 700, fontSize: '12px', color: '#dc3545' }}>V{versionNum}</span>
                     </div>
                   </div>
                   <div className="d-flex" style={{ gap: '10px' }}>

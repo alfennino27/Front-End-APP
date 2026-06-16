@@ -518,8 +518,11 @@ const DetailPekerjaan = () => {
   // Buka modal riwayat perubahan deskripsi (urut terbaru di atas)
   const openHistory = (history, title) => {
     const list = Array.isArray(history) ? [...history] : [];
-    list.sort((a, b) => new Date(b.ts) - new Date(a.ts));
-    setHistoryData(list);
+    // Beri nomor versi berdasarkan urutan insert (index awal = V1)
+    // sebelum diurutkan untuk tampilan, supaya V1 selalu = yang pertama masuk
+    const withVersions = list.map((entry, i) => ({ ...entry, versionNum: i + 1 }));
+    withVersions.sort((a, b) => new Date(b.ts) - new Date(a.ts));
+    setHistoryData(withVersions);
     setHistoryTitle(title);
     setShowHistoryModal(true);
   };
@@ -3570,9 +3573,8 @@ const DetailPekerjaan = () => {
             <p className="text-center text-muted mb-0">Belum ada riwayat perubahan.</p>
           ) : (
             historyData.map((entry, idx) => {
-              const total = historyData.length;
-              const versionNum = total - idx;
               const isLatest = idx === 0;
+              const versionNum = entry.versionNum;
               return (
                 <div
                   key={idx}

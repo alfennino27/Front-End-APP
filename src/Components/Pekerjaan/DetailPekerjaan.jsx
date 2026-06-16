@@ -1292,11 +1292,15 @@ const DetailPekerjaan = () => {
   ];
   const SPK_PRICE_CATEGORIES = ['Kayu', 'Besi', 'Marmer'];
 
-  // Total harga SPK untuk kategori yang sedang dibuka (Σ harga item SPKproduct)
+  // Nilai biaya kategori (mirror logic Invoice: SPK<cat> total || estimasi<cat>).
+  // Jika ada nilai SPK → biaya asli (label "SPK"); jika belum → biaya sementara (label "budget").
   const spkCategoryTotal = spkProductList
     .filter((s) => s.category === category)
     .reduce((sum, s) => sum + (Number(s.harga) || 0), 0);
-  const spkCategoryCount = spkProductList.filter((s) => s.category === category).length;
+  const estimasiCategory = Number(dataProjectFromDB[0]?.[`estimasi${category}`] || 0);
+  const usingSpkValue = spkCategoryTotal > 0;
+  const categoryCostValue = usingSpkValue ? spkCategoryTotal : estimasiCategory;
+  const categoryCostLabel = usingSpkValue ? 'SPK' : 'budget';
   const showSpkPrice =
     SPK_PRICE_AUTHORIZED_UIDS.includes(user?.uid) &&
     SPK_PRICE_CATEGORIES.includes(category);
@@ -2207,25 +2211,6 @@ const DetailPekerjaan = () => {
           {dataProjectFromDB.length > 0 && (
             <h6 className="fw-semibold" style={{ color: globalTheme == "light" ? "black" : "white" }}>Supplier : {dataProjectFromDB[0][`Supplier${category}`] ? dataProjectFromDB[0][`Supplier${category}`] : '-'}</h6>
           )}
-          {showSpkPrice && (
-            <div
-              className="fw-semibold"
-              style={{
-                display: 'inline-block',
-                marginBottom: '4px',
-                padding: '3px 10px',
-                borderRadius: '8px',
-                fontSize: isMobile ? '13px' : '15px',
-                background: globalTheme == "light" ? '#e7f1ff' : '#1c3a5e',
-                color: globalTheme == "light" ? '#0d6efd' : '#9ec5fe',
-                border: `1px solid ${globalTheme == "light" ? '#b6d4fe' : '#2c5d94'}`,
-              }}
-            >
-              💰 Harga SPK : {spkCategoryCount > 0
-                ? `Rp ${spkCategoryTotal.toLocaleString('id-ID')}`
-                : <span style={{ fontWeight: 400, opacity: 0.8 }}>Belum ada SPK</span>}
-            </div>
-          )}
           {dataProjectFromDB.length > 0 && (
             <small style={{ color: globalTheme == "light" ? "black" : "white" }}>
               <IoCalendarNumberOutline /> Tanggal Order :  {dataProjectFromDB[0][`OrderDate${category}`] ? new Date(dataProjectFromDB[0][`OrderDate${category}`]).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : '-'}</small>
@@ -2632,6 +2617,20 @@ const DetailPekerjaan = () => {
               >
                 <AiOutlinePrinter style={{ fontSize: '16px' }} /> Buat SPK
               </button>
+            )}
+            {showSpkPrice && (
+              <small
+                style={{
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  color: usingSpkValue
+                    ? (globalTheme === 'light' ? '#0d6efd' : '#9ec5fe')
+                    : (globalTheme === 'light' ? '#6c757d' : '#adb5bd'),
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {categoryCostLabel} Rp {categoryCostValue.toLocaleString('id-ID')}
+              </small>
             )}
           </div>
 

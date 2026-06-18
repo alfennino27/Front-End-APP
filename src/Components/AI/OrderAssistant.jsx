@@ -188,6 +188,11 @@ const OrderAssistant = ({ invoiceId, kodeInvoice, projects = [], invoice = {} })
               <ul style={{ margin: '8px 0 0', paddingLeft: 20 }}>
                 {(gate.unacknowledgedFlags || []).map((f, i) => <li key={`uf${i}`} style={{ color: '#dc3545' }}>Flag belum di-acknowledge{f.item_name ? ` [${f.item_name}]` : ''}: {f.text}</li>)}
                 {(gate.issues || []).map((iss, i) => <li key={`is${i}`}>{iss}</li>)}
+                {(gate.gaps || []).flatMap((it) => (it.gaps || []).map((g, j) => (
+                  <li key={`gap${it.item_name}${j}`} style={{ color: '#fd7e14' }}>
+                    Gap [{it.item_name}] {g.topic}: terbaru "{g.latest_instruction}" ({g.latest_source}) — {g.suggestion}
+                  </li>
+                )))}
               </ul>
             )}
           </div>

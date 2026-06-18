@@ -13,6 +13,7 @@ import { MdAccessTime } from "react-icons/md";
 import { IoCalendarNumberOutline, IoNewspaperOutline } from "react-icons/io5";
 import { AiOutlinePrinter } from "react-icons/ai";
 import { getApiBaseUrl } from '../../Config/APIurl';
+import ConsistencyCheck from '../AI/ConsistencyCheck';
 import { format } from "date-fns";
 import { id } from 'date-fns/locale';
 import { useNavigate } from 'react-router-dom';
@@ -1922,6 +1923,10 @@ const DetailPekerjaan = () => {
 
 
           </div>
+
+          {slug && dataProjectFromDB.length > 0 && (
+            <ConsistencyCheck projectId={slug} itemName={dataProjectFromDB[0]?.NamaBarang} />
+          )}
 
           <div onClick={handleShowInformationModal}>
             <div className='mt-4 d-flex align-items-center' style={{ gap: '8px' }}>

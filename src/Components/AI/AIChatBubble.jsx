@@ -190,6 +190,22 @@ const AIChatBubble = () => {
     } catch (e) { pushBot('❌ ' + e.message); } finally { setBusy(false); }
   };
 
+  // ---- Flow: cek konsistensi (reconcile) untuk item terpilih ----
+  const runConsistency = async (projectId, name) => {
+    setBusy(true);
+    try {
+      const res = await fetch(`${baseUrl}/ai/item/${projectId}/reconcile`, { headers: authHeaders() });
+      const data = await res.json();
+      if (!res.ok) { pushBot('❌ ' + (data.message || 'Gagal cek konsistensi')); return; }
+      if (data.clear || !(data.gaps || []).length) {
+        pushBot(`✅ "${name || data.item_name}" konsisten — tidak ada gap antara chat, deskripsi, & komentar terbaru.`);
+      } else {
+        const lines = data.gaps.map((g) => `• ${g.topic}: terbaru "${g.latest_instruction}" (${g.latest_source})\n   🏭 sekarang: ${g.current_in_production || '-'}\n   💡 ${g.suggestion || '-'}`);
+        pushBot(`⚠️ ${data.gaps.length} gap pada "${name || data.item_name}":\n${lines.join('\n')}`);
+      }
+    } catch (e) { pushBot('❌ ' + e.message); } finally { setBusy(false); }
+  };
+
   // ---- input handler ----
   const handleSend = () => {
     const text = input.trim();
@@ -198,6 +214,11 @@ const AIChatBubble = () => {
     pushUser(text);
 
     if (/upload\s*wa|upload\s*chat/i.test(text)) { startUploadFlow(); return; }
+    if (/konsisten|cek gap|rekonsiliasi|consistency/i.test(text)) {
+      if (ctx.itemId) { runConsistency(ctx.itemId, ctx.itemName); return; }
+      pushBot('Pilih item dulu untuk cek konsistensi. Ketik pertanyaan atau pilih order/item.');
+      return;
+    }
     if (ctx.invoiceId && ctx.itemId) { doAsk(text); return; }
     if (ctx.invoiceId && !ctx.itemId && ctx.items.length) {
       // sudah pilih order, belum item -> tanya langsung, server bisa minta pilih item

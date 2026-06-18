@@ -19,6 +19,7 @@ import { IoSearch } from 'react-icons/io5';
 import { useTheme } from '../../ThemeContext';
 import { getImageUrl } from '../../Utils/image';
 import { RiFileExcel2Line } from "react-icons/ri";
+import OrderAssistant from '../AI/OrderAssistant';
 
 //tes
 const Invoice = () => {
@@ -2181,6 +2182,15 @@ const Invoice = () => {
               </div>
             </div>
 
+
+            {slug && dataInvoiceFromDB[0] && (
+              <OrderAssistant
+                invoiceId={slug}
+                kodeInvoice={kodeInvoice}
+                projects={dataProductFromDB}
+                invoice={dataInvoiceFromDB[0]}
+              />
+            )}
 
             <div style={{ display: searchSupplier !== '' && !slug ? 'none' : '' }}>
               <div className="mt-4" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: "sticky", ...(isMobile ? { top: -1 } : { top: 0 }), zIndex: 1 }}>

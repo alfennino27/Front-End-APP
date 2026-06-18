@@ -4,9 +4,11 @@
 // cari lintas order, detail item). Plus "cek konsistensi <item>". Diproteksi shared secret X-KLF-Key.
 // Catatan: upload chat WA dilakukan lewat panel invoice (OrderAssistant), bukan dari bubble.
 import React, { useState, useRef, useEffect } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { getApiBaseUrl } from '../../Config/APIurl';
 import { useTheme } from '../../ThemeContext';
-import { BsChatDotsFill, BsXLg, BsSend } from 'react-icons/bs';
+import { BsChatDotsFill, BsXLg, BsSend, BsArrowsAngleExpand, BsArrowsAngleContract } from 'react-icons/bs';
 
 const aiKey = import.meta.env.VITE_KLF_AI_KEY || '';
 const authHeaders = (extra = {}) => ({ ...(aiKey ? { 'X-KLF-Key': aiKey } : {}), ...extra });
@@ -21,10 +23,12 @@ const AIChatBubble = () => {
   const isLight = globalTheme === 'light';
 
   const [open, setOpen] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
   const scrollRef = useRef(null);
+  const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
 
   useEffect(() => {
     if (open && messages.length === 0) {
@@ -125,7 +129,28 @@ const AIChatBubble = () => {
   const panelBg = isLight ? '#ffffff' : '#1c1c1c';
   const textColor = isLight ? '#000' : '#eee';
   const chipStyle = { background: 'transparent', border: `1px solid ${accent}`, color: accent, borderRadius: 16, padding: '4px 12px', margin: '3px 4px 0 0', cursor: 'pointer', fontSize: 13 };
-  const inputStyle = { flex: 1, padding: '9px 12px', borderRadius: 20, border: '1px solid #999', background: isLight ? '#fff' : '#2a2a2a', color: textColor, outline: 'none' };
+  const inputStyle = { flex: 1, padding: '9px 12px', borderRadius: 20, border: '1px solid #999', background: isLight ? '#fff' : '#2a2a2a', color: textColor, outline: 'none', minWidth: 0 };
+
+  // Ukuran & posisi panel: HP = hampir penuh; desktop = normal/expanded.
+  const panelStyle = isMobile
+    ? { left: 10, right: 10, bottom: 84, top: 12, width: 'auto', height: 'auto' }
+    : { right: 24, bottom: 92, width: expanded ? 'min(900px, 94vw)' : 420, height: expanded ? 'min(760px, 86vh)' : 560 };
+
+  // Markdown renderer (tabel rapi + scroll horizontal kalau lebar).
+  const mdComponents = {
+    table: (p) => <div style={{ overflowX: 'auto', margin: '6px 0' }}><table style={{ borderCollapse: 'collapse', width: '100%', fontSize: 13 }} {...p} /></div>,
+    th: (p) => <th style={{ border: `1px solid ${isLight ? '#aaa' : '#555'}`, padding: '4px 7px', textAlign: 'left', background: isLight ? '#e9ecef' : '#333', whiteSpace: 'nowrap' }} {...p} />,
+    td: (p) => <td style={{ border: `1px solid ${isLight ? '#ccc' : '#444'}`, padding: '4px 7px', verticalAlign: 'top' }} {...p} />,
+    p: (p) => <p style={{ margin: '4px 0' }} {...p} />,
+    ul: (p) => <ul style={{ margin: '4px 0', paddingLeft: 18 }} {...p} />,
+    ol: (p) => <ol style={{ margin: '4px 0', paddingLeft: 18 }} {...p} />,
+    li: (p) => <li style={{ margin: '2px 0' }} {...p} />,
+    h1: (p) => <div style={{ fontWeight: 700, fontSize: 15, margin: '6px 0' }} {...p} />,
+    h2: (p) => <div style={{ fontWeight: 700, fontSize: 14, margin: '6px 0' }} {...p} />,
+    h3: (p) => <div style={{ fontWeight: 700, fontSize: 13, margin: '4px 0' }} {...p} />,
+    code: (p) => <code style={{ background: isLight ? '#eee' : '#333', padding: '1px 4px', borderRadius: 3 }} {...p} />,
+    a: (p) => <a style={{ color: accent }} {...p} />,
+  };
 
   return (
     <>
@@ -139,22 +164,39 @@ const AIChatBubble = () => {
 
       {open && (
         <div style={{
-          position: 'fixed', bottom: 92, right: 24, width: 'min(380px, 92vw)', height: 'min(540px, 75vh)',
+          position: 'fixed', ...panelStyle,
           background: panelBg, color: textColor, borderRadius: 14, boxShadow: '0 8px 30px rgba(0,0,0,0.35)',
           display: 'flex', flexDirection: 'column', zIndex: 1050, overflow: 'hidden', border: isLight ? '1px solid #ddd' : '1px solid #333',
         }}>
           <div style={{ background: accent, color: '#fff', padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ fontWeight: 700 }}>🤖 AI Assistant</div>
+            <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+              {!isMobile && (
+                <button onClick={() => setExpanded((e) => !e)} title={expanded ? 'Perkecil' : 'Perbesar'}
+                  style={{ background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer', fontSize: 15, display: 'flex' }}>
+                  {expanded ? <BsArrowsAngleContract /> : <BsArrowsAngleExpand />}
+                </button>
+              )}
+              <button onClick={() => setOpen(false)} title="Tutup"
+                style={{ background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer', fontSize: 15, display: 'flex' }}>
+                <BsXLg />
+              </button>
+            </div>
           </div>
 
           <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', padding: 12 }}>
             {messages.map((m) => (
               <div key={m.id} style={{ marginBottom: 10, textAlign: m.role === 'user' ? 'right' : 'left' }}>
                 <div style={{
-                  display: 'inline-block', maxWidth: '85%', padding: '8px 12px', borderRadius: 12, whiteSpace: 'pre-wrap', textAlign: 'left',
+                  display: 'inline-block', maxWidth: m.role === 'user' ? '85%' : '96%', padding: '8px 12px', borderRadius: 12,
+                  whiteSpace: m.role === 'user' ? 'pre-wrap' : 'normal', textAlign: 'left', overflowWrap: 'anywhere',
                   background: m.role === 'user' ? accent : (isLight ? '#f1f3f5' : '#2a2a2a'),
                   color: m.role === 'user' ? '#fff' : textColor, fontSize: 14,
-                }}>{m.text}</div>
+                }}>
+                  {m.role === 'user'
+                    ? m.text
+                    : <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>{m.text}</ReactMarkdown>}
+                </div>
                 {m.chips && (
                   <div style={{ marginTop: 4 }}>
                     {m.chips.map((c, i) => <button key={i} onClick={c.onClick} disabled={busy} style={chipStyle}>{c.label}</button>)}

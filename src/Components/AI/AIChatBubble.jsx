@@ -1,7 +1,8 @@
 // Components/AI/AIChatBubble.jsx
-// Bubble chat AI mengambang di halaman Operations -> Project (/project).
-// Bisa: (1) upload chat WA per order ("upload WA"), (2) tanya item tertentu (pilih item -> tanya;
-// kalau belum pilih item, AI minta user klik item). Diproteksi shared secret X-KLF-Key.
+// Bubble asisten AI mengambang di halaman Operations -> Project (/project).
+// Asisten UMUM: tanya apa saja soal order berjalan (progress, deadline, To Do, yang perlu dikerjakan,
+// cari lintas order, detail item). Plus "cek konsistensi <item>". Diproteksi shared secret X-KLF-Key.
+// Catatan: upload chat WA dilakukan lewat panel invoice (OrderAssistant), bukan dari bubble.
 import React, { useState, useRef, useEffect } from 'react';
 import { getApiBaseUrl } from '../../Config/APIurl';
 import { useTheme } from '../../ThemeContext';
@@ -9,11 +10,10 @@ import { BsChatDotsFill, BsXLg, BsSend } from 'react-icons/bs';
 
 const aiKey = import.meta.env.VITE_KLF_AI_KEY || '';
 const authHeaders = (extra = {}) => ({ ...(aiKey ? { 'X-KLF-Key': aiKey } : {}), ...extra });
+const getUid = () => { try { return JSON.parse(localStorage.getItem('user'))?.uid || null; } catch { return null; } };
 
 let MID = 0;
 const nid = () => `m${++MID}`;
-
-const getUid = () => { try { return JSON.parse(localStorage.getItem('user'))?.uid || null; } catch { return null; } };
 
 const AIChatBubble = () => {
   const baseUrl = getApiBaseUrl();
@@ -24,28 +24,24 @@ const AIChatBubble = () => {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
-  // context order/item yang sedang difokuskan
-  const [ctx, setCtx] = useState({ invoiceId: null, kodeInvoice: null, customer: '', items: [], itemId: null, itemName: null });
-  // form upload inline
-  const [uploadFor, setUploadFor] = useState(null); // { invoiceId, kodeInvoice }
-  const [file, setFile] = useState(null);
-  const [startDate, setStartDate] = useState('');
-  const pendingQ = useRef(null);
   const scrollRef = useRef(null);
 
   useEffect(() => {
     if (open && messages.length === 0) {
-      pushBot('Halo! Saya asisten AI KLF. Ketik "upload WA" untuk memproses chat WhatsApp sebuah order, atau langsung tanya soal item tertentu.');
+      pushBot('Halo! Saya asisten AI KLF. Tanya apa saja soal order yang sedang berjalan — progres, deadline, '
+        + 'yang perlu dikerjakan segera, To Do yang belum selesai, atau detail/pencarian item. '
+        + 'Bisa juga ketik "cek konsistensi <nama item>".');
     }
   }, [open]);
 
-  useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; }, [messages, uploadFor]);
+  useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; }, [messages]);
 
   const push = (m) => setMessages((prev) => [...prev, { id: nid(), ...m }]);
   const pushBot = (text, chips) => push({ role: 'bot', text, chips });
-  const pushAnswer = (text, q) => push({ role: 'bot', text, feedback: true, q }); // jawaban AI -> bisa di-feedback
+  const pushAnswer = (text) => push({ role: 'bot', text, feedback: true });
   const pushUser = (text) => push({ role: 'user', text });
 
+  // ---- feedback ----
   const sendFeedback = async (m, helpful) => {
     let correction = '';
     if (!helpful) {
@@ -55,160 +51,34 @@ const AIChatBubble = () => {
     try {
       await fetch(`${baseUrl}/ai/feedback`, {
         method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ orderId: ctx.invoiceId, context: ctx.itemName || '', answer: m.text, helpful, correction }),
+        body: JSON.stringify({ orderId: null, context: '', answer: m.text, helpful, correction }),
       });
       setMessages((prev) => prev.map((x) => x.id === m.id ? { ...x, feedbackDone: helpful ? '👍 makasih' : '✅ koreksi disimpan' } : x));
     } catch (e) { /* abaikan */ }
   };
 
-  // ---- API ----
-  const fetchOngoing = async () => {
+  // ---- asisten umum ----
+  const askGeneral = async (question) => {
+    setBusy(true);
+    try {
+      const res = await fetch(`${baseUrl}/ai/assistant/ask`, {
+        method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ question, user_uid: getUid() }),
+      });
+      const data = await res.json();
+      if (res.ok) pushAnswer(data.answer);
+      else pushBot('❌ ' + (data.message || 'Gagal menjawab'));
+    } catch (e) { pushBot('❌ Koneksi gagal: ' + e.message); } finally { setBusy(false); }
+  };
+
+  // ---- cek konsistensi ----
+  const fetchOngoingItems = async () => {
     const res = await fetch(`${baseUrl}/ai/orders/ongoing`, { headers: authHeaders() });
-    if (!res.ok) throw new Error('Gagal ambil daftar order ongoing');
-    return res.json();
+    if (!res.ok) return [];
+    const orders = await res.json();
+    return orders.flatMap((o) => (o.items || []).map((it) => ({ project_id: it.project_id, name: it.name, kode: o.kodeInvoice })));
   };
 
-  // ---- Flow: upload WA ----
-  const startUploadFlow = async () => {
-    setBusy(true);
-    try {
-      const orders = await fetchOngoing();
-      if (!orders.length) { pushBot('Tidak ada order dengan project Ongoing saat ini.'); return; }
-      pushBot('Pilih order yang mau di-upload chat WA-nya:',
-        orders.map((o) => ({ label: `${o.kodeInvoice} — ${o.customer || 'Tanpa nama'}`, onClick: () => chooseOrderForUpload(o) })));
-    } catch (e) {
-      pushBot('❌ ' + e.message);
-    } finally { setBusy(false); }
-  };
-
-  const chooseOrderForUpload = (order) => {
-    setCtx({ invoiceId: order.invoice_id, kodeInvoice: order.kodeInvoice, customer: order.customer, items: order.items || [], itemId: null, itemName: null });
-    setUploadFor({ invoiceId: order.invoice_id, kodeInvoice: order.kodeInvoice });
-    pushUser(`Upload untuk ${order.kodeInvoice}`);
-    pushBot(`Oke, upload file chat WA (.txt / .zip) untuk ${order.kodeInvoice} dan isi tanggal mulai order di bawah.`);
-  };
-
-  const submitUpload = async () => {
-    if (!file || !uploadFor) { pushBot('Pilih file dulu ya.'); return; }
-    setBusy(true);
-    try {
-      const fd = new FormData();
-      fd.append('chat', file);
-      if (startDate) fd.append('startDate', startDate);
-      const res = await fetch(`${baseUrl}/ai/order/${uploadFor.invoiceId}/upload-chat`, { method: 'POST', headers: authHeaders(), body: fd });
-      const data = await res.json();
-      if (!res.ok) { pushBot('❌ ' + (data.message || 'Gagal memproses chat')); return; }
-
-      const ext = data.ai_extracted_requests || {};
-      const lines = (ext.items || []).map((it) => {
-        const reqs = [...(it.special_requests || []), ...(it.critical_flags || [])];
-        return `• ${it.item_name}${reqs.length ? ': ' + reqs.join('; ') : ' (tidak ada request khusus)'}`;
-      });
-      pushBot(`✅ ${data.processed_messages} pesan diproses.\nHasil per item:\n${lines.join('\n') || '(tidak ada item)'}`);
-
-      // Ambiguous -> minta konfirmasi item.
-      (data.ambiguous || []).forEach((amb) => askAttribution(uploadFor.invoiceId, amb, ctx.items));
-      setUploadFor(null); setFile(null);
-    } catch (e) {
-      pushBot('❌ Koneksi gagal: ' + e.message);
-    } finally { setBusy(false); }
-  };
-
-  const askAttribution = (invoiceId, amb, items) => {
-    const chips = [...items.map((it) => ({
-      label: it.name,
-      onClick: () => confirmAttribution(invoiceId, amb, it.name),
-    })), { label: 'Umum (seluruh order)', onClick: () => confirmAttribution(invoiceId, amb, 'UMUM') }];
-    pushBot(`⚠️ AI tidak yakin request ini untuk item mana:\n"${amb.text}"\nIni untuk item yang mana?`, chips);
-  };
-
-  const confirmAttribution = async (invoiceId, amb, itemName) => {
-    pushUser(itemName);
-    setBusy(true);
-    try {
-      const res = await fetch(`${baseUrl}/ai/order/${invoiceId}/attribute`, {
-        method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ text: amb.text, type: amb.type, item_name: itemName }),
-      });
-      if (res.ok) pushBot(`✅ Tersimpan untuk "${itemName}".`);
-      else pushBot('❌ Gagal menyimpan atribusi.');
-    } catch (e) { pushBot('❌ ' + e.message); } finally { setBusy(false); }
-  };
-
-  // ---- Flow: tanya ----
-  const doAsk = async (question) => {
-    setBusy(true);
-    try {
-      const res = await fetch(`${baseUrl}/ai/order/${ctx.invoiceId}/ask`, {
-        method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ question, itemId: ctx.itemId || undefined, user_uid: getUid() }),
-      });
-      const data = await res.json();
-      if (!res.ok) { pushBot('❌ ' + (data.message || 'Gagal menjawab')); return; }
-
-      if (data.type === 'need_item') {
-        const chips = (data.candidates || ctx.items.map((i) => i.name)).map((name) => {
-          const it = ctx.items.find((i) => i.name === name);
-          return { label: name, onClick: () => { setCtx((c) => ({ ...c, itemId: it ? it.project_id : null, itemName: name })); pushUser(name); doAsk(question); } };
-        });
-        pushBot(data.message || 'Item yang mana yang kamu maksud?', chips);
-      } else {
-        pushAnswer(data.answer, question);
-      }
-    } catch (e) {
-      pushBot('❌ Koneksi gagal: ' + e.message);
-    } finally { setBusy(false); }
-  };
-
-  // Belum ada order context -> minta pilih order lalu item.
-  const askChooseOrderThenItem = async (question) => {
-    setBusy(true);
-    try {
-      const orders = await fetchOngoing();
-      if (!orders.length) { pushBot('Tidak ada order Ongoing untuk ditanyakan.'); return; }
-      pendingQ.current = question;
-      pushBot('Tanya tentang order yang mana? Pilih dulu:',
-        orders.map((o) => ({ label: `${o.kodeInvoice} — ${o.customer || 'Tanpa nama'}`, onClick: () => chooseOrderForAsk(o) })));
-    } catch (e) { pushBot('❌ ' + e.message); } finally { setBusy(false); }
-  };
-
-  const chooseOrderForAsk = (order) => {
-    pushUser(order.kodeInvoice);
-    const next = { invoiceId: order.invoice_id, kodeInvoice: order.kodeInvoice, customer: order.customer, items: order.items || [], itemId: null, itemName: null };
-    if ((order.items || []).length === 1) {
-      next.itemId = order.items[0].project_id; next.itemName = order.items[0].name;
-      setCtx(next);
-      if (pendingQ.current) { const q = pendingQ.current; pendingQ.current = null; setTimeout(() => doAskWith(next, q), 0); }
-    } else {
-      setCtx(next);
-      pushBot('Item yang mana?', (order.items || []).map((it) => ({
-        label: it.name,
-        onClick: () => { const c = { ...next, itemId: it.project_id, itemName: it.name }; setCtx(c); pushUser(it.name); if (pendingQ.current) { const q = pendingQ.current; pendingQ.current = null; doAskWith(c, q); } },
-      })));
-    }
-  };
-
-  // doAsk dgn context eksplisit (hindari stale state saat baru pilih).
-  const doAskWith = async (context, question) => {
-    setBusy(true);
-    try {
-      const res = await fetch(`${baseUrl}/ai/order/${context.invoiceId}/ask`, {
-        method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ question, itemId: context.itemId || undefined, user_uid: getUid() }),
-      });
-      const data = await res.json();
-      if (!res.ok) { pushBot('❌ ' + (data.message || 'Gagal menjawab')); return; }
-      if (data.type === 'need_item') {
-        const chips = (data.candidates || context.items.map((i) => i.name)).map((name) => {
-          const it = context.items.find((i) => i.name === name);
-          return { label: name, onClick: () => { const c = { ...context, itemId: it ? it.project_id : null, itemName: name }; setCtx(c); pushUser(name); doAskWith(c, question); } };
-        });
-        pushBot(data.message || 'Item yang mana?', chips);
-      } else pushAnswer(data.answer, question);
-    } catch (e) { pushBot('❌ ' + e.message); } finally { setBusy(false); }
-  };
-
-  // ---- Flow: cek konsistensi (reconcile) untuk item terpilih ----
   const runConsistency = async (projectId, name) => {
     setBusy(true);
     try {
@@ -224,6 +94,20 @@ const AIChatBubble = () => {
     } catch (e) { pushBot('❌ ' + e.message); } finally { setBusy(false); }
   };
 
+  const startConsistency = async (target) => {
+    setBusy(true);
+    try {
+      const items = await fetchOngoingItems();
+      if (!items.length) { pushBot('Tidak ada item ongoing untuk dicek.'); return; }
+      const t = (target || '').trim().toLowerCase();
+      const matches = t ? items.filter((i) => (i.name || '').toLowerCase().includes(t)) : items;
+      if (matches.length === 1) { runConsistency(matches[0].project_id, matches[0].name); return; }
+      const list = (matches.length ? matches : items).slice(0, 12);
+      pushBot(matches.length ? 'Pilih item yang mau dicek:' : 'Item tidak ketemu. Pilih dari daftar:',
+        list.map((i) => ({ label: `${i.name} (${i.kode})`, onClick: () => { pushUser(i.name); runConsistency(i.project_id, i.name); } })));
+    } catch (e) { pushBot('❌ ' + e.message); } finally { setBusy(false); }
+  };
+
   // ---- input handler ----
   const handleSend = () => {
     const text = input.trim();
@@ -231,23 +115,9 @@ const AIChatBubble = () => {
     setInput('');
     pushUser(text);
 
-    if (/upload\s*wa|upload\s*chat/i.test(text)) { startUploadFlow(); return; }
-    if (/konsisten|cek gap|rekonsiliasi|consistency/i.test(text)) {
-      if (ctx.itemId) { runConsistency(ctx.itemId, ctx.itemName); return; }
-      pushBot('Pilih item dulu untuk cek konsistensi. Ketik pertanyaan atau pilih order/item.');
-      return;
-    }
-    if (ctx.invoiceId && ctx.itemId) { doAsk(text); return; }
-    if (ctx.invoiceId && !ctx.itemId && ctx.items.length) {
-      // sudah pilih order, belum item -> tanya langsung, server bisa minta pilih item
-      doAsk(text); return;
-    }
-    askChooseOrderThenItem(text);
-  };
-
-  const resetContext = () => {
-    setCtx({ invoiceId: null, kodeInvoice: null, customer: '', items: [], itemId: null, itemName: null });
-    pushBot('Konteks order direset. Pilih order lain atau ketik "upload WA".');
+    const consistency = text.match(/(?:cek\s*konsisten\w*|cek\s*gap|konsistensi)\s*(.*)/i);
+    if (consistency) { startConsistency(consistency[1]); return; }
+    askGeneral(text);
   };
 
   // ---- styles ----
@@ -259,7 +129,6 @@ const AIChatBubble = () => {
 
   return (
     <>
-      {/* Floating button */}
       <button onClick={() => setOpen((o) => !o)} title="AI Assistant" style={{
         position: 'fixed', bottom: 24, right: 24, width: 56, height: 56, borderRadius: '50%',
         background: accent, color: '#fff', border: 'none', boxShadow: '0 4px 14px rgba(0,0,0,0.3)',
@@ -274,16 +143,10 @@ const AIChatBubble = () => {
           background: panelBg, color: textColor, borderRadius: 14, boxShadow: '0 8px 30px rgba(0,0,0,0.35)',
           display: 'flex', flexDirection: 'column', zIndex: 1050, overflow: 'hidden', border: isLight ? '1px solid #ddd' : '1px solid #333',
         }}>
-          {/* Header */}
           <div style={{ background: accent, color: '#fff', padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div>
-              <div style={{ fontWeight: 700 }}>🤖 AI Assistant</div>
-              {ctx.kodeInvoice && <div style={{ fontSize: 11, opacity: 0.9 }}>{ctx.kodeInvoice}{ctx.itemName ? ` • ${ctx.itemName}` : ''}</div>}
-            </div>
-            {ctx.invoiceId && <button onClick={resetContext} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', borderRadius: 6, padding: '3px 8px', cursor: 'pointer', fontSize: 12 }}>Reset</button>}
+            <div style={{ fontWeight: 700 }}>🤖 AI Assistant</div>
           </div>
 
-          {/* Messages */}
           <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', padding: 12 }}>
             {messages.map((m) => (
               <div key={m.id} style={{ marginBottom: 10, textAlign: m.role === 'user' ? 'right' : 'left' }}>
@@ -309,25 +172,12 @@ const AIChatBubble = () => {
                 )}
               </div>
             ))}
-
-            {/* Inline upload form */}
-            {uploadFor && (
-              <div style={{ padding: 10, borderRadius: 10, background: isLight ? '#f8f9fa' : '#252525', marginBottom: 10 }}>
-                <input type="file" accept=".txt,.zip" onChange={(e) => setFile(e.target.files[0])} style={{ width: '100%', marginBottom: 6, color: textColor }} />
-                <div style={{ fontSize: 12, marginBottom: 2 }}>Tanggal mulai order</div>
-                <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} style={{ width: '100%', marginBottom: 6, padding: 6, borderRadius: 6, border: '1px solid #999', background: isLight ? '#fff' : '#2a2a2a', color: textColor }} />
-                <button onClick={submitUpload} disabled={busy} style={{ background: accent, color: '#fff', border: 'none', borderRadius: 8, padding: '7px 14px', cursor: 'pointer', width: '100%' }}>
-                  {busy ? 'Memproses...' : 'Upload & Ekstrak'}
-                </button>
-              </div>
-            )}
             {busy && <div style={{ fontSize: 12, opacity: 0.6 }}>AI sedang memproses…</div>}
           </div>
 
-          {/* Input */}
           <div style={{ display: 'flex', gap: 8, padding: 10, borderTop: isLight ? '1px solid #eee' : '1px solid #333' }}>
             <input
-              value={input} placeholder='Ketik pesan / "upload WA"…'
+              value={input} placeholder="Tanya apa saja…"
               onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSend()}
               style={inputStyle}
             />

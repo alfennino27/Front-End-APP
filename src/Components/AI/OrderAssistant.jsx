@@ -42,6 +42,28 @@ const OrderAssistant = ({ invoiceId, kodeInvoice, projects = [], invoice = {} })
   const [gate, setGate] = useState(null);
   const [gateLoading, setGateLoading] = useState(false);
 
+  // auto-To-Do dari request/flag
+  const [todoTarget, setTodoTarget] = useState(null); // { projectId, text, key }
+  const [todoCat, setTodoCat] = useState('');
+  const activeCats = (projectId) => {
+    const p = projects.find((pr) => pr.id === projectId);
+    const cs = KATEGORI.filter((c) => p && p[`CategoryStatus${c}`]);
+    return cs.length ? cs : KATEGORI;
+  };
+  const openTodo = (projectId, text, key) => { setTodoTarget({ projectId, text, key }); setTodoCat(activeCats(projectId)[0]); };
+  const addTodo = async () => {
+    if (!todoTarget || !todoCat) return;
+    try {
+      const res = await fetch(`${baseUrl}/ai/project/${todoTarget.projectId}/todo/add`, {
+        method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ category: todoCat, text: todoTarget.text }),
+      });
+      if (res.ok) setMsg(`✅ To Do "${todoTarget.text.slice(0, 30)}…" ditambahkan ke ${todoCat}.`);
+      else setMsg('❌ Gagal menambah To Do.');
+    } catch (err) { setMsg('❌ ' + err.message); }
+    setTodoTarget(null); setTodoCat('');
+  };
+
   useEffect(() => {
     setRequests(invoice.ai_extracted_requests || {});
     setFlags(invoice.critical_flags || []);
@@ -255,10 +277,46 @@ const OrderAssistant = ({ invoiceId, kodeInvoice, projects = [], invoice = {} })
                     {Object.keys(ITEM_LABELS).map((k) => it[k] ? <span key={k} style={{ marginRight: 10 }}><b>{ITEM_LABELS[k]}:</b> {it[k]}</span> : null)}
                   </div>
                   {it.special_requests && it.special_requests.length > 0 && (
-                    <ul style={{ margin: '4px 0', paddingLeft: 18 }}>{it.special_requests.map((s, j) => <li key={j}>{s}</li>)}</ul>
+                    <ul style={{ margin: '4px 0', paddingLeft: 18 }}>
+                      {it.special_requests.map((s, j) => {
+                        const key = `r${i}-${j}`;
+                        return (
+                          <li key={j}>
+                            {s}
+                            {it.project_id && <button onClick={() => openTodo(it.project_id, s, key)} style={{ ...chip, padding: '1px 8px', marginLeft: 6 }}>➕ To Do</button>}
+                            {todoTarget?.key === key && (
+                              <span style={{ marginLeft: 6 }}>
+                                <select value={todoCat} onChange={(e) => setTodoCat(e.target.value)} style={{ padding: 3, borderRadius: 4 }}>
+                                  {activeCats(it.project_id).map((c) => <option key={c} value={c}>{c}</option>)}
+                                </select>
+                                <button onClick={addTodo} style={{ ...btn, padding: '2px 8px', marginLeft: 4, fontSize: 12 }}>Simpan</button>
+                              </span>
+                            )}
+                          </li>
+                        );
+                      })}
+                    </ul>
                   )}
                   {it.critical_flags && it.critical_flags.length > 0 && (
-                    <ul style={{ margin: '4px 0', paddingLeft: 18, color: '#dc3545' }}>{it.critical_flags.map((s, j) => <li key={j}>⚠ {s}</li>)}</ul>
+                    <ul style={{ margin: '4px 0', paddingLeft: 18, color: '#dc3545' }}>
+                      {it.critical_flags.map((s, j) => {
+                        const key = `f${i}-${j}`;
+                        return (
+                          <li key={j}>
+                            ⚠ {s}
+                            {it.project_id && <button onClick={() => openTodo(it.project_id, s, key)} style={{ ...chip, padding: '1px 8px', marginLeft: 6 }}>➕ To Do</button>}
+                            {todoTarget?.key === key && (
+                              <span style={{ marginLeft: 6 }}>
+                                <select value={todoCat} onChange={(e) => setTodoCat(e.target.value)} style={{ padding: 3, borderRadius: 4 }}>
+                                  {activeCats(it.project_id).map((c) => <option key={c} value={c}>{c}</option>)}
+                                </select>
+                                <button onClick={addTodo} style={{ ...btn, padding: '2px 8px', marginLeft: 4, fontSize: 12 }}>Simpan</button>
+                              </span>
+                            )}
+                          </li>
+                        );
+                      })}
+                    </ul>
                   )}
                 </div>
               ))}

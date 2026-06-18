@@ -1097,6 +1097,19 @@ const NavigationBar = () => {
                   <BsPeopleFill />
                   <span className="fw-semibold">CRM</span>
                 </Link>
+
+                <Link
+                  to={hasMenuAccess(user.uid, "Knowledge") ? "/knowledge" : "#"}
+                  className={`d-flex align-items-center gap-2 py-2 text-decoration-none link-hover ${!hasMenuAccess(user.uid, "Knowledge") ? "disabled-link" : ""
+                    }`}
+                  style={isActive("/knowledge")}
+                  onClick={(e) => {
+                    if (!hasMenuAccess(user.uid, "Knowledge")) e.preventDefault();
+                  }}
+                >
+                  <span role="img" aria-label="knowledge">🧠</span>
+                  <span className="fw-semibold">Knowledge Base</span>
+                </Link>
               </motion.div>
             )}
           </AnimatePresence>

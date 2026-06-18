@@ -13,6 +13,8 @@ const authHeaders = (extra = {}) => ({ ...(aiKey ? { 'X-KLF-Key': aiKey } : {}),
 let MID = 0;
 const nid = () => `m${++MID}`;
 
+const getUid = () => { try { return JSON.parse(localStorage.getItem('user'))?.uid || null; } catch { return null; } };
+
 const AIChatBubble = () => {
   const baseUrl = getApiBaseUrl();
   const { globalTheme } = useTheme();
@@ -41,7 +43,23 @@ const AIChatBubble = () => {
 
   const push = (m) => setMessages((prev) => [...prev, { id: nid(), ...m }]);
   const pushBot = (text, chips) => push({ role: 'bot', text, chips });
+  const pushAnswer = (text, q) => push({ role: 'bot', text, feedback: true, q }); // jawaban AI -> bisa di-feedback
   const pushUser = (text) => push({ role: 'user', text });
+
+  const sendFeedback = async (m, helpful) => {
+    let correction = '';
+    if (!helpful) {
+      correction = window.prompt('Koreksi — seharusnya apa? (disimpan ke knowledge base)') || '';
+      if (!correction.trim()) return;
+    }
+    try {
+      await fetch(`${baseUrl}/ai/feedback`, {
+        method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ orderId: ctx.invoiceId, context: ctx.itemName || '', answer: m.text, helpful, correction }),
+      });
+      setMessages((prev) => prev.map((x) => x.id === m.id ? { ...x, feedbackDone: helpful ? '👍 makasih' : '✅ koreksi disimpan' } : x));
+    } catch (e) { /* abaikan */ }
+  };
 
   // ---- API ----
   const fetchOngoing = async () => {
@@ -123,7 +141,7 @@ const AIChatBubble = () => {
     try {
       const res = await fetch(`${baseUrl}/ai/order/${ctx.invoiceId}/ask`, {
         method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ question, itemId: ctx.itemId || undefined }),
+        body: JSON.stringify({ question, itemId: ctx.itemId || undefined, user_uid: getUid() }),
       });
       const data = await res.json();
       if (!res.ok) { pushBot('❌ ' + (data.message || 'Gagal menjawab')); return; }
@@ -135,7 +153,7 @@ const AIChatBubble = () => {
         });
         pushBot(data.message || 'Item yang mana yang kamu maksud?', chips);
       } else {
-        pushBot(data.answer);
+        pushAnswer(data.answer, question);
       }
     } catch (e) {
       pushBot('❌ Koneksi gagal: ' + e.message);
@@ -176,7 +194,7 @@ const AIChatBubble = () => {
     try {
       const res = await fetch(`${baseUrl}/ai/order/${context.invoiceId}/ask`, {
         method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ question, itemId: context.itemId || undefined }),
+        body: JSON.stringify({ question, itemId: context.itemId || undefined, user_uid: getUid() }),
       });
       const data = await res.json();
       if (!res.ok) { pushBot('❌ ' + (data.message || 'Gagal menjawab')); return; }
@@ -186,7 +204,7 @@ const AIChatBubble = () => {
           return { label: name, onClick: () => { const c = { ...context, itemId: it ? it.project_id : null, itemName: name }; setCtx(c); pushUser(name); doAskWith(c, question); } };
         });
         pushBot(data.message || 'Item yang mana?', chips);
-      } else pushBot(data.answer);
+      } else pushAnswer(data.answer, question);
     } catch (e) { pushBot('❌ ' + e.message); } finally { setBusy(false); }
   };
 
@@ -277,6 +295,16 @@ const AIChatBubble = () => {
                 {m.chips && (
                   <div style={{ marginTop: 4 }}>
                     {m.chips.map((c, i) => <button key={i} onClick={c.onClick} disabled={busy} style={chipStyle}>{c.label}</button>)}
+                  </div>
+                )}
+                {m.feedback && (
+                  <div style={{ marginTop: 4, fontSize: 12 }}>
+                    {m.feedbackDone ? <span style={{ opacity: 0.7 }}>{m.feedbackDone}</span> : (
+                      <>
+                        <button onClick={() => sendFeedback(m, true)} style={{ ...chipStyle, border: '1px solid #198754', color: '#198754' }}>👍</button>
+                        <button onClick={() => sendFeedback(m, false)} style={{ ...chipStyle, border: '1px solid #dc3545', color: '#dc3545' }}>👎</button>
+                      </>
+                    )}
                   </div>
                 )}
               </div>

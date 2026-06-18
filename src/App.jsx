@@ -30,6 +30,7 @@ import BooksPage from './Pages/BooksPage';
 import NotesPage from './Pages/NotesPage';
 import StoragePage from './Pages/StoragePage';
 import CrmPage from './Pages/CrmPage';
+import KnowledgePage from './Pages/KnowledgePage';
 import StockPage from './Pages/StockPage';
 import AssetsPage from './Pages/AssetsPage';
 import UserManagementPage from './Pages/UserManagementPage';
@@ -90,6 +91,7 @@ function App() {
         <Route path="/catalog/:slug/:projectSlug" element={<StoragePage />} />
         <Route path="/user-management" element={<UserManagementPage />} />
         <Route path="/crm" element={<CrmPage />} />
+        <Route path="/knowledge" element={<KnowledgePage />} />
         <Route path="/stock" element={<StockPage />} />
         <Route path="/assets" element={<AssetsPage />} />
         <Route path="/appraisal" element={<AppraisalPage />} />

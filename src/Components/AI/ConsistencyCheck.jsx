@@ -16,10 +16,26 @@ const ConsistencyCheck = ({ projectId, itemName }) => {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
+  const [fbDone, setFbDone] = useState('');
+
+  const sendFeedback = async (helpful) => {
+    let correction = '';
+    if (!helpful) {
+      correction = window.prompt('Koreksi — hasil cek konsistensi ini salahnya di mana? (disimpan ke knowledge base)') || '';
+      if (!correction.trim()) return;
+    }
+    try {
+      await fetch(`${baseUrl}/ai/feedback`, {
+        method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ orderId: projectId, context: itemName || '', answer: JSON.stringify(result?.gaps || []), helpful, correction }),
+      });
+      setFbDone(helpful ? '👍 makasih' : '✅ koreksi disimpan');
+    } catch (e) { /* abaikan */ }
+  };
 
   const run = async () => {
     if (!projectId) return;
-    setLoading(true); setError(''); setResult(null);
+    setLoading(true); setError(''); setResult(null); setFbDone('');
     try {
       const res = await fetch(`${baseUrl}/ai/item/${projectId}/reconcile`, { headers: authHeaders() });
       const data = await res.json();
@@ -69,6 +85,16 @@ const ConsistencyCheck = ({ projectId, itemName }) => {
               ))}
             </div>
           )}
+
+          <div style={{ marginTop: 8, fontSize: 13 }}>
+            {fbDone ? <span style={{ opacity: 0.7 }}>{fbDone}</span> : (
+              <>
+                <span style={{ marginRight: 6 }}>Hasil ini membantu?</span>
+                <button onClick={() => sendFeedback(true)} style={{ ...btn, background: '#198754', padding: '4px 10px' }}>👍</button>
+                <button onClick={() => sendFeedback(false)} style={{ ...btn, background: '#dc3545', padding: '4px 10px', marginLeft: 6 }}>👎</button>
+              </>
+            )}
+          </div>
         </div>
       )}
     </div>

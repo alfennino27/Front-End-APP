@@ -28,12 +28,15 @@ const AIChatBubble = () => {
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
   const scrollRef = useRef(null);
+  const apiMsgsRef = useRef([]); // riwayat {role, content} untuk /ai/chat (multi-turn)
+  const usersRef = useRef(null); // cache daftar user (untuk resolve tag nama -> uid)
   const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
 
   useEffect(() => {
     if (open && messages.length === 0) {
-      pushBot('Halo! Saya asisten AI KLF. Tanya apa saja soal order yang sedang berjalan — progres, deadline, '
-        + 'yang perlu dikerjakan segera, To Do yang belum selesai, atau detail/pencarian item. '
+      pushBot('Halo! Saya **KLF Chatbot**. Tanya apa saja: progres & deadline order, detail item, '
+        + 'atau keuangan seperti _"berapa sisa SPK supplier A?"_ / _"berapa sisa payment invoice B?"_ '
+        + '(akses keuangan mengikuti izin akunmu). Saat saya beri detail item, saya sertakan kutipan bukti. '
         + 'Bisa juga ketik "cek konsistensi <nama item>".');
     }
   }, [open]);
@@ -61,18 +64,75 @@ const AIChatBubble = () => {
     } catch (e) { /* abaikan */ }
   };
 
-  // ---- asisten umum ----
-  const askGeneral = async (question) => {
+  // ---- chat konsultan (multi-turn, tools, permission, bukti, usulan komentar) ----
+  const askChat = async (question) => {
     setBusy(true);
+    apiMsgsRef.current = [...apiMsgsRef.current, { role: 'user', content: question }];
     try {
-      const res = await fetch(`${baseUrl}/ai/assistant/ask`, {
+      const res = await fetch(`${baseUrl}/ai/chat`, {
         method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ question, user_uid: getUid() }),
+        body: JSON.stringify({ uid: getUid(), messages: apiMsgsRef.current }),
       });
       const data = await res.json();
-      if (res.ok) pushAnswer(data.answer);
-      else pushBot('❌ ' + (data.message || 'Gagal menjawab'));
+      if (!res.ok) {
+        pushBot('❌ ' + (data.message || 'Gagal menjawab'));
+        apiMsgsRef.current = apiMsgsRef.current.slice(0, -1); // batalkan giliran yang gagal
+        return;
+      }
+      apiMsgsRef.current = [...apiMsgsRef.current, { role: 'assistant', content: data.answer || '' }];
+      push({
+        role: 'bot', text: data.answer || '', feedback: true,
+        citations: data.citations || [],
+        proposals: (data.proposals || []).map((p) => ({ ...p, _status: 'pending' })),
+      });
     } catch (e) { pushBot('❌ Koneksi gagal: ' + e.message); } finally { setBusy(false); }
+  };
+
+  // Resolve nama -> uid untuk tag (ambil daftar user sekali).
+  const resolveTagUids = async (tagNames) => {
+    if (!tagNames || !tagNames.length) return [];
+    if (!usersRef.current) {
+      try {
+        const res = await fetch(`${baseUrl}/users/all/get`, { headers: authHeaders() });
+        usersRef.current = res.ok ? await res.json() : [];
+      } catch { usersRef.current = []; }
+    }
+    const users = usersRef.current || [];
+    return tagNames.map((nm) => {
+      const hit = users.find((u) => (u.name || '').toLowerCase() === String(nm).toLowerCase());
+      return hit ? hit.uid : null;
+    }).filter(Boolean);
+  };
+
+  // Setujui / tolak usulan komentar AI.
+  const decideProposal = async (msgId, idx, approve) => {
+    const msg = messages.find((m) => m.id === msgId);
+    const prop = msg && msg.proposals && msg.proposals[idx];
+    if (!prop) return;
+    if (!approve) {
+      updateProposal(msgId, idx, { _status: 'rejected' });
+      return;
+    }
+    updateProposal(msgId, idx, { _status: 'saving' });
+    try {
+      const tag_uids = await resolveTagUids(prop.tag_names);
+      const res = await fetch(`${baseUrl}/ai/chat/comment/confirm`, {
+        method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({
+          project_id: prop.project_id, category: prop.category, text: prop.text,
+          created_by_uid: getUid(), tag_uids,
+        }),
+      });
+      updateProposal(msgId, idx, { _status: res.ok ? 'saved' : 'error' });
+    } catch { updateProposal(msgId, idx, { _status: 'error' }); }
+  };
+
+  const updateProposal = (msgId, idx, patch) => {
+    setMessages((prev) => prev.map((m) => {
+      if (m.id !== msgId) return m;
+      const proposals = m.proposals.map((p, i) => (i === idx ? { ...p, ...patch } : p));
+      return { ...m, proposals };
+    }));
   };
 
   // ---- cek konsistensi ----
@@ -121,7 +181,7 @@ const AIChatBubble = () => {
 
     const consistency = text.match(/(?:cek\s*konsisten\w*|cek\s*gap|konsistensi)\s*(.*)/i);
     if (consistency) { startConsistency(consistency[1]); return; }
-    askGeneral(text);
+    askChat(text);
   };
 
   // ---- styles ----
@@ -200,6 +260,43 @@ const AIChatBubble = () => {
                 {m.chips && (
                   <div style={{ marginTop: 4 }}>
                     {m.chips.map((c, i) => <button key={i} onClick={c.onClick} disabled={busy} style={chipStyle}>{c.label}</button>)}
+                  </div>
+                )}
+                {m.citations && m.citations.length > 0 && (
+                  <div style={{ marginTop: 6, fontSize: 12, padding: '6px 10px', borderRadius: 8, background: isLight ? '#f8f9fa' : '#222', border: isLight ? '1px solid #e3e3e3' : '1px solid #333' }}>
+                    <div style={{ fontWeight: 700, marginBottom: 3, opacity: 0.8 }}>🔎 Bukti</div>
+                    {m.citations.map((c, i) => (
+                      <div key={i} style={{ marginBottom: 3 }}>
+                        {c.verified
+                          ? <span style={{ color: '#198754' }}>✓ </span>
+                          : <span style={{ color: '#fd7e14' }} title="Kutipan tidak ditemukan di sumber — verifikasi manual">⚠ </span>}
+                        <span style={{ fontStyle: 'italic' }}>"{c.quote}"</span>
+                        {c.verified && c.source_label && <span style={{ opacity: 0.6 }}> — {c.source_label}</span>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {m.proposals && m.proposals.length > 0 && (
+                  <div style={{ marginTop: 6 }}>
+                    {m.proposals.map((p, i) => (
+                      <div key={i} style={{ fontSize: 13, padding: '8px 10px', marginBottom: 6, borderRadius: 8, background: isLight ? '#fff8e1' : '#2a2620', border: '1px solid #f0c000' }}>
+                        <div style={{ fontWeight: 700, marginBottom: 2 }}>📝 Usulan komentar → {p.category}</div>
+                        <div style={{ whiteSpace: 'pre-wrap', marginBottom: 4 }}>{p.text}</div>
+                        {p.tag_names && p.tag_names.length > 0 && (
+                          <div style={{ fontSize: 12, opacity: 0.8, marginBottom: 4 }}>Tag: {p.tag_names.join(', ')}</div>
+                        )}
+                        {p._status === 'pending' && (
+                          <div>
+                            <button onClick={() => decideProposal(m.id, i, true)} style={{ ...chipStyle, border: '1px solid #198754', color: '#198754' }}>✓ Setujui & simpan</button>
+                            <button onClick={() => decideProposal(m.id, i, false)} style={{ ...chipStyle, border: '1px solid #dc3545', color: '#dc3545' }}>✕ Tolak</button>
+                          </div>
+                        )}
+                        {p._status === 'saving' && <span style={{ opacity: 0.7 }}>Menyimpan…</span>}
+                        {p._status === 'saved' && <span style={{ color: '#198754' }}>✅ Tersimpan sebagai komentar "AI Chatbot"</span>}
+                        {p._status === 'rejected' && <span style={{ opacity: 0.6 }}>Ditolak</span>}
+                        {p._status === 'error' && <span style={{ color: '#dc3545' }}>❌ Gagal menyimpan</span>}
+                      </div>
+                    ))}
                   </div>
                 )}
                 {m.feedback && (

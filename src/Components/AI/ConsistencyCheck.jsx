@@ -70,7 +70,9 @@ const ConsistencyCheck = ({ projectId, itemName }) => {
   const gaps = result?.gaps || [];
 
   return (
-    <div className="mt-3" style={{ color: textColor }}>
+    // stopPropagation: komponen ini sering dipasang di dalam card yang punya onClick
+    // (mis. buka modal edit deskripsi). Cegah klik di sini merembet ke parent.
+    <div className="mt-3" style={{ color: textColor }} onClick={(e) => e.stopPropagation()}>
       <button onClick={run} disabled={loading} style={{ ...btn, opacity: loading ? 0.6 : 1 }}>
         {loading ? '⏳ Menganalisa…' : '🔍 Cek Konsistensi (AI)'}
       </button>

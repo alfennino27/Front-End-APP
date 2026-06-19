@@ -17,6 +17,26 @@ const ConsistencyCheck = ({ projectId, itemName }) => {
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
   const [fbDone, setFbDone] = useState('');
+  // Feedback per gap: { [i]: { open, verdict:'not_error'|'user_error', note, status } }
+  const [gapFb, setGapFb] = useState({});
+  const getUid = () => { try { return JSON.parse(localStorage.getItem('user'))?.uid || null; } catch { return null; } };
+  const patchGap = (i, p) => setGapFb((prev) => ({ ...prev, [i]: { ...(prev[i] || {}), ...p } }));
+
+  // Kirim penjelasan satu gap ke AI -> masuk knowledge base.
+  const explainGap = async (i, gap) => {
+    const fb = gapFb[i] || {};
+    const verdict = fb.verdict || 'not_error';
+    const note = (fb.note || '').trim();
+    if (!note) { patchGap(i, { status: 'need_note' }); return; }
+    patchGap(i, { status: 'saving' });
+    try {
+      const res = await fetch(`${baseUrl}/ai/reconcile/explain`, {
+        method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ project_id: projectId, item_name: itemName, gap, verdict, explanation: note, user_uid: getUid() }),
+      });
+      patchGap(i, { status: res.ok ? 'saved' : 'error' });
+    } catch (e) { patchGap(i, { status: 'error' }); }
+  };
 
   const sendFeedback = async (helpful) => {
     let correction = '';
@@ -46,6 +66,7 @@ const ConsistencyCheck = ({ projectId, itemName }) => {
 
   const textColor = isLight ? '#000' : '#fff';
   const btn = { padding: '8px 14px', borderRadius: 6, border: 'none', cursor: 'pointer', color: '#fff', background: '#6f42c1', fontWeight: 600 };
+  const chip = { background: 'transparent', border: '1px solid #6f42c1', color: isLight ? '#6f42c1' : '#b794f4', borderRadius: 16, padding: '4px 12px', margin: '0 6px 4px 0', cursor: 'pointer', fontSize: 13 };
   const gaps = result?.gaps || [];
 
   return (
@@ -81,6 +102,54 @@ const ConsistencyCheck = ({ projectId, itemName }) => {
                       💡 <b>Usulan:</b> {g.suggestion}
                     </div>
                   )}
+
+                  {/* Jelaskan ke AI -> knowledge base */}
+                  {(() => {
+                    const fb = gapFb[i] || {};
+                    if (fb.status === 'saved') {
+                      return <div style={{ marginTop: 8, fontSize: 13, color: '#198754' }}>✅ Penjelasan tersimpan. AI akan memakainya ke depan.</div>;
+                    }
+                    const verdict = fb.verdict || 'not_error';
+                    const vbtn = (val, label) => (
+                      <button onClick={() => patchGap(i, { verdict: val })}
+                        style={{ ...chip, ...(verdict === val ? { background: '#6f42c1', color: '#fff', borderColor: '#6f42c1' } : {}) }}>{label}</button>
+                    );
+                    return !fb.open ? (
+                      <div style={{ marginTop: 8 }}>
+                        <button onClick={() => patchGap(i, { open: true, verdict: 'not_error' })}
+                          style={{ ...chip, borderColor: '#6f42c1', color: isLight ? '#6f42c1' : '#b794f4' }}>
+                          💬 Jelaskan ke AI
+                        </button>
+                      </div>
+                    ) : (
+                      <div style={{ marginTop: 8, padding: 10, borderRadius: 6, background: isLight ? '#faf5ff' : '#241b33', border: '1px solid #6f42c1' }}>
+                        <div style={{ fontSize: 13, marginBottom: 6 }}>Menurut kamu gap ini:</div>
+                        <div style={{ marginBottom: 6 }}>
+                          {vbtn('not_error', '✅ Wajar / bukan kesalahan')}
+                          {vbtn('user_error', '✏️ Kesalahan kami (sudah diperbaiki)')}
+                        </div>
+                        <textarea
+                          value={fb.note || ''}
+                          onChange={(e) => patchGap(i, { note: e.target.value, status: undefined })}
+                          rows={2}
+                          placeholder={verdict === 'not_error'
+                            ? 'Jelaskan kenapa ini wajar. Mis. "tinggi besi 41cm + marmer 4cm = 45cm total".'
+                            : 'Jelaskan kesalahannya & koreksi yang benar. Mis. "marmer harusnya 4cm, deskripsi sudah diperbaiki".'}
+                          style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #999', background: isLight ? '#fff' : '#222', color: textColor, boxSizing: 'border-box' }}
+                        />
+                        {fb.status === 'need_note' && <div style={{ fontSize: 12, color: '#dc3545', marginTop: 4 }}>Tulis penjelasannya dulu.</div>}
+                        <div style={{ marginTop: 6 }}>
+                          <button onClick={() => explainGap(i, g)} disabled={fb.status === 'saving'}
+                            style={{ ...btn, padding: '5px 12px', fontSize: 13, opacity: fb.status === 'saving' ? 0.6 : 1 }}>
+                            {fb.status === 'saving' ? 'Menyimpan…' : 'Kirim ke AI'}
+                          </button>
+                          <button onClick={() => patchGap(i, { open: false })}
+                            style={{ ...chip, marginLeft: 6 }}>Batal</button>
+                          {fb.status === 'error' && <span style={{ color: '#dc3545', marginLeft: 8, fontSize: 13 }}>❌ Gagal menyimpan</span>}
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               ))}
             </div>

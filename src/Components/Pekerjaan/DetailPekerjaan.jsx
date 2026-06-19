@@ -14,6 +14,7 @@ import { IoCalendarNumberOutline, IoNewspaperOutline } from "react-icons/io5";
 import { AiOutlinePrinter } from "react-icons/ai";
 import { getApiBaseUrl } from '../../Config/APIurl';
 import ConsistencyCheck from '../AI/ConsistencyCheck';
+import SPKPrecheckModal from '../AI/SPKPrecheckModal';
 import { format } from "date-fns";
 import { id } from 'date-fns/locale';
 import { useNavigate } from 'react-router-dom';
@@ -170,6 +171,7 @@ const DetailPekerjaan = () => {
   const [historyTitle, setHistoryTitle] = useState('');
   const [showConfirmCategoryModal, setShowConfirmCategoryModal] = useState(false);
   const [showSPKImagePicker, setShowSPKImagePicker] = useState(false);
+  const [showSpkPrecheck, setShowSpkPrecheck] = useState(false);
   const [spkImages, setSpkImages] = useState([]);
   const [alurKerjaModalOpen, setAlurKerjaModalOpen] = useState(false);
   const [alurKerjaCurrentVal, setAlurKerjaCurrentVal] = useState(null);
@@ -1928,6 +1930,14 @@ const DetailPekerjaan = () => {
             <ConsistencyCheck projectId={slug} itemName={dataProjectFromDB[0]?.NamaBarang} />
           )}
 
+          <SPKPrecheckModal
+            show={showSpkPrecheck}
+            projectId={slug}
+            category={category}
+            onClose={() => setShowSpkPrecheck(false)}
+            onProceed={() => { setShowSpkPrecheck(false); handlePrintSPK(); }}
+          />
+
           <div onClick={handleShowInformationModal}>
             <div className='mt-4 d-flex align-items-center' style={{ gap: '8px' }}>
               <h6 className='mb-0' style={{ color: globalTheme == "light" ? "black" : "white" }}>Deskripsi Produk</h6>
@@ -2609,7 +2619,7 @@ const DetailPekerjaan = () => {
             {category && dataProjectFromDB.length > 0 && (
               <button
                 title="Buat SPK"
-                onClick={(e) => { e.stopPropagation(); handlePrintSPK(); }}
+                onClick={(e) => { e.stopPropagation(); setShowSpkPrecheck(true); }}
                 className="no-active"
                 style={{
                   background: globalTheme === 'light' ? '#fff' : '#333',

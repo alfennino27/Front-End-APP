@@ -8,7 +8,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { getApiBaseUrl } from '../../Config/APIurl';
 import { useTheme } from '../../ThemeContext';
-import { BsChatDotsFill, BsXLg, BsSend, BsArrowsAngleExpand, BsArrowsAngleContract } from 'react-icons/bs';
+import { BsChatDotsFill, BsXLg, BsSend, BsArrowsAngleExpand, BsArrowsAngleContract, BsPaperclip } from 'react-icons/bs';
 
 const aiKey = import.meta.env.VITE_KLF_AI_KEY || '';
 const authHeaders = (extra = {}) => ({ ...(aiKey ? { 'X-KLF-Key': aiKey } : {}), ...extra });
@@ -29,8 +29,10 @@ const AIChatBubble = () => {
   const [busy, setBusy] = useState(false);
   const scrollRef = useRef(null);
   const taRef = useRef(null); // textarea input (auto-grow)
+  const fileRef = useRef(null); // input file tersembunyi (upload chat WA)
   const apiMsgsRef = useRef([]); // riwayat {role, content} untuk /ai/chat (multi-turn)
   const usersRef = useRef(null); // cache daftar user (untuk resolve tag nama -> uid)
+  const [waFile, setWaFile] = useState(null); // file export chat WA yang dilampirkan
   const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
 
   useEffect(() => {
@@ -182,10 +184,76 @@ const AIChatBubble = () => {
     } catch (e) { pushBot('❌ ' + e.message); } finally { setBusy(false); }
   };
 
+  // ---- upload chat WA via bubble ----
+  // Catatan: tidak ada kalimat pembuka otomatis. User melampirkan file lalu memberi
+  // instruksi sendiri (sebut customer / kode invoice / nama item) untuk diproses.
+  const onPickFile = (e) => {
+    const f = e.target.files && e.target.files[0];
+    if (f) setWaFile(f);
+    if (fileRef.current) fileRef.current.value = ''; // boleh pilih file sama lagi
+  };
+
+  // Proses file WA yang terlampir ke satu invoice.
+  const uploadToInvoice = async (invoiceId, label) => {
+    if (!waFile) return;
+    setBusy(true);
+    pushBot(`⏳ Memproses chat WA untuk ${label}…`);
+    try {
+      const fd = new FormData();
+      fd.append('chat', waFile);
+      const res = await fetch(`${baseUrl}/ai/order/${invoiceId}/upload-chat`, { method: 'POST', headers: authHeaders(), body: fd });
+      const data = await res.json();
+      if (!res.ok) { pushBot('❌ ' + (data.message || 'Gagal memproses chat')); return; }
+      const amb = (data.ambiguous || []).length;
+      pushBot(`✅ ${data.processed_messages} pesan diproses untuk **${label}**.`
+        + (amb ? ` ⚠️ ${amb} hal perlu konfirmasi item — buka panel Order Assistant di invoice tsb.` : '')
+        + ' Kamu bisa tanya detailnya sekarang.');
+      setWaFile(null);
+    } catch (e) { pushBot('❌ ' + e.message); } finally { setBusy(false); }
+  };
+
+  // Cari order yang cocok dari instruksi user, lalu upload (atau minta pilih kalau >1).
+  const resolveAndUpload = async (text) => {
+    try {
+      const res = await fetch(`${baseUrl}/ai/orders/ongoing`, { headers: authHeaders() });
+      const list = res.ok ? await res.json() : [];
+      const toks = text.toLowerCase().split(/\s+/).filter(Boolean);
+      const score = (o) => {
+        const hay = `${o.customer || ''} ${o.kodeInvoice || ''} ${(o.items || []).map((i) => i.name).join(' ')}`.toLowerCase();
+        return toks.filter((t) => hay.includes(t)).length;
+      };
+      let matches = toks.length
+        ? list.map((o) => ({ o, s: score(o) })).filter((x) => x.s > 0).sort((a, b) => b.s - a.s).map((x) => x.o)
+        : list;
+      if (!matches.length) {
+        pushBot('Order tidak ketemu dari instruksi itu. Sebutkan **nama customer / kode invoice / nama item** dari order yang sedang berjalan. (File WA masih terlampir.)');
+        return;
+      }
+      if (matches.length === 1) {
+        uploadToInvoice(matches[0].invoice_id, `${matches[0].kodeInvoice} (${matches[0].customer || '-'})`);
+        return;
+      }
+      pushBot('Untuk order yang mana chat ini diproses?', matches.slice(0, 8).map((o) => ({
+        label: `${o.kodeInvoice} — ${o.customer || '-'}`,
+        onClick: () => { pushUser(`${o.kodeInvoice} — ${o.customer || '-'}`); uploadToInvoice(o.invoice_id, `${o.kodeInvoice} (${o.customer || '-'})`); },
+      })));
+    } catch (e) { pushBot('❌ ' + e.message); }
+  };
+
   // ---- input handler ----
   const handleSend = () => {
+    if (busy) return;
     const text = input.trim();
-    if (!text || busy) return;
+
+    // Ada file WA terlampir -> proses upload pakai instruksi user (tanpa kalimat pembuka otomatis).
+    if (waFile) {
+      setInput('');
+      if (text) pushUser(text);
+      resolveAndUpload(text);
+      return;
+    }
+
+    if (!text) return;
     setInput('');
     pushUser(text);
 
@@ -328,12 +396,31 @@ const AIChatBubble = () => {
             {busy && <div style={{ fontSize: 12, opacity: 0.6 }}>AI sedang memproses…</div>}
           </div>
 
+          {/* Chip file WA terlampir */}
+          {waFile && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px 0', fontSize: 13 }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: isLight ? '#e7f1ff' : '#22303f', color: accent, borderRadius: 14, padding: '3px 10px', maxWidth: '100%' }}>
+                <BsPaperclip />
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 180 }}>{waFile.name}</span>
+                <button onClick={() => setWaFile(null)} title="Hapus lampiran" style={{ background: 'transparent', border: 'none', color: accent, cursor: 'pointer', display: 'flex', padding: 0 }}><BsXLg size={11} /></button>
+              </span>
+              <span style={{ opacity: 0.6, fontSize: 12 }}>Sebutkan customer/kode/item, lalu kirim untuk proses.</span>
+            </div>
+          )}
+
           <div style={{ display: 'flex', gap: 8, padding: 10, borderTop: isLight ? '1px solid #eee' : '1px solid #333', alignItems: 'flex-end' }}>
+            <input ref={fileRef} type="file" accept=".txt,.zip" onChange={onPickFile} style={{ display: 'none' }} />
+            <button onClick={() => fileRef.current && fileRef.current.click()} disabled={busy} title="Lampirkan export chat WhatsApp (.txt/.zip)"
+              style={{ background: 'transparent', color: accent, border: `1px solid ${accent}`, borderRadius: '50%', width: 40, height: 40, minWidth: 40, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <BsPaperclip />
+            </button>
             <textarea
-              ref={taRef} value={input} rows={1} placeholder="Tanya apa saja…  (Enter kirim, Shift+Enter baris baru)"
+              ref={taRef} value={input} rows={1}
+              placeholder={isMobile ? 'Tulis pesan…  (pakai tombol kirim →)' : 'Tanya apa saja…  (Enter kirim, Shift+Enter baris baru)'}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
+                // Mobile: Enter = baris baru (kirim hanya lewat tombol). Desktop: Enter = kirim.
+                if (e.key === 'Enter' && !e.shiftKey && !isMobile) { e.preventDefault(); handleSend(); }
               }}
               style={inputStyle}
             />

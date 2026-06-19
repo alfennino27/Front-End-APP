@@ -28,6 +28,7 @@ const AIChatBubble = () => {
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
   const scrollRef = useRef(null);
+  const taRef = useRef(null); // textarea input (auto-grow)
   const apiMsgsRef = useRef([]); // riwayat {role, content} untuk /ai/chat (multi-turn)
   const usersRef = useRef(null); // cache daftar user (untuk resolve tag nama -> uid)
   const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
@@ -42,6 +43,14 @@ const AIChatBubble = () => {
   }, [open]);
 
   useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; }, [messages]);
+
+  // Auto-grow textarea (maks ~4 baris); reset saat input dikosongkan.
+  useEffect(() => {
+    const el = taRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 96) + 'px';
+  }, [input, open]);
 
   const push = (m) => setMessages((prev) => [...prev, { id: nid(), ...m }]);
   const pushBot = (text, chips) => push({ role: 'bot', text, chips });
@@ -115,10 +124,11 @@ const AIChatBubble = () => {
     }
     updateProposal(msgId, idx, { _status: 'saving' });
     try {
-      const tag_uids = await resolveTagUids(prop.tag_names);
-      const res = await fetch(`${baseUrl}/ai/chat/comment/confirm`, {
+      const tag_uids = prop.type === 'comment' ? await resolveTagUids(prop.tag_names) : [];
+      const res = await fetch(`${baseUrl}/ai/chat/write/confirm`, {
         method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({
+          type: prop.type || 'comment',
           project_id: prop.project_id, category: prop.category, text: prop.text,
           created_by_uid: getUid(), tag_uids,
         }),
@@ -189,7 +199,7 @@ const AIChatBubble = () => {
   const panelBg = isLight ? '#ffffff' : '#1c1c1c';
   const textColor = isLight ? '#000' : '#eee';
   const chipStyle = { background: 'transparent', border: `1px solid ${accent}`, color: accent, borderRadius: 16, padding: '4px 12px', margin: '3px 4px 0 0', cursor: 'pointer', fontSize: 13 };
-  const inputStyle = { flex: 1, padding: '9px 12px', borderRadius: 20, border: '1px solid #999', background: isLight ? '#fff' : '#2a2a2a', color: textColor, outline: 'none', minWidth: 0 };
+  const inputStyle = { flex: 1, padding: '9px 12px', borderRadius: 18, border: '1px solid #999', background: isLight ? '#fff' : '#2a2a2a', color: textColor, outline: 'none', minWidth: 0, resize: 'none', lineHeight: '20px', maxHeight: 96, overflowY: 'auto', fontFamily: 'inherit', fontSize: 14, boxSizing: 'border-box' };
 
   // Ukuran & posisi panel: HP = hampir penuh; desktop = normal/expanded.
   const panelStyle = isMobile
@@ -280,7 +290,11 @@ const AIChatBubble = () => {
                   <div style={{ marginTop: 6 }}>
                     {m.proposals.map((p, i) => (
                       <div key={i} style={{ fontSize: 13, padding: '8px 10px', marginBottom: 6, borderRadius: 8, background: isLight ? '#fff8e1' : '#2a2620', border: '1px solid #f0c000' }}>
-                        <div style={{ fontWeight: 700, marginBottom: 2 }}>📝 Usulan komentar → {p.category}</div>
+                        <div style={{ fontWeight: 700, marginBottom: 2 }}>
+                          {p.type === 'category_description' ? `📝 Tambah deskripsi → ${p.category}`
+                            : p.type === 'product_description' ? '📝 Tambah deskripsi produk'
+                            : `📝 Usulan komentar → ${p.category}`}
+                        </div>
                         <div style={{ whiteSpace: 'pre-wrap', marginBottom: 4 }}>{p.text}</div>
                         {p.tag_names && p.tag_names.length > 0 && (
                           <div style={{ fontSize: 12, opacity: 0.8, marginBottom: 4 }}>Tag: {p.tag_names.join(', ')}</div>
@@ -292,7 +306,7 @@ const AIChatBubble = () => {
                           </div>
                         )}
                         {p._status === 'saving' && <span style={{ opacity: 0.7 }}>Menyimpan…</span>}
-                        {p._status === 'saved' && <span style={{ color: '#198754' }}>✅ Tersimpan sebagai komentar "AI Chatbot"</span>}
+                        {p._status === 'saved' && <span style={{ color: '#198754' }}>✅ Tersimpan oleh "AI Chatbot"</span>}
                         {p._status === 'rejected' && <span style={{ opacity: 0.6 }}>Ditolak</span>}
                         {p._status === 'error' && <span style={{ color: '#dc3545' }}>❌ Gagal menyimpan</span>}
                       </div>
@@ -314,13 +328,16 @@ const AIChatBubble = () => {
             {busy && <div style={{ fontSize: 12, opacity: 0.6 }}>AI sedang memproses…</div>}
           </div>
 
-          <div style={{ display: 'flex', gap: 8, padding: 10, borderTop: isLight ? '1px solid #eee' : '1px solid #333' }}>
-            <input
-              value={input} placeholder="Tanya apa saja…"
-              onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+          <div style={{ display: 'flex', gap: 8, padding: 10, borderTop: isLight ? '1px solid #eee' : '1px solid #333', alignItems: 'flex-end' }}>
+            <textarea
+              ref={taRef} value={input} rows={1} placeholder="Tanya apa saja…  (Enter kirim, Shift+Enter baris baru)"
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
+              }}
               style={inputStyle}
             />
-            <button onClick={handleSend} disabled={busy} style={{ background: accent, color: '#fff', border: 'none', borderRadius: '50%', width: 40, height: 40, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <button onClick={handleSend} disabled={busy} style={{ background: accent, color: '#fff', border: 'none', borderRadius: '50%', width: 40, height: 40, minWidth: 40, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <BsSend />
             </button>
           </div>

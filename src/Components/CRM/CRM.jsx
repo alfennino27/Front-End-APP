@@ -79,7 +79,12 @@ export default function CRM() {
     if(dir==='back'&&idx<=0) return;
     const ns = dir==='forward' ? order[idx+1] : order[idx-1];
     const sd = {...lead.stage_dates, [ns]: dir==='forward'?new Date().toISOString():null};
-    await fetch(baseUrl+'/crm/leads/update/'+lead.id, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({stage:ns,stage_dates:sd})});
+    const body = {stage:ns, stage_dates:sd};
+    // Set tanggal_deal saat pertama kali masuk deal (pipeline path)
+    if (ns === 'deal' && !lead.tanggal_deal) {
+      body.tanggal_deal = new Date().toISOString().slice(0, 10);
+    }
+    await fetch(baseUrl+'/crm/leads/update/'+lead.id, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
     fetchAll();
   };
 
@@ -224,7 +229,10 @@ export default function CRM() {
 
   const getCampaignName = (id) => campaigns.find(c=>c.id===id)?.nama || id;
 
-  const getLeadMonth = (l) => (l.tanggal_masuk || l.created_at || '').slice(0,7);
+  // tanggal_masuk = tanggal lead masuk (untuk atribusi campaign/ROI)
+  const getLeadMonthMasuk = (l) => (l.tanggal_masuk || l.created_at || '').slice(0,7);
+  // tanggal_deal = tanggal invoice/deal closing (untuk revenue reporting dan pipeline)
+  const getLeadMonthDeal = (l) => (l.tanggal_deal || l.tanggal_masuk || l.created_at || '').slice(0,7);
 
   // Agregat metrik dari list daily (weighted by impressions untuk rata2)
   const aggDaily = (days) => {
@@ -255,7 +263,10 @@ export default function CRM() {
     return camp.bulan === month ? { spend:camp.spend||0, results:camp.results||0, cpl:camp.cpl||0, cpm:camp.cpm||0, impressions:camp.impressions||0, reach:camp.reach||0, frequency:camp.frequency||0, ctr:camp.ctr||0, daily:[], active:true } : null;
   };
 
-  const filteredLeads = filterBulan ? leads.filter(l => getLeadMonth(l) === filterBulan) : leads;
+  // Pipeline & revenue: filter by tanggal_deal (tanggal invoice dibuat)
+  const filteredLeads = filterBulan ? leads.filter(l => getLeadMonthDeal(l) === filterBulan) : leads;
+  // Campaign attribution: filter by tanggal_masuk (tanggal lead masuk sebenarnya)
+  const filteredLeadsMasuk = filterBulan ? leads.filter(l => getLeadMonthMasuk(l) === filterBulan) : leads;
   const filteredCampaigns = filterBulan ? campaigns.filter(c => getCampaignMonthData(c, filterBulan) !== null) : campaigns;
 
   const activeLeads = filteredLeads.filter(l=>l.stage!=='lost');
@@ -265,7 +276,7 @@ export default function CRM() {
   const totalGP = dealLeads.reduce((s,l)=>s+(l.gross_profit||0),0);
   const convRate = filteredLeads.length>0 ? ((dealLeads.length/filteredLeads.length)*100).toFixed(1) : 0;
 
-  // Periods available — dari daily_data campaign + tanggal lead
+  // Periods available — dari daily_data campaign + tanggal lead (kedua tanggal)
   const availablePeriods = useMemo(() => {
     const months = new Set();
     campaigns.forEach(c => {
@@ -274,29 +285,29 @@ export default function CRM() {
       else if (c.bulan) months.add(c.bulan);
     });
     leads.forEach(l => {
-      const m = (l.tanggal_masuk || l.created_at || '').slice(0,7);
-      if (m) months.add(m);
+      const mMasuk = (l.tanggal_masuk || l.created_at || '').slice(0,7);
+      const mDeal = (l.tanggal_deal || '').slice(0,7);
+      if (mMasuk) months.add(mMasuk);
+      if (mDeal) months.add(mDeal);
     });
     return Array.from(months).sort().reverse();
   }, [campaigns, leads]);
 
-  // Analytics calculations (Model B: atribusi by tanggal lead masuk)
-  // Spend & results diturunkan per bulan dari daily_data
+  // Analytics calculations
+  // Spend & results diturunkan per bulan dari daily_data campaign
   const metaLeadsTotal = filteredCampaigns.filter(c=>c.source==='meta_ads').reduce((s,c)=>s+((getCampaignMonthData(c,filterBulan)?.results)||0),0);
   const totalSpend = filteredCampaigns.reduce((s,c)=>s+((getCampaignMonthData(c,filterBulan)?.spend)||0),0);
 
-  // Deal "from Ads" = new customer dari campaign (exclude repeat & organic)
-  const adsDealLeads = dealLeads.filter(l => l.campaign_id && !l.is_repeat_order);
-
-  // Total (semua deal: campaign + repeat + organic)
+  // Total revenue/GP (by tanggal_deal — tanggal invoice dibuat)
   const revenueTotal = dealLeads.reduce((s,l)=>s+(l.deal_value||0),0);
   const gpTotal = dealLeads.reduce((s,l)=>s+(l.gross_profit||0),0);
 
-  // From Ads (hanya new customer dari campaign)
+  // Deal "from Ads" by tanggal_masuk — untuk atribusi efektivitas campaign
+  const adsDealLeads = filteredLeadsMasuk.filter(l => l.stage==='deal' && l.campaign_id && !l.is_repeat_order);
   const revenueFromAds = adsDealLeads.reduce((s,l)=>s+(l.deal_value||0),0);
   const gpFromAds = adsDealLeads.reduce((s,l)=>s+(l.gross_profit||0),0);
 
-  // Total Profit from Ads = GP from Ads − Total Spend Ads (metrik keputusan)
+  // Total Profit from Ads = GP from Ads − Total Spend Ads (metrik keputusan campaign)
   const totalProfitFromAds = gpFromAds - totalSpend;
   const convRateMeta = metaLeadsTotal>0 ? ((adsDealLeads.length/metaLeadsTotal)*100).toFixed(1) : null;
 
@@ -395,7 +406,7 @@ export default function CRM() {
               <tbody>
                 {filteredCampaigns.map(camp=>{
                   const md = getCampaignMonthData(camp, filterBulan) || {};
-                  const cl=leads.filter(l=>l.campaign_id===camp.id), cd=cl.filter(l=>l.stage==='deal');
+                  const cl=filteredLeadsMasuk.filter(l=>l.campaign_id===camp.id), cd=cl.filter(l=>l.stage==='deal');
                   const rev=cd.reduce((s,l)=>s+(l.deal_value||0),0), roas=md.spend>0?(rev/md.spend).toFixed(1):'-';
                   const rc=roas==='-'?muted:roas>=8?'#639922':roas>=3?'#EF9F27':'#a32d2d';
                   const sc={active:'#639922',paused:'#EF9F27',stopped:'#a32d2d'};
@@ -469,6 +480,16 @@ export default function CRM() {
               } catch(e){ alert('Gagal sync data'); }
               setSyncing(false);
             }}>{syncing?<Spinner size="sm"/>:'🔄 Sync Data Invoice'}</Button>
+            <Button size="sm" variant="outline-secondary" disabled={syncing} onClick={async()=>{
+              setSyncing(true);
+              try {
+                const res=await fetch(baseUrl+'/crm/leads/backfill-tanggal-deal',{method:'POST'});
+                const data=await res.json();
+                alert(data.message||'Backfill selesai');
+                fetchAll();
+              } catch(e){ alert('Gagal backfill'); }
+              setSyncing(false);
+            }}>{syncing?<Spinner size="sm"/>:'📅 Backfill Tgl. Invoice'}</Button>
             <Button size="sm" variant="dark" onClick={()=>{
               const exportData={period:filterBulan||'Semua',metaLeads:metaLeadsTotal,totalDeals:dealLeads.length,dealsFromAds:adsDealLeads.length,convRate:convRateMeta,totalRevenue:revenueTotal,revenueFromAds,totalGrossProfit:gpTotal,grossProfitFromAds:gpFromAds,totalSpendAds:totalSpend,totalProfitFromAds,campaigns:filteredCampaigns.map(c=>{const m=getCampaignMonthData(c,filterBulan)||{};return {nama:c.nama,spend:m.spend||0,results:m.results||0,leads:filteredLeads.filter(l=>l.campaign_id===c.id).length,deal:filteredLeads.filter(l=>l.campaign_id===c.id&&l.stage==='deal').length};})};
               const blob=new Blob([JSON.stringify(exportData,null,2)],{type:'application/json'});
@@ -559,7 +580,7 @@ export default function CRM() {
                     const hasMeta=camp.source==='meta_ads';
                     const md=getCampaignMonthData(camp, filterBulan)||{};
                     const mdSpend=md.spend||0, mdResults=md.results||0;
-                    const cl=filteredLeads.filter(l=>l.campaign_id===camp.id);
+                    const cl=filteredLeadsMasuk.filter(l=>l.campaign_id===camp.id);
                     const cgood=cl.filter(l=>l.stage==='good').length;
                     const cquot=cl.filter(l=>l.stage==='quotation').length;
                     // Pisah new vs repeat
@@ -603,7 +624,7 @@ export default function CRM() {
                 </tbody>
               </table>
               <div style={{fontSize:10,color:muted,marginTop:8}}>
-                * Atribusi by tanggal lead masuk (deal bisa closing kapanpun). Conv. Rate = Deal (New) ÷ Leads Meta. ROAS & Ads Profit dari New Customer saja (exclude repeat & organic).
+                * Leads, Deal, ROAS & Conv. Rate diatribusikan by tanggal lead masuk. Total Revenue & GP Summary Cards by tanggal invoice. Pipeline by tanggal invoice.
               </div>
             </div>
           </div>
@@ -623,8 +644,8 @@ export default function CRM() {
                   </thead>
                   <tbody>
                     {filteredCampaigns.map(camp=>{
-                      const cnew=filteredLeads.filter(l=>l.campaign_id===camp.id&&l.stage==='deal'&&!l.is_repeat_order);
-                      const crepeat=filteredLeads.filter(l=>l.campaign_id===camp.id&&l.stage==='deal'&&l.is_repeat_order);
+                      const cnew=filteredLeadsMasuk.filter(l=>l.campaign_id===camp.id&&l.stage==='deal'&&!l.is_repeat_order);
+                      const crepeat=filteredLeadsMasuk.filter(l=>l.campaign_id===camp.id&&l.stage==='deal'&&l.is_repeat_order);
                       const revNew=cnew.reduce((s,l)=>s+(l.deal_value||0),0);
                       const revRepeat=crepeat.reduce((s,l)=>s+(l.deal_value||0),0);
                       const clvTotal=revNew+revRepeat;
@@ -683,9 +704,11 @@ export default function CRM() {
               {[['WhatsApp', detailLead.wa ? <a href={'https://wa.me/'+detailLead.wa.replace(/\D/g,'')} target="_blank" rel="noreferrer" style={{color:'#25D366'}}>📱 {detailLead.wa}</a> : '-'],
                 ['Sumber', detailLead.campaign_id ? getCampaignName(detailLead.campaign_id) : 'Organic'],
                 ['Invoice', detailLead.kode_invoice||'-'],
+                ['Tgl. Lead Masuk', fmtDate(detailLead.tanggal_masuk)],
+                ['Tgl. Invoice', detailLead.tanggal_deal ? fmtDate(detailLead.tanggal_deal) : '-'],
                 ['Deal Value', detailLead.deal_value ? fmtRp(detailLead.deal_value) : '-'],
                 ['Dibuat', fmtDate(detailLead.created_at)]
-              ].map(([label,val],i)=><tr key={i}><td style={{color:muted,paddingBottom:6,width:90}}>{label}</td><td style={{color:text,fontWeight:500,paddingBottom:6}}>{val}</td></tr>)}
+              ].map(([label,val],i)=><tr key={i}><td style={{color:muted,paddingBottom:6,width:110}}>{label}</td><td style={{color:text,fontWeight:500,paddingBottom:6}}>{val}</td></tr>)}
             </tbody></table>
             {detailLead.notes&&<div style={{background:dark?'#1a1a2e':'#f8f9fa',borderRadius:8,padding:'10px 12px',marginBottom:12,fontSize:13,color:text}}>{detailLead.notes}</div>}
             <div style={{marginBottom:16}}>

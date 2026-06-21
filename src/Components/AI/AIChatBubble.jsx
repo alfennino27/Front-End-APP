@@ -78,6 +78,24 @@ const AIChatBubble = () => {
     } catch (e) { /* abaikan */ }
   };
 
+  // Kompres gambar ke max 1200px & kualitas 80% sebelum dikirim (cegah payload oversize di HP).
+  const compressImage = (file) => new Promise((resolve) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const MAX = 1200;
+      let { width, height } = img;
+      if (width > MAX) { height = Math.round((height * MAX) / width); width = MAX; }
+      const canvas = document.createElement('canvas');
+      canvas.width = width; canvas.height = height;
+      canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL('image/jpeg', 0.8));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
+    img.src = url;
+  });
+
   const fileToBase64 = (file) => new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.readAsDataURL(file);
@@ -90,11 +108,12 @@ const AIChatBubble = () => {
     setBusy(true);
     apiMsgsRef.current = [...apiMsgsRef.current, { role: 'user', content: question }];
 
-    // Gambar bukti (kalau ada) — dikirim sekali ke AI untuk dibaca, lalu disimpan di ref untuk saat approval.
+    // Gambar bukti (kalau ada) — dikompres dulu lalu dikirim ke AI untuk dibaca.
+    // Disimpan di ref untuk dipakai saat user klik Setujui.
     let imageBase64 = null;
     if (paymentImageFile) {
       try {
-        imageBase64 = await fileToBase64(paymentImageFile);
+        imageBase64 = await compressImage(paymentImageFile) || await fileToBase64(paymentImageFile);
         paymentImgBase64Ref.current = imageBase64;
         setPaymentImageFile(null);
       } catch { /* abaikan, lanjut tanpa gambar */ }

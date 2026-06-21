@@ -37,7 +37,7 @@ export default function CRM() {
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [editingLead, setEditingLead] = useState(null);
   const today = new Date().toISOString().slice(0,10);
-  const [leadForm, setLeadForm] = useState({ nama:'', wa:'', campaign_id:'', notes:'', stage:'leads', tanggal_masuk: today });
+  const [leadForm, setLeadForm] = useState({ nama:'', wa:'', campaign_id:'', notes:'', stage:'leads', tanggal_masuk: today, is_repeat_order: false, repeat_ref_campaign_id: '' });
   const [detailLead, setDetailLead] = useState(null);
   const [dealValue, setDealValue] = useState('');
   const [grossProfit, setGrossProfit] = useState('');
@@ -69,7 +69,7 @@ export default function CRM() {
     const method = editingLead ? 'PUT' : 'POST';
     const body = editingLead ? {...leadForm} : {...leadForm, tanggal_masuk: leadForm.tanggal_masuk || today, stage_dates:{leads:new Date().toISOString(),good:null,quotation:null,deal:null,lost:null}};
     await fetch(url, {method, headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
-    setShowLeadModal(false); setEditingLead(null); setLeadForm({nama:'',wa:'',campaign_id:'',notes:'',stage:'leads',tanggal_masuk:today}); fetchAll();
+    setShowLeadModal(false); setEditingLead(null); setLeadForm({nama:'',wa:'',campaign_id:'',notes:'',stage:'leads',tanggal_masuk:today,is_repeat_order:false,repeat_ref_campaign_id:''}); fetchAll();
   };
 
   const handleMoveStage = async (lead, dir) => {
@@ -406,7 +406,8 @@ export default function CRM() {
               <tbody>
                 {filteredCampaigns.map(camp=>{
                   const md = getCampaignMonthData(camp, filterBulan) || {};
-                  const cl=filteredLeadsMasuk.filter(l=>l.campaign_id===camp.id), cd=cl.filter(l=>l.stage==='deal');
+                  const cl=filteredLeadsMasuk.filter(l=>l.campaign_id===camp.id);
+                  const cd=cl.filter(l=>l.stage==='deal'&&!l.is_repeat_order); // exclude repeat dari ROAS
                   const rev=cd.reduce((s,l)=>s+(l.deal_value||0),0), roas=md.spend>0?(rev/md.spend).toFixed(1):'-';
                   const rc=roas==='-'?muted:roas>=8?'#639922':roas>=3?'#EF9F27':'#a32d2d';
                   const sc={active:'#639922',paused:'#EF9F27',stopped:'#a32d2d'};
@@ -676,12 +677,29 @@ export default function CRM() {
           <Form.Group className="mb-2"><Form.Label style={{color:dark?'white':'black'}}>Nama Customer *</Form.Label><Form.Control value={leadForm.nama} onChange={e=>setLeadForm(f=>({...f,nama:e.target.value}))} placeholder="Nama customer"/></Form.Group>
           <Form.Group className="mb-2"><Form.Label style={{color:dark?'white':'black'}}>Tanggal Lead Masuk</Form.Label><Form.Control type="date" value={leadForm.tanggal_masuk||today} onChange={e=>setLeadForm(f=>({...f,tanggal_masuk:e.target.value}))}/></Form.Group>
           <Form.Group className="mb-2"><Form.Label style={{color:dark?'white':'black'}}>No. WhatsApp</Form.Label><Form.Control value={leadForm.wa} onChange={e=>setLeadForm(f=>({...f,wa:e.target.value}))} placeholder="+62 8xx xxxx xxxx"/></Form.Group>
-          <Form.Group className="mb-2"><Form.Label style={{color:dark?'white':'black'}}>Campaign Sumber</Form.Label>
-            <Form.Select value={leadForm.campaign_id} onChange={e=>setLeadForm(f=>({...f,campaign_id:e.target.value}))}>
-              <option value="">Organic / Tidak ada</option>
-              {campaigns.map(c=><option key={c.id} value={c.id}>{c.nama}</option>)}
-            </Form.Select>
+          <Form.Group className="mb-2">
+            <Form.Check type="checkbox" id="repeat-order-check"
+              label={<span style={{color:dark?'white':'black',fontWeight:500}}>Repeat Order</span>}
+              checked={leadForm.is_repeat_order||false}
+              onChange={e=>setLeadForm(f=>({...f,is_repeat_order:e.target.checked}))}
+            />
           </Form.Group>
+          {leadForm.is_repeat_order ? <>
+            <Form.Group className="mb-2"><Form.Label style={{color:dark?'white':'black'}}>Campaign Asal (untuk CLV)</Form.Label>
+              <Form.Select value={leadForm.repeat_ref_campaign_id||''} onChange={e=>setLeadForm(f=>({...f,repeat_ref_campaign_id:e.target.value,campaign_id:e.target.value}))}>
+                <option value="">Pilih campaign asal...</option>
+                {campaigns.map(c=><option key={c.id} value={c.id}>{c.nama}</option>)}
+              </Form.Select>
+              <Form.Text style={{color:muted}}>Repeat order tidak masuk ROAS — hanya masuk CLV campaign asal.</Form.Text>
+            </Form.Group>
+          </> : <>
+            <Form.Group className="mb-2"><Form.Label style={{color:dark?'white':'black'}}>Campaign Sumber</Form.Label>
+              <Form.Select value={leadForm.campaign_id} onChange={e=>setLeadForm(f=>({...f,campaign_id:e.target.value}))}>
+                <option value="">Organic / Tidak ada</option>
+                {campaigns.map(c=><option key={c.id} value={c.id}>{c.nama}</option>)}
+              </Form.Select>
+            </Form.Group>
+          </>}
           <Form.Group className="mb-2"><Form.Label style={{color:dark?'white':'black'}}>Stage Awal</Form.Label>
             <Form.Select value={leadForm.stage} onChange={e=>setLeadForm(f=>({...f,stage:e.target.value}))}>
               {STAGES.map(s=><option key={s.key} value={s.key}>{s.label}</option>)}
@@ -730,7 +748,7 @@ export default function CRM() {
           </Modal.Body>
           <Modal.Footer style={{justifyContent:'space-between'}}>
             <div style={{display:'flex',gap:6}}>
-              <Button size="sm" variant="outline-primary" onClick={()=>{setEditingLead(detailLead);setLeadForm({nama:detailLead.nama,wa:detailLead.wa||'',campaign_id:detailLead.campaign_id||'',notes:detailLead.notes||'',stage:detailLead.stage,tanggal_masuk:detailLead.tanggal_masuk||today});setShowLeadDetail(false);setShowLeadModal(true);}}><MdEdit/> Edit</Button>
+              <Button size="sm" variant="outline-primary" onClick={()=>{setEditingLead(detailLead);setLeadForm({nama:detailLead.nama,wa:detailLead.wa||'',campaign_id:detailLead.campaign_id||'',notes:detailLead.notes||'',stage:detailLead.stage,tanggal_masuk:detailLead.tanggal_masuk||today,is_repeat_order:detailLead.is_repeat_order||false,repeat_ref_campaign_id:detailLead.repeat_ref_campaign_id||''});setShowLeadDetail(false);setShowLeadModal(true);}}><MdEdit/> Edit</Button>
               {detailLead.stage!=='lost'&&<Button size="sm" variant="outline-danger" onClick={()=>handleMarkLost(detailLead)}>Lost</Button>}
               <Button size="sm" variant="outline-danger" onClick={()=>{setDeleteTarget({type:'lead',id:detailLead.id,label:detailLead.nama});setShowDeleteConfirm(true);}}><MdDelete/></Button>
             </div>

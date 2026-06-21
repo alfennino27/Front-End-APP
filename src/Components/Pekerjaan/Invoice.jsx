@@ -2450,13 +2450,13 @@ const Invoice = () => {
             </div>
 
             <label className='mt-2'>Product Name :</label>
-            <input className="form-control" type='text' onChange={useCallback(debounce((e) => setProductName(e.target.value), 300), [])}></input>
+            <input className="form-control" type='text' onChange={(e) => setProductName(e.target.value)}></input>
             <label className='mt-2'>Harga :</label>
-            <input className="form-control" type='number' onChange={useCallback(debounce((e) => setHarga(e.target.value), 300), [])}></input>
+            <input className="form-control" type='number' onChange={(e) => setHarga(e.target.value)}></input>
             <label className='mt-2'>Qty :</label>
-            <input className="form-control" type='number' onChange={useCallback(debounce((e) => setQty(e.target.value), 300), [])}></input>
+            <input className="form-control" type='number' onChange={(e) => setQty(e.target.value)}></input>
             <label className='mt-2'>Keterangan :</label>
-            <textarea className="form-control" rows="5" type='text' onChange={useCallback(debounce((e) => setSpesifikasi(e.target.value), 300), [])}></textarea>
+            <textarea className="form-control" rows="5" type='text' onChange={(e) => setSpesifikasi(e.target.value)}></textarea>
           </Modal.Body>
           <Modal.Footer>
             <Button variant="primary" onClick={handleSubmitAddProduct} style={{ marginLeft: "150px" }}>Submit</Button>
@@ -2528,11 +2528,11 @@ const Invoice = () => {
             </div>
 
             <label className='mt-2'>Spesifikasi :</label>
-            <textarea className="form-control" rows="5" type='text' defaultValue={spesifikasiEdit} onChange={useCallback(debounce((e) => setSpesifikasiEdit(e.target.value), 300), [])}></textarea>
+            <textarea className="form-control" rows="5" type='text' defaultValue={spesifikasiEdit} onChange={(e) => setSpesifikasiEdit(e.target.value)}></textarea>
             <label className='mt-2'>Harga :</label>
-            <input className="form-control" type='number' defaultValue={hargaEdit} onChange={useCallback(debounce((e) => setHargaEdit(e.target.value), 300), [])}></input>
+            <input className="form-control" type='number' defaultValue={hargaEdit} onChange={(e) => setHargaEdit(e.target.value)}></input>
             <label className='mt-2'>Qty :</label>
-            <input className="form-control" type='number' defaultValue={qtyEdit} onChange={useCallback(debounce((e) => setQtyEdit(e.target.value), 300), [])}></input>
+            <input className="form-control" type='number' defaultValue={qtyEdit} onChange={(e) => setQtyEdit(e.target.value)}></input>
           </Modal.Body>
           <Modal.Footer>
             <Button variant="danger" onClick={() => { setShowDeleteProductModal(true); setShowEditProductModal(false) }}>Delete</Button>

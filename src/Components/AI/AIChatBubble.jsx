@@ -245,10 +245,19 @@ const AIChatBubble = () => {
     if (fileRef.current) fileRef.current.value = '';
   };
 
-  // ---- upload gambar bukti transfer ----
-  const onPickImage = (e) => {
-    const f = e.target.files && e.target.files[0];
-    if (f) setPaymentImageFile(f);
+  // ---- upload gambar bukti transfer (termasuk HEIC dari iPhone) ----
+  const onPickImage = async (e) => {
+    let f = e.target.files && e.target.files[0];
+    if (!f) return;
+    // Konversi HEIC → JPEG di browser sebelum disimpan ke state.
+    if (f.type === 'image/heic' || f.type === 'image/heif' || f.name.toLowerCase().endsWith('.heic') || f.name.toLowerCase().endsWith('.heif')) {
+      try {
+        const heic2any = (await import('heic2any')).default;
+        const blob = await heic2any({ blob: f, toType: 'image/jpeg', quality: 0.85 });
+        f = new File([blob], f.name.replace(/\.heic?$/i, '.jpg'), { type: 'image/jpeg' });
+      } catch { /* gagal konversi → tetap kirim aslinya, biar server yang handle */ }
+    }
+    setPaymentImageFile(f);
     if (imgRef.current) imgRef.current.value = '';
   };
 
@@ -507,7 +516,7 @@ const AIChatBubble = () => {
 
           <div style={{ display: 'flex', gap: 8, padding: 10, borderTop: isLight ? '1px solid #eee' : '1px solid #333', alignItems: 'flex-end' }}>
             <input ref={fileRef} type="file" accept=".txt,.zip" onChange={onPickFile} style={{ display: 'none' }} />
-            <input ref={imgRef} type="file" accept="image/*" onChange={onPickImage} style={{ display: 'none' }} />
+            <input ref={imgRef} type="file" accept="image/*,.heic,.heif" onChange={onPickImage} style={{ display: 'none' }} />
             <button onClick={() => fileRef.current && fileRef.current.click()} disabled={busy} title="Lampirkan export chat WhatsApp (.txt/.zip)"
               style={{ background: 'transparent', color: accent, border: `1px solid ${accent}`, borderRadius: '50%', width: 40, height: 40, minWidth: 40, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <BsPaperclip />

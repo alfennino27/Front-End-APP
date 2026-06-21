@@ -275,7 +275,7 @@ const Invoice = () => {
     if (!kodeInvoice) return;
 
     try {
-      const res = await fetch(`${baseUrl}/invoice/projects/get?kodeInvoice=${kodeInvoice}`);
+      const res = await fetch(`${baseUrl}/invoice/projects/get?kodeInvoice=${encodeURIComponent(kodeInvoice)}`);
       const data = await res.json();
       setDataProductFromDB(data);
     } catch (err) {
@@ -287,7 +287,7 @@ const Invoice = () => {
     if (!kodeInvoice) return;
 
     try {
-      const res = await fetch(`${baseUrl}/invoice/products-excel/get?kodeInvoice=${kodeInvoice}`);
+      const res = await fetch(`${baseUrl}/invoice/products-excel/get?kodeInvoice=${encodeURIComponent(kodeInvoice)}`);
       const data = await res.json();
       setDataProductExcelFromDB(data);
     } catch (err) {
@@ -867,32 +867,38 @@ const Invoice = () => {
   const totalNominal = filteredData.reduce((acc, spk) => acc + Number(spk.nominal), 0);
   const totalDP = filteredData.reduce((acc, spk) => acc + Number(spk.dp), 0);
 
-  function pasteImage(modal) {
-    navigator.clipboard.read().then(clipboardItems => {
-      clipboardItems.forEach(item => {
-        if (item.types.includes('image/png') || item.types.includes('image/jpeg')) {
-          item.getType('image/png').then(blob => {
-            const file = new File([blob], 'pasted-image.png', { type: 'image/png' });
-            const dataTransfer = new DataTransfer();
-            dataTransfer.items.add(new File([blob], 'pasted-image.png', { type: 'image/png' }));
-            const inputElement = document.querySelector('input[type="file"]');
-            inputElement.files = dataTransfer.files;
-            if (modal == "addProduct") {
-              setFileToUpload(file);
-            }
-            if (modal == "editProduct") {
-              setFileToUploadEdit(file);
-            }
-            if (modal == "addPayment") {
-              setPaymentFileToUpload(file);
-            }
-            if (modal == "editPayment") {
-              setFileToUploadPaymentEdit(file);
-            }
-          });
+  async function pasteImage(modal) {
+    try {
+      const clipboardItems = await navigator.clipboard.read();
+      for (const item of clipboardItems) {
+        // Ambil tipe gambar yang benar-benar tersedia (png ATAU jpeg)
+        const imageType = item.types.find(t => t === 'image/png' || t === 'image/jpeg');
+        if (!imageType) continue;
+
+        const blob = await item.getType(imageType);
+        const ext = imageType === 'image/jpeg' ? 'jpg' : 'png';
+        const file = new File([blob], `pasted-image.${ext}`, { type: imageType });
+
+        // Set state sesuai modal (ini yang dipakai saat submit)
+        if (modal === "addProduct") setFileToUpload(file);
+        if (modal === "editProduct") setFileToUploadEdit(file);
+        if (modal === "addPayment") setPaymentFileToUpload(file);
+        if (modal === "editPayment") setFileToUploadPaymentEdit(file);
+
+        // Tampilkan ke file input DI MODAL YANG SEDANG TERBUKA (bukan input pertama di halaman)
+        const openModalInput = document.querySelector('.modal.show input[type="file"]');
+        if (openModalInput) {
+          const dataTransfer = new DataTransfer();
+          dataTransfer.items.add(file);
+          openModalInput.files = dataTransfer.files;
         }
-      });
-    });
+        return; // selesai setelah gambar pertama
+      }
+      alert('Clipboard tidak berisi gambar. Salin/screenshot gambar dulu, lalu klik paste.');
+    } catch (err) {
+      console.error('Gagal paste gambar:', err);
+      alert('Gagal paste dari clipboard: ' + err.message);
+    }
   }
 
   const totalPenjualan = dataProductFromDB.reduce((total, product) => {

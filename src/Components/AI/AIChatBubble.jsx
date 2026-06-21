@@ -8,7 +8,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { getApiBaseUrl } from '../../Config/APIurl';
 import { useTheme } from '../../ThemeContext';
-import { BsChatDotsFill, BsXLg, BsSend, BsArrowsAngleExpand, BsArrowsAngleContract, BsPaperclip } from 'react-icons/bs';
+import { BsChatDotsFill, BsXLg, BsSend, BsArrowsAngleExpand, BsArrowsAngleContract, BsPaperclip, BsCameraFill } from 'react-icons/bs';
 
 const aiKey = import.meta.env.VITE_KLF_AI_KEY || '';
 const authHeaders = (extra = {}) => ({ ...(aiKey ? { 'X-KLF-Key': aiKey } : {}), ...extra });
@@ -30,9 +30,12 @@ const AIChatBubble = () => {
   const scrollRef = useRef(null);
   const taRef = useRef(null); // textarea input (auto-grow)
   const fileRef = useRef(null); // input file tersembunyi (upload chat WA)
+  const imgRef = useRef(null);  // input file tersembunyi (bukti transfer/gambar)
   const apiMsgsRef = useRef([]); // riwayat {role, content} untuk /ai/chat (multi-turn)
   const usersRef = useRef(null); // cache daftar user (untuk resolve tag nama -> uid)
+  const paymentImgBase64Ref = useRef(null); // simpan base64 gambar bukti untuk approval
   const [waFile, setWaFile] = useState(null); // file export chat WA yang dilampirkan
+  const [paymentImageFile, setPaymentImageFile] = useState(null); // bukti transfer
   const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
 
   useEffect(() => {
@@ -75,14 +78,32 @@ const AIChatBubble = () => {
     } catch (e) { /* abaikan */ }
   };
 
+  const fileToBase64 = (file) => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+  });
+
   // ---- chat konsultan (multi-turn, tools, permission, bukti, usulan komentar) ----
   const askChat = async (question) => {
     setBusy(true);
     apiMsgsRef.current = [...apiMsgsRef.current, { role: 'user', content: question }];
+
+    // Gambar bukti (kalau ada) — dikirim sekali ke AI untuk dibaca, lalu disimpan di ref untuk saat approval.
+    let imageBase64 = null;
+    if (paymentImageFile) {
+      try {
+        imageBase64 = await fileToBase64(paymentImageFile);
+        paymentImgBase64Ref.current = imageBase64;
+        setPaymentImageFile(null);
+      } catch { /* abaikan, lanjut tanpa gambar */ }
+    }
+
     try {
       const res = await fetch(`${baseUrl}/ai/chat`, {
         method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ uid: getUid(), messages: apiMsgsRef.current }),
+        body: JSON.stringify({ uid: getUid(), messages: apiMsgsRef.current, image_base64: imageBase64 }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -115,27 +136,41 @@ const AIChatBubble = () => {
     }).filter(Boolean);
   };
 
-  // Setujui / tolak usulan komentar AI.
+  // Setujui / tolak usulan AI (komentar, deskripsi, atau payment).
   const decideProposal = async (msgId, idx, approve) => {
     const msg = messages.find((m) => m.id === msgId);
     const prop = msg && msg.proposals && msg.proposals[idx];
     if (!prop) return;
-    if (!approve) {
-      updateProposal(msgId, idx, { _status: 'rejected' });
-      return;
-    }
+    if (!approve) { updateProposal(msgId, idx, { _status: 'rejected' }); return; }
+
     updateProposal(msgId, idx, { _status: 'saving' });
     try {
-      const tag_uids = prop.type === 'comment' ? await resolveTagUids(prop.tag_names) : [];
-      const res = await fetch(`${baseUrl}/ai/chat/write/confirm`, {
-        method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({
-          type: prop.type || 'comment',
-          project_id: prop.project_id, category: prop.category, text: prop.text,
-          created_by_uid: getUid(), tag_uids,
-        }),
-      });
-      updateProposal(msgId, idx, { _status: res.ok ? 'saved' : 'error' });
+      if (prop.type === 'invoice_payment' || prop.type === 'spk_payment') {
+        const res = await fetch(`${baseUrl}/ai/chat/payment/confirm`, {
+          method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
+          body: JSON.stringify({
+            type: prop.type,
+            invoice_id: prop.invoice_id, kode_invoice: prop.kode_invoice,
+            spk_id: prop.spk_id, kode_spk: prop.kode_spk,
+            jumlah: prop.jumlah, tanggal: prop.tanggal, detail: prop.detail,
+            bukti_base64: paymentImgBase64Ref.current,
+            created_by_uid: getUid(),
+          }),
+        });
+        if (res.ok) paymentImgBase64Ref.current = null;
+        updateProposal(msgId, idx, { _status: res.ok ? 'saved' : 'error' });
+      } else {
+        const tag_uids = prop.type === 'comment' ? await resolveTagUids(prop.tag_names) : [];
+        const res = await fetch(`${baseUrl}/ai/chat/write/confirm`, {
+          method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
+          body: JSON.stringify({
+            type: prop.type || 'comment',
+            project_id: prop.project_id, category: prop.category, text: prop.text,
+            created_by_uid: getUid(), tag_uids,
+          }),
+        });
+        updateProposal(msgId, idx, { _status: res.ok ? 'saved' : 'error' });
+      }
     } catch { updateProposal(msgId, idx, { _status: 'error' }); }
   };
 
@@ -184,13 +219,18 @@ const AIChatBubble = () => {
     } catch (e) { pushBot('❌ ' + e.message); } finally { setBusy(false); }
   };
 
-  // ---- upload chat WA via bubble ----
-  // Catatan: tidak ada kalimat pembuka otomatis. User melampirkan file lalu memberi
-  // instruksi sendiri (sebut customer / kode invoice / nama item) untuk diproses.
+  // ---- upload chat WA ----
   const onPickFile = (e) => {
     const f = e.target.files && e.target.files[0];
     if (f) setWaFile(f);
-    if (fileRef.current) fileRef.current.value = ''; // boleh pilih file sama lagi
+    if (fileRef.current) fileRef.current.value = '';
+  };
+
+  // ---- upload gambar bukti transfer ----
+  const onPickImage = (e) => {
+    const f = e.target.files && e.target.files[0];
+    if (f) setPaymentImageFile(f);
+    if (imgRef.current) imgRef.current.value = '';
   };
 
   // Proses file WA yang terlampir ke satu invoice.
@@ -245,7 +285,7 @@ const AIChatBubble = () => {
     if (busy) return;
     const text = input.trim();
 
-    // Ada file WA terlampir -> proses upload pakai instruksi user (tanpa kalimat pembuka otomatis).
+    // Ada file WA terlampir -> proses upload pakai instruksi user.
     if (waFile) {
       setInput('');
       if (text) pushUser(text);
@@ -253,9 +293,10 @@ const AIChatBubble = () => {
       return;
     }
 
-    if (!text) return;
+    if (!text && !paymentImageFile) return;
+    if (!text) { pushBot('Tulis instruksi bersama gambar bukti tersebut (mis. "update payment invoice Budi").'); return; }
     setInput('');
-    pushUser(text);
+    pushUser(text + (paymentImageFile ? ' 📎 [bukti transfer]' : ''));
 
     const consistency = text.match(/(?:cek\s*konsisten\w*|cek\s*gap|konsistensi)\s*(.*)/i);
     if (consistency) { startConsistency(consistency[1]); return; }
@@ -356,29 +397,54 @@ const AIChatBubble = () => {
                 )}
                 {m.proposals && m.proposals.length > 0 && (
                   <div style={{ marginTop: 6 }}>
-                    {m.proposals.map((p, i) => (
-                      <div key={i} style={{ fontSize: 13, padding: '8px 10px', marginBottom: 6, borderRadius: 8, background: isLight ? '#fff8e1' : '#2a2620', border: '1px solid #f0c000' }}>
-                        <div style={{ fontWeight: 700, marginBottom: 2 }}>
-                          {p.type === 'category_description' ? `📝 Tambah deskripsi → ${p.category}`
-                            : p.type === 'product_description' ? '📝 Tambah deskripsi produk'
-                            : `📝 Usulan komentar → ${p.category}`}
+                    {m.proposals.map((p, i) => {
+                      const isPayment = p.type === 'invoice_payment' || p.type === 'spk_payment';
+                      const formatRp = (n) => 'Rp ' + Number(n || 0).toLocaleString('id-ID');
+                      return (
+                        <div key={i} style={{ fontSize: 13, padding: '8px 10px', marginBottom: 6, borderRadius: 8,
+                          background: isPayment ? (isLight ? '#fff3cd' : '#2a2108') : (isLight ? '#fff8e1' : '#2a2620'),
+                          border: isPayment ? '2px solid #ffc107' : '1px solid #f0c000' }}>
+                          {isPayment ? (
+                            <>
+                              <div style={{ fontWeight: 700, marginBottom: 4 }}>
+                                {p.type === 'invoice_payment' ? '💳 Catat Payment Customer' : '💳 Catat Payment ke Supplier'}
+                              </div>
+                              <div><b>{p.type === 'invoice_payment' ? p.kode_invoice : p.kode_spk}</b>
+                                {' '}<span style={{ opacity: 0.7 }}>({p.type === 'invoice_payment' ? p.customer : p.pengrajin})</span>
+                              </div>
+                              <div>Nominal: <b>{formatRp(p.jumlah)}</b></div>
+                              <div>Tanggal: {p.tanggal}</div>
+                              {p.detail && <div>Ket: {p.detail}</div>}
+                              <div style={{ marginTop: 4, padding: '4px 8px', borderRadius: 6, background: isLight ? '#fff9e6' : '#1a1500', fontSize: 12 }}>
+                                Sisa sebelum: {formatRp(p.sisa_sekarang)} → <b>Sisa sesudah: {formatRp(Math.max(0, p.sisa_sekarang - p.jumlah))}</b>
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              <div style={{ fontWeight: 700, marginBottom: 2 }}>
+                                {p.type === 'category_description' ? `📝 Tambah deskripsi → ${p.category}`
+                                  : p.type === 'product_description' ? '📝 Tambah deskripsi produk'
+                                  : `📝 Usulan komentar → ${p.category}`}
+                              </div>
+                              <div style={{ whiteSpace: 'pre-wrap', marginBottom: 4 }}>{p.text}</div>
+                              {p.tag_names && p.tag_names.length > 0 && (
+                                <div style={{ fontSize: 12, opacity: 0.8, marginBottom: 4 }}>Tag: {p.tag_names.join(', ')}</div>
+                              )}
+                            </>
+                          )}
+                          {p._status === 'pending' && (
+                            <div style={{ marginTop: 6 }}>
+                              <button onClick={() => decideProposal(m.id, i, true)} style={{ ...chipStyle, border: '1px solid #198754', color: '#198754' }}>✓ Setujui & simpan</button>
+                              <button onClick={() => decideProposal(m.id, i, false)} style={{ ...chipStyle, border: '1px solid #dc3545', color: '#dc3545' }}>✕ Tolak</button>
+                            </div>
+                          )}
+                          {p._status === 'saving' && <span style={{ opacity: 0.7 }}>Menyimpan…</span>}
+                          {p._status === 'saved' && <span style={{ color: '#198754' }}>✅ {isPayment ? 'Payment berhasil dicatat' : 'Tersimpan oleh "AI Chatbot"'}</span>}
+                          {p._status === 'rejected' && <span style={{ opacity: 0.6 }}>Ditolak</span>}
+                          {p._status === 'error' && <span style={{ color: '#dc3545' }}>❌ Gagal menyimpan</span>}
                         </div>
-                        <div style={{ whiteSpace: 'pre-wrap', marginBottom: 4 }}>{p.text}</div>
-                        {p.tag_names && p.tag_names.length > 0 && (
-                          <div style={{ fontSize: 12, opacity: 0.8, marginBottom: 4 }}>Tag: {p.tag_names.join(', ')}</div>
-                        )}
-                        {p._status === 'pending' && (
-                          <div>
-                            <button onClick={() => decideProposal(m.id, i, true)} style={{ ...chipStyle, border: '1px solid #198754', color: '#198754' }}>✓ Setujui & simpan</button>
-                            <button onClick={() => decideProposal(m.id, i, false)} style={{ ...chipStyle, border: '1px solid #dc3545', color: '#dc3545' }}>✕ Tolak</button>
-                          </div>
-                        )}
-                        {p._status === 'saving' && <span style={{ opacity: 0.7 }}>Menyimpan…</span>}
-                        {p._status === 'saved' && <span style={{ color: '#198754' }}>✅ Tersimpan oleh "AI Chatbot"</span>}
-                        {p._status === 'rejected' && <span style={{ opacity: 0.6 }}>Ditolak</span>}
-                        {p._status === 'error' && <span style={{ color: '#dc3545' }}>❌ Gagal menyimpan</span>}
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
                 {m.feedback && (
@@ -408,11 +474,28 @@ const AIChatBubble = () => {
             </div>
           )}
 
+          {/* Chip gambar bukti transfer */}
+          {paymentImageFile && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px 0', fontSize: 13 }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: isLight ? '#fff3cd' : '#2a2108', color: '#856404', borderRadius: 14, padding: '3px 10px', maxWidth: '100%' }}>
+                <BsCameraFill size={12} />
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 180 }}>{paymentImageFile.name}</span>
+                <button onClick={() => { setPaymentImageFile(null); paymentImgBase64Ref.current = null; }} title="Hapus gambar" style={{ background: 'transparent', border: 'none', color: '#856404', cursor: 'pointer', display: 'flex', padding: 0 }}><BsXLg size={11} /></button>
+              </span>
+              <span style={{ opacity: 0.6, fontSize: 12 }}>Bukti transfer — tulis instruksi & kirim.</span>
+            </div>
+          )}
+
           <div style={{ display: 'flex', gap: 8, padding: 10, borderTop: isLight ? '1px solid #eee' : '1px solid #333', alignItems: 'flex-end' }}>
             <input ref={fileRef} type="file" accept=".txt,.zip" onChange={onPickFile} style={{ display: 'none' }} />
+            <input ref={imgRef} type="file" accept="image/*" onChange={onPickImage} style={{ display: 'none' }} />
             <button onClick={() => fileRef.current && fileRef.current.click()} disabled={busy} title="Lampirkan export chat WhatsApp (.txt/.zip)"
               style={{ background: 'transparent', color: accent, border: `1px solid ${accent}`, borderRadius: '50%', width: 40, height: 40, minWidth: 40, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <BsPaperclip />
+            </button>
+            <button onClick={() => imgRef.current && imgRef.current.click()} disabled={busy} title="Lampirkan bukti transfer (gambar)"
+              style={{ background: 'transparent', color: '#856404', border: '1px solid #ffc107', borderRadius: '50%', width: 40, height: 40, minWidth: 40, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <BsCameraFill />
             </button>
             <textarea
               ref={taRef} value={input} rows={1}

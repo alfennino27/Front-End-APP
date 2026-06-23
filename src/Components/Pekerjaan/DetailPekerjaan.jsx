@@ -173,6 +173,9 @@ const DetailPekerjaan = () => {
   const [showSPKImagePicker, setShowSPKImagePicker] = useState(false);
   const [showSpkPrecheck, setShowSpkPrecheck] = useState(false);
   const [spkImages, setSpkImages] = useState([]);
+  const [spkStep, setSpkStep] = useState(1);
+  const [spkCoverImg, setSpkCoverImg] = useState(null);
+  const [spkPageBreaks, setSpkPageBreaks] = useState(new Set());
   const [alurKerjaModalOpen, setAlurKerjaModalOpen] = useState(false);
   const [alurKerjaCurrentVal, setAlurKerjaCurrentVal] = useState(null);
   const [alurKerjaField, setAlurKerjaField] = useState('');
@@ -1320,19 +1323,41 @@ const DetailPekerjaan = () => {
     setShowSPKImagePicker(true);
   };
 
-  const handleConfirmPrintSPK = (mainImg) => {
+  const computeSpkImagePages = (imgs, breaks) => {
+    const pages = [];
+    let curr = [];
+    imgs.forEach((img, idx) => {
+      if (idx > 0 && breaks.has(idx)) { pages.push(curr); curr = []; }
+      curr.push(img);
+    });
+    if (curr.length) pages.push(curr);
+    return pages;
+  };
+
+  const closeSPKModal = () => {
+    setShowSPKImagePicker(false);
+    setSpkStep(1);
+    setSpkCoverImg(null);
+    setSpkPageBreaks(new Set());
+  };
+
+  const handlePickCoverSPK = (img) => {
+    setSpkCoverImg(img);
+    setSpkStep(2);
+  };
+
+  const handleConfirmPrintSPK = () => {
     const project = dataProjectFromDB[0];
-    // Put selected main image first, then the rest
-    const rest = spkImages.filter(img => img !== mainImg);
-    const orderedImages = [mainImg, ...rest];
+    const pages = computeSpkImagePages(spkImages, spkPageBreaks);
     const spkData = {
       project,
       category,
       spkCode: selectedSPKCode || '-',
-      images: orderedImages,
+      coverImage: spkCoverImg,
+      imagePages: pages,
       printDate: new Date().toISOString(),
     };
-    setShowSPKImagePicker(false);
+    closeSPKModal();
     sessionStorage.setItem('cetakSPK', JSON.stringify(spkData));
     window.open('/cetakSPK', '_blank');
   };
@@ -2811,50 +2836,163 @@ const DetailPekerjaan = () => {
       {/* SPK Image Picker Modal */}
       <Modal
         show={showSPKImagePicker}
-        onHide={() => setShowSPKImagePicker(false)}
+        onHide={closeSPKModal}
         size="lg"
         className={`${globalTheme === 'light' ? 'modalKLFlight' : 'modalKLF'}`}
       >
         <Modal.Header closeButton>
           <Modal.Title style={{ color: globalTheme === 'light' ? 'black' : 'white', fontSize: '16px' }}>
-            Pilih Gambar Utama untuk SPK
+            {spkStep === 1 ? 'Pilih Gambar Cover SPK' : 'Atur Layout Halaman Gambar'}
+            <span style={{ marginLeft: '10px', fontSize: '12px', color: '#888', fontWeight: 'normal' }}>
+              Langkah {spkStep}/2
+            </span>
           </Modal.Title>
         </Modal.Header>
         <Modal.Body>
-          <p style={{ color: globalTheme === 'light' ? '#555' : '#bbb', fontSize: '13px', marginBottom: '12px' }}>
-            Klik gambar yang ingin ditampilkan sebagai gambar utama di halaman pertama SPK.
-          </p>
-          {spkImages.length === 0 ? (
-            <p style={{ color: '#aaa', textAlign: 'center' }}>Tidak ada gambar tersedia.</p>
-          ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '10px' }}>
-              {spkImages.map((imgSrc, i) => (
-                <div
-                  key={i}
-                  onClick={() => handleConfirmPrintSPK(imgSrc)}
-                  style={{
-                    cursor: 'pointer', borderRadius: '8px', overflow: 'hidden',
-                    border: `2px solid ${globalTheme === 'light' ? '#ccc' : '#555'}`,
-                    transition: 'border-color 0.15s, transform 0.15s',
-                    aspectRatio: '1',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    background: globalTheme === 'light' ? '#f8f8f8' : '#222',
-                  }}
-                  onMouseEnter={e => { e.currentTarget.style.borderColor = '#0d6efd'; e.currentTarget.style.transform = 'scale(1.03)'; }}
-                  onMouseLeave={e => { e.currentTarget.style.borderColor = globalTheme === 'light' ? '#ccc' : '#555'; e.currentTarget.style.transform = 'scale(1)'; }}
-                >
-                  <img
-                    src={getImageUrl(imgSrc)}
-                    alt={`Gambar ${i + 1}`}
-                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                  />
+          {spkStep === 1 ? (
+            <>
+              <p style={{ color: globalTheme === 'light' ? '#555' : '#bbb', fontSize: '13px', marginBottom: '12px' }}>
+                Klik gambar yang ingin ditampilkan sebagai gambar utama di halaman cover SPK.
+              </p>
+              {spkImages.length === 0 ? (
+                <p style={{ color: '#aaa', textAlign: 'center' }}>Tidak ada gambar tersedia.</p>
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '10px' }}>
+                  {spkImages.map((imgSrc, i) => (
+                    <div
+                      key={i}
+                      onClick={() => handlePickCoverSPK(imgSrc)}
+                      style={{
+                        cursor: 'pointer', borderRadius: '8px', overflow: 'hidden',
+                        border: `2px solid ${globalTheme === 'light' ? '#ccc' : '#555'}`,
+                        transition: 'border-color 0.15s, transform 0.15s',
+                        aspectRatio: '1',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        background: globalTheme === 'light' ? '#f8f8f8' : '#222',
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.borderColor = '#0d6efd'; e.currentTarget.style.transform = 'scale(1.03)'; }}
+                      onMouseLeave={e => { e.currentTarget.style.borderColor = globalTheme === 'light' ? '#ccc' : '#555'; e.currentTarget.style.transform = 'scale(1)'; }}
+                    >
+                      <img src={getImageUrl(imgSrc)} alt={`Gambar ${i + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              )}
+            </>
+          ) : (
+            <>
+              <p style={{ color: globalTheme === 'light' ? '#555' : '#bbb', fontSize: '13px', marginBottom: '8px' }}>
+                Klik <strong>"|"</strong> di antara gambar untuk memisahkan halaman. Maks <strong>4 gambar per halaman</strong>.
+              </p>
+              {/* Cover preview */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
+                <span style={{ fontSize: '11px', color: '#888', whiteSpace: 'nowrap' }}>Cover:</span>
+                <div style={{ width: '48px', height: '48px', borderRadius: '6px', overflow: 'hidden', border: '2px solid #0d6efd', flexShrink: 0 }}>
+                  <img src={getImageUrl(spkCoverImg)} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                </div>
+                <span style={{ fontSize: '11px', color: '#888' }}>→ tampil di halaman pertama SPK (tidak diatur di sini)</span>
+              </div>
+
+              {/* Sequential images with page break togglers */}
+              {spkImages.length === 0 ? (
+                <p style={{ color: '#aaa', textAlign: 'center' }}>Tidak ada gambar tersedia.</p>
+              ) : (
+                <div style={{ overflowX: 'auto', paddingBottom: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '4px', minWidth: 'max-content' }}>
+                    {spkImages.map((imgSrc, idx) => {
+                      // hitung nomor halaman saat ini
+                      let pageNum = 0;
+                      let countInPage = 0;
+                      for (let i = 0; i <= idx; i++) {
+                        if (i > 0 && spkPageBreaks.has(i)) { pageNum++; countInPage = 0; }
+                        countInPage++;
+                      }
+                      const isFirstOfPage = idx === 0 || spkPageBreaks.has(idx);
+                      const isOverLimit = countInPage > 4;
+                      return (
+                        <React.Fragment key={idx}>
+                          {/* Pemisah halaman (klik untuk toggle) */}
+                          {idx > 0 && (
+                            <div
+                              onClick={() => {
+                                const next = new Set(spkPageBreaks);
+                                if (next.has(idx)) next.delete(idx); else next.add(idx);
+                                setSpkPageBreaks(next);
+                              }}
+                              title={spkPageBreaks.has(idx) ? 'Hapus pemisah halaman' : 'Tambah pemisah halaman'}
+                              style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: 'pointer', padding: '0 4px', paddingTop: '20px' }}
+                            >
+                              <div style={{
+                                width: spkPageBreaks.has(idx) ? '4px' : '2px',
+                                height: '72px',
+                                background: spkPageBreaks.has(idx) ? '#0d6efd' : (globalTheme === 'light' ? '#dee2e6' : '#444'),
+                                borderRadius: '2px',
+                                transition: 'all 0.15s',
+                              }} />
+                              <span style={{ fontSize: '10px', marginTop: '3px', color: spkPageBreaks.has(idx) ? '#0d6efd' : '#aaa', fontWeight: spkPageBreaks.has(idx) ? 'bold' : 'normal' }}>
+                                {spkPageBreaks.has(idx) ? '|' : '+'}
+                              </span>
+                            </div>
+                          )}
+                          {/* Thumbnail dengan label halaman */}
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px' }}>
+                            {isFirstOfPage && (
+                              <span style={{ fontSize: '10px', color: '#0d6efd', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+                                Hlm {pageNum + 1}
+                              </span>
+                            )}
+                            {!isFirstOfPage && <span style={{ fontSize: '10px', color: 'transparent' }}>_</span>}
+                            <div style={{
+                              width: '72px', height: '72px', borderRadius: '6px', overflow: 'hidden',
+                              border: `2px solid ${isOverLimit ? '#dc3545' : isFirstOfPage ? '#0d6efd' : (globalTheme === 'light' ? '#ccc' : '#555')}`,
+                              flexShrink: 0,
+                            }}>
+                              <img src={getImageUrl(imgSrc)} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            </div>
+                            {isOverLimit && (
+                              <span style={{ fontSize: '9px', color: '#dc3545' }}>Lebih 4!</span>
+                            )}
+                          </div>
+                        </React.Fragment>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Ringkasan halaman */}
+              <div style={{ marginTop: '14px', display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                <span style={{ fontSize: '12px', color: globalTheme === 'light' ? '#555' : '#aaa' }}>Ringkasan:</span>
+                {computeSpkImagePages(spkImages, spkPageBreaks).map((page, i) => (
+                  <span key={i} style={{
+                    background: page.length > 4 ? '#fff0f0' : '#f0f4ff',
+                    border: `1px solid ${page.length > 4 ? '#dc3545' : '#0d6efd'}`,
+                    color: page.length > 4 ? '#dc3545' : '#0d6efd',
+                    padding: '3px 10px', borderRadius: '20px', fontSize: '12px',
+                  }}>
+                    Hlm {i + 1}: {page.length} gambar{page.length > 4 ? ' ⚠️' : ''}
+                  </span>
+                ))}
+              </div>
+            </>
           )}
         </Modal.Body>
         <Modal.Footer>
-          <Button variant="secondary" onClick={() => setShowSPKImagePicker(false)}>Batal</Button>
+          {spkStep === 2 && (
+            <Button variant="outline-secondary" onClick={() => setSpkStep(1)} style={{ marginRight: 'auto' }}>
+              ← Kembali
+            </Button>
+          )}
+          {spkStep === 2 && (
+            <Button
+              variant="primary"
+              onClick={handleConfirmPrintSPK}
+              disabled={computeSpkImagePages(spkImages, spkPageBreaks).some(p => p.length > 4)}
+            >
+              Cetak SPK
+            </Button>
+          )}
+          <Button variant="secondary" onClick={closeSPKModal}>Batal</Button>
         </Modal.Footer>
       </Modal>
 

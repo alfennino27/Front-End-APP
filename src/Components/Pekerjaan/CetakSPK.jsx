@@ -35,6 +35,14 @@ const IMGPAGE_TITLE_H = 12; // mm
 const IMGPAGE_GRID_H = PAGE_H - IMGPAGE_TITLE_H; // 178mm
 const IMGPAGE_ROW_H = (IMGPAGE_GRID_H - 4) / 2; // ~87mm per row, 4mm gap
 
+// Hitung css grid-template berdasarkan jumlah gambar di halaman (maks 4).
+// 1 → full (1×1), 2 → 2 col 1 row, 3/4 → 2×2
+function getGridStyle(count) {
+  if (count <= 1) return { cols: '1fr', rows: `${IMGPAGE_GRID_H}mm`, total: 1 };
+  if (count === 2) return { cols: '1fr 1fr', rows: `${IMGPAGE_GRID_H}mm`, total: 2 };
+  return { cols: '1fr 1fr', rows: `${IMGPAGE_ROW_H}mm ${IMGPAGE_ROW_H}mm`, total: 4 };
+}
+
 const CetakSPK = () => {
   const [data, setData] = useState(null);
 
@@ -49,12 +57,19 @@ const CetakSPK = () => {
 
   if (!data) return null;
 
-  const { project, category, spkCode, images, printDate } = data;
-  const mainImage = images[0];
+  const { project, category, spkCode, coverImage, imagePages: newImagePages, images, printDate } = data;
 
-  const imagePages = [];
-  for (let i = 0; i < images.length; i += 4) {
-    imagePages.push(images.slice(i, i + 4));
+  // Support format baru (coverImage + imagePages) dan lama (images flat array)
+  const mainImage = coverImage || (images && images[0]);
+  let imagePages;
+  if (newImagePages) {
+    imagePages = newImagePages;
+  } else if (images && images.length > 1) {
+    const rest = images.slice(1);
+    imagePages = [];
+    for (let i = 0; i < rest.length; i += 4) imagePages.push(rest.slice(i, i + 4));
+  } else {
+    imagePages = [];
   }
 
   return (
@@ -248,24 +263,34 @@ const CetakSPK = () => {
         </div>
       </div>
 
-      {/* PAGE 2+: Image grid pages */}
-      {imagePages.map((pageImages, pageIdx) => (
-        <div key={pageIdx} className="page img-page">
-          <div className="img-page-title">
-            Gambar Spesifik — {project.NamaBarang} ({category})
+      {/* PAGE 2+: Image grid pages (dynamic layout per jumlah gambar) */}
+      {imagePages.map((pageImages, pageIdx) => {
+        const { cols, rows, total } = getGridStyle(pageImages.length);
+        const emptyCount = total - pageImages.length;
+        return (
+          <div key={pageIdx} className="page img-page">
+            <div className="img-page-title">
+              Gambar Spesifik — {project.NamaBarang} ({category})
+            </div>
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: cols,
+              gridTemplateRows: rows,
+              gap: pageImages.length <= 2 ? '0' : '4mm',
+              height: `${IMGPAGE_GRID_H}mm`,
+            }}>
+              {pageImages.map((imgSrc, i) => (
+                <div key={i} className="img-grid-item">
+                  <img src={getImageUrl(imgSrc)} alt={`Gambar ${i + 1}`} />
+                </div>
+              ))}
+              {emptyCount > 0 && [...Array(emptyCount)].map((_, i) => (
+                <div key={`empty-${i}`} className="img-grid-item" style={{ border: '1px dashed #eee', background: '#fafafa' }} />
+              ))}
+            </div>
           </div>
-          <div className="img-grid">
-            {pageImages.map((imgSrc, i) => (
-              <div key={i} className="img-grid-item">
-                <img src={getImageUrl(imgSrc)} alt={`Gambar ${pageIdx * 4 + i + 1}`} />
-              </div>
-            ))}
-            {pageImages.length < 4 && [...Array(4 - pageImages.length)].map((_, i) => (
-              <div key={`empty-${i}`} className="img-grid-item" style={{ border: '1px dashed #ddd', background: '#fafafa' }} />
-            ))}
-          </div>
-        </div>
-      ))}
+        );
+      })}
     </>
   );
 };

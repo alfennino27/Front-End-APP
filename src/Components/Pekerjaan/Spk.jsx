@@ -29,13 +29,13 @@ const Spk = () => {
   const { globalTheme } = useTheme();
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
-  const [searchSupplier, setSearchSupplier] = useState(() => sessionStorage.getItem('spkSearchSupplier') || '');
+  const [searchSupplier, setSearchSupplier] = useState(() => localStorage.getItem('spkSearchSupplier') || '');
   const [filteredData, setFilteredData] = useState([]);
   // const [pendingData, setPendingData] = useState([]);
   const [filteredProjectData, setFilteredProjectData] = useState([]);
   const [filteredSPKData, setFilteredSPKData] = useState([]);
   const [showProduct, setShowProduct] = useState(false);
-  const [dataRekap, setDataRekap] = useState(() => !!(sessionStorage.getItem('spkSearchSupplier')));
+  const [dataRekap, setDataRekap] = useState(() => !!(localStorage.getItem('spkSearchSupplier')));
   const [isLinked, setIsLinked] = useState(false);
 
 
@@ -360,7 +360,7 @@ useEffect(() => {
 
 
   useEffect(() => {
-    sessionStorage.setItem('spkSearchSupplier', searchSupplier);
+    localStorage.setItem('spkSearchSupplier', searchSupplier);
   }, [searchSupplier]);
 
   // Filter lokal

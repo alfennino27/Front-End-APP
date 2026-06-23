@@ -219,6 +219,18 @@ const DetailPekerjaan = () => {
   const userData = localStorage.getItem('user');
   const user = userData ? JSON.parse(userData) : null;
   const bottomRef = useRef(null);
+
+  const [canSeeTelepon, setCanSeeTelepon] = useState(false);
+  useEffect(() => {
+    if (!user?.uid) return;
+    fetch(`${baseUrl}/useraccess/get`)
+      .then(r => r.json())
+      .then(data => {
+        const has = data.some(a => a.uid === user.uid && a.menu === 'Lihat Telepon' && a.value === true);
+        setCanSeeTelepon(has);
+      })
+      .catch(() => {});
+  }, []);
   const refs = useRef([]);
 
 
@@ -1826,9 +1838,11 @@ const DetailPekerjaan = () => {
           <div>
             <h5 className="fw-bold" style={{ color: globalTheme == "light" ? "black" : "white" }}>{dataProjectFromDB.length > 0 ? dataProjectFromDB[0].NamaBarang : ''}</h5>
             <h6 style={{ color: globalTheme == "light" ? "black" : "white" }}>{dataProjectFromDB.length > 0 ? dataProjectFromDB[0].Buyer : ''}</h6>
-            <small style={{ color: globalTheme == "light" ? "black" : "white" }}>
-              <MdOutlineLocationOn /> {dataProjectFromDB.length > 0 ? dataProjectFromDB[0].Lokasi : ''}
-            </small>
+            {canSeeTelepon && (
+              <small style={{ color: globalTheme == "light" ? "black" : "white" }}>
+                <MdOutlineLocationOn /> {dataProjectFromDB.length > 0 ? dataProjectFromDB[0].Lokasi : ''}
+              </small>
+            )}
             <br />
             <small style={{ color: globalTheme == "light" ? "black" : "white" }}>
               <MdAccessTime /> Deadline : {dataProjectFromDB.length > 0 ? new Date(dataProjectFromDB[0].Deadline).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : ''}

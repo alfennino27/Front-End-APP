@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { getImageUrl } from '../../Utils/image';
 import klfLogo from '../../assets/images/klflogo.png';
+import { SPK_TEMPLATES, SLOT_LETTERS, gridAreasValue, defaultTemplateFor } from './spkTemplates';
 
 const fmt = (dateStr) => {
   if (!dateStr) return '-';
@@ -33,14 +34,25 @@ const getKeteranganFontSize = (text) => {
 
 const IMGPAGE_TITLE_H = 12; // mm
 const IMGPAGE_GRID_H = PAGE_H - IMGPAGE_TITLE_H; // 178mm
-const IMGPAGE_ROW_H = (IMGPAGE_GRID_H - 4) / 2; // ~87mm per row, 4mm gap
 
-// Hitung css grid-template berdasarkan jumlah gambar di halaman (maks 4).
-// 1 → full (1×1), 2 → 2 col 1 row, 3/4 → 2×2
-function getGridStyle(count) {
-  if (count <= 1) return { cols: '1fr', rows: `${IMGPAGE_GRID_H}mm`, total: 1 };
-  if (count === 2) return { cols: '1fr 1fr', rows: `${IMGPAGE_GRID_H}mm`, total: 2 };
-  return { cols: '1fr 1fr', rows: `${IMGPAGE_ROW_H}mm ${IMGPAGE_ROW_H}mm`, total: 4 };
+// Normalisasi data dari sessionStorage ke bentuk pages = [{ template, slots }].
+// Support 3 format: baru (pages), transisi (imagePages array-of-arrays), lama (images flat).
+function normalizePages(data) {
+  if (Array.isArray(data.pages)) return data.pages;
+
+  let chunks = [];
+  if (Array.isArray(data.imagePages)) {
+    chunks = data.imagePages;
+  } else if (Array.isArray(data.images) && data.images.length > 1) {
+    const rest = data.images.slice(1);
+    for (let i = 0; i < rest.length; i += 4) chunks.push(rest.slice(i, i + 4));
+  }
+  // chunk gambar → page dengan template default sesuai jumlah
+  return chunks.map((imgs) => {
+    const key = defaultTemplateFor(imgs.length);
+    const slots = Array.from({ length: SPK_TEMPLATES[key].slots }, (_, i) => imgs[i] ?? null);
+    return { template: key, slots };
+  });
 }
 
 const CetakSPK = () => {
@@ -57,20 +69,10 @@ const CetakSPK = () => {
 
   if (!data) return null;
 
-  const { project, category, spkCode, coverImage, imagePages: newImagePages, images, printDate } = data;
+  const { project, category, spkCode, coverImage, images, printDate } = data;
 
-  // Support format baru (coverImage + imagePages) dan lama (images flat array)
   const mainImage = coverImage || (images && images[0]);
-  let imagePages;
-  if (newImagePages) {
-    imagePages = newImagePages;
-  } else if (images && images.length > 1) {
-    const rest = images.slice(1);
-    imagePages = [];
-    for (let i = 0; i < rest.length; i += 4) imagePages.push(rest.slice(i, i + 4));
-  } else {
-    imagePages = [];
-  }
+  const pages = normalizePages(data);
 
   return (
     <>
@@ -188,8 +190,6 @@ const CetakSPK = () => {
         }
         .img-grid {
           display: grid;
-          grid-template-columns: 1fr 1fr;
-          grid-template-rows: ${IMGPAGE_ROW_H}mm ${IMGPAGE_ROW_H}mm;
           gap: 4mm;
           height: ${IMGPAGE_GRID_H}mm;
         }
@@ -263,29 +263,30 @@ const CetakSPK = () => {
         </div>
       </div>
 
-      {/* PAGE 2+: Image grid pages (dynamic layout per jumlah gambar) */}
-      {imagePages.map((pageImages, pageIdx) => {
-        const { cols, rows, total } = getGridStyle(pageImages.length);
-        const emptyCount = total - pageImages.length;
+      {/* PAGE 2+: Image layout pages (template per halaman) */}
+      {pages.map((page, pageIdx) => {
+        const tpl = SPK_TEMPLATES[page.template] || SPK_TEMPLATES['4-grid'];
         return (
           <div key={pageIdx} className="page img-page">
             <div className="img-page-title">
               Gambar Spesifik — {project.NamaBarang} ({category})
             </div>
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: cols,
-              gridTemplateRows: rows,
-              gap: pageImages.length <= 2 ? '0' : '4mm',
-              height: `${IMGPAGE_GRID_H}mm`,
-            }}>
-              {pageImages.map((imgSrc, i) => (
-                <div key={i} className="img-grid-item">
-                  <img src={getImageUrl(imgSrc)} alt={`Gambar ${i + 1}`} />
+            <div
+              className="img-grid"
+              style={{
+                gridTemplateColumns: tpl.cols,
+                gridTemplateRows: tpl.rows,
+                gridTemplateAreas: gridAreasValue(tpl.areas),
+              }}
+            >
+              {page.slots.map((imgSrc, i) => (
+                <div
+                  key={i}
+                  className="img-grid-item"
+                  style={{ gridArea: SLOT_LETTERS[i], ...(imgSrc ? {} : { border: '1px dashed #eee', background: '#fafafa' }) }}
+                >
+                  {imgSrc && <img src={getImageUrl(imgSrc)} alt={`Gambar ${i + 1}`} />}
                 </div>
-              ))}
-              {emptyCount > 0 && [...Array(emptyCount)].map((_, i) => (
-                <div key={`empty-${i}`} className="img-grid-item" style={{ border: '1px dashed #eee', background: '#fafafa' }} />
               ))}
             </div>
           </div>

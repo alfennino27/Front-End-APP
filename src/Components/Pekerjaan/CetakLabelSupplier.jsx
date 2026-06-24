@@ -67,7 +67,7 @@ const CetakLabelSupplier = () => {
       `}</style>
 
       <h2>Daftar Pesanan — {category}</h2>
-      <p className="subtitle">Supplier: {supplier}</p>
+      <p className="subtitle">Supplier: {supplier || 'Semua Supplier'}</p>
 
       <table>
         <thead>
@@ -80,23 +80,66 @@ const CetakLabelSupplier = () => {
           </tr>
         </thead>
         <tbody>
-          {items.map((item, index) => (
-            <tr key={index}>
-              <td className="no">{index + 1}</td>
-              <td className="gambar">
-                {item.image1
-                  ? <img src={getImageUrl(item.image1)} alt={item.NamaBarang} />
-                  : <span style={{ color: '#aaa', fontSize: '10px' }}>No Image</span>
-                }
-              </td>
-              <td>
-                <strong>{item.NamaBarang}</strong>
-                {item.Buyer && <><br /><span style={{ color: '#555' }}>{item.Buyer}</span></>}
-              </td>
-              <td style={{ whiteSpace: 'pre-wrap' }}>{extractDimensiBahan(item[`Description${category}`])}</td>
-              <td className="deadline"></td>
-            </tr>
-          ))}
+          {supplier === '' ? (
+            // Mode semua supplier: kelompokkan per supplier dengan header row
+            (() => {
+              const groups = {};
+              items.forEach(item => {
+                const s = item[`Supplier${category}`] || '(Tanpa Supplier)';
+                if (!groups[s]) groups[s] = [];
+                groups[s].push(item);
+              });
+              let globalNo = 0;
+              return Object.entries(groups).map(([supplierName, groupItems]) => (
+                <React.Fragment key={supplierName}>
+                  <tr>
+                    <td colSpan={5} style={{ background: '#dce4f0', fontWeight: 'bold', fontSize: '13px', padding: '6px 8px' }}>
+                      {supplierName} ({groupItems.length} item)
+                    </td>
+                  </tr>
+                  {groupItems.map((item) => {
+                    globalNo += 1;
+                    return (
+                      <tr key={item.id || globalNo}>
+                        <td className="no">{globalNo}</td>
+                        <td className="gambar">
+                          {item.image1
+                            ? <img src={getImageUrl(item.image1)} alt={item.NamaBarang} />
+                            : <span style={{ color: '#aaa', fontSize: '10px' }}>No Image</span>
+                          }
+                        </td>
+                        <td>
+                          <strong>{item.NamaBarang}</strong>
+                          {item.Buyer && <><br /><span style={{ color: '#555' }}>{item.Buyer}</span></>}
+                        </td>
+                        <td style={{ whiteSpace: 'pre-wrap' }}>{extractDimensiBahan(item[`Description${category}`])}</td>
+                        <td className="deadline"></td>
+                      </tr>
+                    );
+                  })}
+                </React.Fragment>
+              ));
+            })()
+          ) : (
+            // Mode satu supplier
+            items.map((item, index) => (
+              <tr key={index}>
+                <td className="no">{index + 1}</td>
+                <td className="gambar">
+                  {item.image1
+                    ? <img src={getImageUrl(item.image1)} alt={item.NamaBarang} />
+                    : <span style={{ color: '#aaa', fontSize: '10px' }}>No Image</span>
+                  }
+                </td>
+                <td>
+                  <strong>{item.NamaBarang}</strong>
+                  {item.Buyer && <><br /><span style={{ color: '#555' }}>{item.Buyer}</span></>}
+                </td>
+                <td style={{ whiteSpace: 'pre-wrap' }}>{extractDimensiBahan(item[`Description${category}`])}</td>
+                <td className="deadline"></td>
+              </tr>
+            ))
+          )}
           {items.length === 0 && (
             <tr><td colSpan={5} style={{ textAlign: 'center', color: '#aaa' }}>Tidak ada data</td></tr>
           )}

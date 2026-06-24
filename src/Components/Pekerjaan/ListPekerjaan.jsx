@@ -451,7 +451,10 @@ const ListPekerjaan = () => {
         return { start, end };
       };
 
-      let filtered = masterDataFalse.filter(p => p[`Supplier${pdfSupplierCategory}`] === pdfSupplierName);
+      const supplierKey = `Supplier${pdfSupplierCategory}`;
+      let filtered = pdfSupplierName === ''
+        ? masterDataFalse.filter(p => p[supplierKey] && p[supplierKey] !== '').sort((a, b) => (a[supplierKey] || '').localeCompare(b[supplierKey] || ''))
+        : masterDataFalse.filter(p => p[supplierKey] === pdfSupplierName);
 
       if (pdfTargetKirimFilter !== 'semua') {
         const { start, end } = pdfTargetKirimFilter === 'thisWeek' ? getWeekBounds(0) : getWeekBounds(1);
@@ -1047,7 +1050,7 @@ const ListPekerjaan = () => {
               <Form.Group className="mb-2">
                 <Form.Label>Supplier</Form.Label>
                 <Form.Select value={pdfSupplierName} onChange={(e) => setPdfSupplierName(e.target.value)}>
-                  <option value="">-- Pilih Supplier --</option>
+                  <option value="">Semua Supplier</option>
                   {dataSupplierFromDB.filter(s => s.category === pdfSupplierCategory).map((s, i) => (
                     <option key={i} value={s.supplierName}>{s.supplierName}</option>
                   ))}

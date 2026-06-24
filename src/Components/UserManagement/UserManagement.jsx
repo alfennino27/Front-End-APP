@@ -437,6 +437,10 @@ const UserManagement = () => {
                                                                 onChange={(e) => handleCheckboxChange(item.uid, "Lihat Telepon", e.target.checked)}
                                                             >Lihat Nomor Telepon</Checkbox><br />
                                                             <Checkbox
+                                                                checked={getCheckboxState(item.uid, "Website Admin")}
+                                                                onChange={(e) => handleCheckboxChange(item.uid, "Website Admin", e.target.checked)}
+                                                            >Website Admin</Checkbox><br />
+                                                            <Checkbox
                                                                 disabled
                                                                 checked={["fYpdHwXRDLhj5XGxM5FZIAvxp9E2", "w4M5JJjgGQeHFbS2nkyoCfUBE532"].includes(item.uid)}
                                                             >

@@ -209,61 +209,63 @@ const CetakSPK = () => {
         }
       `}</style>
 
-      {/* PAGE 1: SPK Template */}
-      <div className="page" style={{ height: `${PAGE_H}mm` }}>
-        <div className="spk-header">
-          <div className="spk-header-left">
-            <div>Tanggal cetak &nbsp;: {fmt(printDate)}</div>
-            <div>Deadline &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;: {fmt(project[`DeadlineSupplier${category}`])}</div>
+      {/* PAGE 1 & 2: SPK Template — dicetak 2 rangkap otomatis */}
+      {[0, 1].map((copy) => (
+        <div key={copy} className="page" style={{ height: `${PAGE_H}mm` }}>
+          <div className="spk-header">
+            <div className="spk-header-left">
+              <div>Tanggal cetak &nbsp;: {fmt(printDate)}</div>
+              <div>Deadline &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;: {fmt(project[`DeadlineSupplier${category}`])}</div>
+            </div>
+            <div className="spk-header-right">
+              <table>
+                <tbody>
+                  <tr>
+                    <td>Cust</td>
+                    <td>: {project.Buyer}</td>
+                  </tr>
+                  <tr>
+                    <td>Nama barang</td>
+                    <td>: {project.NamaBarang}</td>
+                  </tr>
+                  <tr>
+                    <td>Kode SPK</td>
+                    <td>: {spkCode || '-'}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
-          <div className="spk-header-right">
-            <table>
-              <tbody>
-                <tr>
-                  <td>Cust</td>
-                  <td>: {project.Buyer}</td>
-                </tr>
-                <tr>
-                  <td>Nama barang</td>
-                  <td>: {project.NamaBarang}</td>
-                </tr>
-                <tr>
-                  <td>Kode SPK</td>
-                  <td>: {spkCode || '-'}</td>
-                </tr>
-              </tbody>
-            </table>
+
+          <div className="spk-body">
+            <div className="spk-body-left">
+              {mainImage
+                ? <img src={getImageUrl(mainImage)} alt="Gambar Produk" />
+                : <span style={{ color: '#aaa', fontSize: '12px' }}>No Image</span>
+              }
+            </div>
+            <div className="spk-body-right">
+              <h6>Keterangan</h6>
+              <pre style={{ fontSize: `${getKeteranganFontSize(project[`Description${category}`])}px` }}>
+                {project[`Description${category}`] || '-'}
+              </pre>
+            </div>
+          </div>
+
+          <div className="spk-footer">
+            <div className="spk-footer-logo">
+              <img src={klfLogo} alt="KLF" />
+            </div>
+            <div className="spk-footer-boxes">
+              <div className="spk-footer-box"><p>Penanggung jawab</p></div>
+              <div className="spk-footer-box"><p>Diantar oleh</p></div>
+              <div className="spk-footer-box"><p>Supplier</p></div>
+            </div>
           </div>
         </div>
+      ))}
 
-        <div className="spk-body">
-          <div className="spk-body-left">
-            {mainImage
-              ? <img src={getImageUrl(mainImage)} alt="Gambar Produk" />
-              : <span style={{ color: '#aaa', fontSize: '12px' }}>No Image</span>
-            }
-          </div>
-          <div className="spk-body-right">
-            <h6>Keterangan</h6>
-            <pre style={{ fontSize: `${getKeteranganFontSize(project[`Description${category}`])}px` }}>
-              {project[`Description${category}`] || '-'}
-            </pre>
-          </div>
-        </div>
-
-        <div className="spk-footer">
-          <div className="spk-footer-logo">
-            <img src={klfLogo} alt="KLF" />
-          </div>
-          <div className="spk-footer-boxes">
-            <div className="spk-footer-box"><p>Penanggung jawab</p></div>
-            <div className="spk-footer-box"><p>Diantar oleh</p></div>
-            <div className="spk-footer-box"><p>Supplier</p></div>
-          </div>
-        </div>
-      </div>
-
-      {/* PAGE 2+: Image layout pages (template per halaman) */}
+      {/* PAGE 3+: Image layout pages (template per halaman) */}
       {pages.map((page, pageIdx) => {
         const tpl = SPK_TEMPLATES[page.template] || SPK_TEMPLATES['4-grid'];
         return (

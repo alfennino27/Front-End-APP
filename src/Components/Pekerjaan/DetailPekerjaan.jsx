@@ -576,6 +576,30 @@ const DetailPekerjaan = () => {
     // console.log(commentId);
   }, [commentId]);
 
+  const handleResetCategory = async () => {
+    setShowEditCategoryModal(false);
+    try {
+      const response = await fetch(`${baseUrl}/projects/update/category`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          slug,
+          category,
+          supplier: '',
+          orderDate: null,
+          deadline: '',
+          description: '',
+          categoryStatus: null,
+          selectedSPKId: null,
+          uid: user?.uid || ''
+        }),
+      });
+      if (response.ok) await refreshData();
+    } catch (error) {
+      console.error('Gagal reset kategori:', error);
+    }
+  };
+
   const handleSubmit = async () => {
     setShowEditCategoryModal(false);
 
@@ -2700,8 +2724,8 @@ const DetailPekerjaan = () => {
           <textarea className="form-control" type='text' rows="5" value={description} onChange={(e) => setDescription(e.target.value)}></textarea>
 
           <label className='mt-2'>Status :</label><br />
-          <select className="form-control" value={categoryStatus || ""} onChange={(e) => setCategoryStatus(e.target.value)}>
-            <option style={{ color: "#aaa" }} value="" disabled>Select Status</option>
+          <select className="form-control" value={categoryStatus || ""} onChange={(e) => setCategoryStatus(e.target.value || null)}>
+            <option value="">— Tidak ada status —</option>
             <option value="Belum Proses">Belum Proses</option>
             <option value="Proses">Proses</option>
             <option value="QC Pass">QC Pass</option>
@@ -2777,7 +2801,17 @@ const DetailPekerjaan = () => {
           {/* <label className='mt-2'>Link Product :</label><br />
           <input className="form-control" type='text' value={linkProduct} onChange={(e) => setLinkProduct(e.target.value)}></input> */}
         </Modal.Body>
-        <Modal.Footer>
+        <Modal.Footer style={{ justifyContent: 'space-between' }}>
+          <Popconfirm
+            title={`Reset kategori ${category}?`}
+            description="Semua data kategori ini (supplier, status, deskripsi, deadline) akan dihapus permanen."
+            onConfirm={handleResetCategory}
+            okText="Ya, Reset"
+            cancelText="Batal"
+            okButtonProps={{ danger: true }}
+          >
+            <Button variant="outline-danger" size="sm">Hapus / Reset Kategori</Button>
+          </Popconfirm>
           <Button variant="primary" onClick={() => setShowConfirmCategoryModal(true)}>Submit</Button>
         </Modal.Footer>
       </Modal>

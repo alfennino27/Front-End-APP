@@ -528,7 +528,7 @@ const NavigationBar = () => {
 
   return (
     <>
-      <Navbar expand="lg" id="tidak-tercetak" className="shadow navbar-klf-custom" sticky="top" style={{
+      <Navbar expand="lg" id="tidak-tercetak" className="shadow navbar-klf-custom" sticky={isMobile ? undefined : "top"} style={{
         backgroundImage: theme == "light" ? "linear-gradient(to right, #331cff, #1600da)" : "linear-gradient(to right, #1b222c, #192539)",
         backgroundColor: "#192033", // fallback for older browsers
         borderBottom: "1px solid #414141"

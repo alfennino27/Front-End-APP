@@ -336,7 +336,8 @@ const AIChatBubble = () => {
   const panelBg = isLight ? '#ffffff' : '#1c1c1c';
   const textColor = isLight ? '#000' : '#eee';
   const chipStyle = { background: 'transparent', border: `1px solid ${accent}`, color: accent, borderRadius: 16, padding: '4px 12px', margin: '3px 4px 0 0', cursor: 'pointer', fontSize: 13 };
-  const inputStyle = { flex: 1, padding: '9px 12px', borderRadius: 18, border: '1px solid #999', background: isLight ? '#fff' : '#2a2a2a', color: textColor, outline: 'none', minWidth: 0, resize: 'none', lineHeight: '20px', maxHeight: 96, overflowY: 'auto', fontFamily: 'inherit', fontSize: 14, boxSizing: 'border-box' };
+  // fontSize 16 wajib: iOS Safari auto-zoom saat fokus input ber-font < 16px.
+  const inputStyle = { flex: 1, padding: '9px 12px', borderRadius: 18, border: '1px solid #999', background: isLight ? '#fff' : '#2a2a2a', color: textColor, outline: 'none', minWidth: 0, resize: 'none', lineHeight: '20px', maxHeight: 96, overflowY: 'auto', fontFamily: 'inherit', fontSize: 16, boxSizing: 'border-box' };
 
   // Ukuran & posisi panel: HP = hampir penuh; desktop = normal/expanded.
   const panelStyle = isMobile

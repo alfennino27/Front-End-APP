@@ -11,6 +11,7 @@ import { useParams } from 'react-router-dom';
 import { MdFormatListBulletedAdd, MdAssignment } from 'react-icons/md';
 import { BsPrinterFill } from "react-icons/bs";
 import { getApiBaseUrl } from '../../Config/APIurl';
+import AuditBadge from '../AI/AuditBadge';
 import { useNavigate } from 'react-router-dom';
 import { FaDisplay } from 'react-icons/fa6';
 import { Skeleton, Statistic, Spin, Image, Popconfirm } from 'antd';
@@ -1723,6 +1724,8 @@ const Invoice = () => {
 
                   </div>
                 )}
+
+                {slug && <AuditBadge invoiceId={slug} />}
 
 
 

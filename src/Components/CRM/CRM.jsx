@@ -127,9 +127,9 @@ export default function CRM() {
     return result;
   };
 
-  const handleCSVFile = (e) => {
-    const file = e.target.files[0];
+  const parseCSVFile = (file) => {
     if (!file) return;
+    if (!/\.csv$/i.test(file.name)) { alert('File harus berformat .csv'); return; }
     const reader = new FileReader();
     reader.onload = (ev) => {
       const text = ev.target.result;
@@ -209,7 +209,19 @@ export default function CRM() {
       setShowImportModal(true);
     };
     reader.readAsText(file);
+  };
+
+  const handleCSVFile = (e) => {
+    parseCSVFile(e.target.files[0]);
     e.target.value = '';
+  };
+
+  const [csvDragOver, setCsvDragOver] = useState(false);
+  const handleCSVDrop = (e) => {
+    e.preventDefault();
+    setCsvDragOver(false);
+    const file = e.dataTransfer.files && e.dataTransfer.files[0];
+    parseCSVFile(file);
   };
 
   const handleImportConfirm = async () => {
@@ -321,7 +333,21 @@ export default function CRM() {
           {activeTab==='pipeline'&&<Button size="sm" variant="primary" onClick={()=>{setEditingLead(null);setLeadForm({nama:'',wa:'',campaign_id:'',notes:'',stage:'leads'});setShowLeadModal(true);}}><MdAdd/> Tambah Lead</Button>}
           {activeTab==='campaigns'&&<>
             <input ref={fileInputRef} type="file" accept=".csv" style={{display:'none'}} onChange={handleCSVFile}/>
-            <Button size="sm" variant="outline-success" onClick={()=>fileInputRef.current?.click()}><MdFileUpload/> Import Meta Ads</Button>
+            <div
+              onDragOver={(e)=>{e.preventDefault(); setCsvDragOver(true);}}
+              onDragLeave={()=>setCsvDragOver(false)}
+              onDrop={handleCSVDrop}
+              title="Klik atau drag & drop file .csv export Meta Ads di sini"
+              style={{
+                border: csvDragOver ? '2px dashed #198754' : '2px dashed transparent',
+                borderRadius: 8,
+                padding: 2,
+                background: csvDragOver ? 'rgba(25,135,84,0.08)' : 'transparent',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              <Button size="sm" variant="outline-success" onClick={()=>fileInputRef.current?.click()}><MdFileUpload/> Import Meta Ads</Button>
+            </div>
             <Button size="sm" variant="primary" onClick={()=>{setEditingCampaign(null);setCampForm({nama:'',platform:'instagram',bulan:'',spend:'',status:'active'});setShowCampaignModal(true);}}><MdAdd/> Tambah Campaign</Button>
           </>}
         </div>

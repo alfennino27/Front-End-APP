@@ -16,6 +16,7 @@ import { getApiBaseUrl } from '../../Config/APIurl';
 import ConsistencyCheck from '../AI/ConsistencyCheck';
 import SPKPrecheckModal from '../AI/SPKPrecheckModal';
 import SPKLayoutModal from './SPKLayoutModal';
+import ImageUploadZone from './ImageUploadZone';
 import { format } from "date-fns";
 import { id } from 'date-fns/locale';
 import { useNavigate } from 'react-router-dom';
@@ -188,27 +189,10 @@ const DetailPekerjaan = () => {
   const [storageFolder, setStorageFolder] = useState('');
 
   const [textComment, setTextComment] = useState('');
-  const [fileToUpload, setFileToUpload] = useState(null);
-  const [fileToUpload2, setFileToUpload2] = useState(null);
-  const [fileToUpload3, setFileToUpload3] = useState(null);
-  const [fileToUpload4, setFileToUpload4] = useState(null);
-  const [fileToUpload5, setFileToUpload5] = useState(null);
-  const [fileToUpload6, setFileToUpload6] = useState(null);
-  const [fileToUpload7, setFileToUpload7] = useState(null);
-  const [fileToUpload8, setFileToUpload8] = useState(null);
-  const [fileToUpload9, setFileToUpload9] = useState(null);
-  const [fileToUpload10, setFileToUpload10] = useState(null);
-
-  const [fileToUploadReply, setFileToUploadReply] = useState(null);
-  const [fileToUploadReply2, setFileToUploadReply2] = useState(null);
-  const [fileToUploadReply3, setFileToUploadReply3] = useState(null);
-  const [fileToUploadReply4, setFileToUploadReply4] = useState(null);
-  const [fileToUploadReply5, setFileToUploadReply5] = useState(null);
-  const [fileToUploadReply6, setFileToUploadReply6] = useState(null);
-  const [fileToUploadReply7, setFileToUploadReply7] = useState(null);
-  const [fileToUploadReply8, setFileToUploadReply8] = useState(null);
-  const [fileToUploadReply9, setFileToUploadReply9] = useState(null);
-  const [fileToUploadReply10, setFileToUploadReply10] = useState(null);
+  // Daftar gambar untuk komentar & reply (maks 10). Diisi via ImageUploadZone:
+  // drag & drop, paste banyak gambar, atau pilih file.
+  const [commentImages, setCommentImages] = useState([]);
+  const [replyImages, setReplyImages] = useState([]);
 
   const [showImageCategoryEdit, setShowImageCategoryEdit] = useState(false);
 
@@ -239,16 +223,7 @@ const DetailPekerjaan = () => {
       setShowToast(true);
       setTimeout(() => setShowToast(false), 3000);
     } else {
-      setFileToUpload(null);
-      setFileToUpload2(null);
-      setFileToUpload3(null);
-      setFileToUpload4(null);
-      setFileToUpload5(null);
-      setFileToUpload6(null);
-      setFileToUpload7(null);
-      setFileToUpload8(null);
-      setFileToUpload9(null);
-      setFileToUpload10(null);
+      setCommentImages([]);
       setTextComment('');
       setShowModal(true);
     }
@@ -259,16 +234,7 @@ const DetailPekerjaan = () => {
   };
 
   const handleShowReplyModal = () => {
-    setFileToUploadReply(null);
-    setFileToUploadReply2(null);
-    setFileToUploadReply3(null);
-    setFileToUploadReply4(null);
-    setFileToUploadReply5(null);
-    setFileToUploadReply6(null);
-    setFileToUploadReply7(null);
-    setFileToUploadReply8(null);
-    setFileToUploadReply9(null);
-    setFileToUploadReply10(null);
+    setReplyImages([]);
     setTextReply('');
     setShowReplyModal(true);
   };
@@ -908,12 +874,7 @@ const DetailPekerjaan = () => {
       formData.append('category', category);
       formData.append('text', textComment);
 
-      const files = [
-        fileToUpload, fileToUpload2, fileToUpload3, fileToUpload4, fileToUpload5,
-        fileToUpload6, fileToUpload7, fileToUpload8, fileToUpload9, fileToUpload10,
-      ];
-
-      files.forEach((file) => {
+      commentImages.forEach((file) => {
         if (file) {
           formData.append('images', file);
         }
@@ -947,12 +908,7 @@ const DetailPekerjaan = () => {
       formData.append('commentId', commentId);
 
       // Upload maksimal 10 file gambar
-      const files = [
-        fileToUploadReply, fileToUploadReply2, fileToUploadReply3, fileToUploadReply4, fileToUploadReply5,
-        fileToUploadReply6, fileToUploadReply7, fileToUploadReply8, fileToUploadReply9, fileToUploadReply10
-      ];
-
-      files.forEach((file) => {
+      replyImages.forEach((file) => {
         if (file) {
           formData.append('images', file);
         }
@@ -1564,10 +1520,6 @@ const DetailPekerjaan = () => {
                   [index]: new File([blob], `pasted-image${index}.${extension}`, { type: imageType })
                 }));
               }
-            } else if (modal === "addComment") {
-              setFileToUpload(new File([blob], 'pasted-image-comment.png', { type: imageType }));
-            } else if (modal === "addReply") {
-              setFileToUploadReply(new File([blob], 'pasted-image-reply.png', { type: imageType }));
             }
 
             if (inputElement) {
@@ -3297,23 +3249,13 @@ const DetailPekerjaan = () => {
           <label>Image :</label><br />
 
 
-          <div className='d-flex py-2'>
-            <input className="form-control" type="file" data-id="addComment"
-              multiple
-              onChange={(e) => {
-                const files = e.target.files;
-                setFileToUpload(files[0]);
-                setFileToUpload2(files[1]);
-                setFileToUpload3(files[2]);
-                setFileToUpload4(files[3]);
-                setFileToUpload5(files[4]);
-                setFileToUpload6(files[5]);
-                setFileToUpload7(files[6]);
-                setFileToUpload8(files[7]);
-                setFileToUpload9(files[8]);
-                setFileToUpload10(files[9]);
-              }} />
-            <Button variant="secondary" style={{ marginLeft: "20px", height: "40px" }} onClick={() => pasteImage('addComment')}><FaPaste /></Button>
+          <div className='py-2'>
+            <ImageUploadZone
+              images={commentImages}
+              onChange={setCommentImages}
+              max={10}
+              theme={globalTheme}
+            />
           </div>
 
           <br />
@@ -3534,23 +3476,13 @@ const DetailPekerjaan = () => {
         <Modal.Body>
           {/* Your comment form here */}
           <label>Image :</label><br />
-          <div className='d-flex py-2'>
-            <input className="form-control" type="file" data-id="addReply" accept="image/*"
-              multiple
-              onChange={(e) => {
-                const files = e.target.files;
-                setFileToUploadReply(files[0]);
-                setFileToUploadReply2(files[1]);
-                setFileToUploadReply3(files[2]);
-                setFileToUploadReply4(files[3]);
-                setFileToUploadReply5(files[4]);
-                setFileToUploadReply6(files[5]);
-                setFileToUploadReply7(files[6]);
-                setFileToUploadReply8(files[7]);
-                setFileToUploadReply9(files[8]);
-                setFileToUploadReply10(files[9]);
-              }} />
-            <Button variant="secondary" style={{ marginLeft: "20px", height: "40px" }} onClick={() => pasteImage('addReply')}><FaPaste /></Button>
+          <div className='py-2'>
+            <ImageUploadZone
+              images={replyImages}
+              onChange={setReplyImages}
+              max={10}
+              theme={globalTheme}
+            />
           </div>
 
           <br />

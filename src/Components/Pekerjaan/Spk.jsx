@@ -35,7 +35,6 @@ const Spk = () => {
   const [filteredProjectData, setFilteredProjectData] = useState([]);
   const [filteredSPKData, setFilteredSPKData] = useState([]);
   const [showProduct, setShowProduct] = useState(false);
-  const [dataRekap, setDataRekap] = useState(() => !!(localStorage.getItem('spkSearchSupplier')));
   const [isLinked, setIsLinked] = useState(false);
 
 
@@ -496,10 +495,7 @@ useEffect(() => {
 
 
   useEffect(() => {
-    if (dataRekap) {
-      setDataRekap(false);
-      console.log('filteredData');
-      console.log(filteredData);
+    if (filteredData && filteredData.length > 0) {
       fetchDataPaymentRekap();
       fetchDataProductRekap();
     }
@@ -871,7 +867,6 @@ useEffect(() => {
 
 
   const handleSearchSupplier = (supplierName, category) => {
-    setDataRekap(true);
     setShowSupplier(false);
     setSearchSupplier(supplierName);
     navigate('/spk');

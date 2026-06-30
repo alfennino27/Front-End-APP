@@ -610,6 +610,37 @@ const DetailPekerjaan = () => {
   };
 
 
+  // Ubah status category langsung dari list picker (desktop/tablet) — tidak buka modal edit penuh.
+  // Optimistic update: badge berubah seketika, baru sinkron ke server di background.
+  const handleQuickStatusChange = async (cat, newStatus) => {
+    const prevValue = dataProjectFromDB[0]?.[`CategoryStatus${cat}`] ?? null;
+    if (prevValue === newStatus) return;
+
+    setDataProjectFromDB((prev) => {
+      if (!prev || prev.length === 0) return prev;
+      const updated = { ...prev[0], [`CategoryStatus${cat}`]: newStatus };
+      return [updated, ...prev.slice(1)];
+    });
+
+    try {
+      const response = await fetch(`${baseUrl}/projects/update/category-status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slug, category: cat, categoryStatus: newStatus }),
+      });
+      if (!response.ok) throw new Error('Gagal update status');
+    } catch (error) {
+      console.error('Gagal update status category:', error);
+      // Revert kalau gagal
+      setDataProjectFromDB((prev) => {
+        if (!prev || prev.length === 0) return prev;
+        const reverted = { ...prev[0], [`CategoryStatus${cat}`]: prevValue };
+        return [reverted, ...prev.slice(1)];
+      });
+      alert('Gagal menyimpan status. Coba lagi.');
+    }
+  };
+
   const handleSubmitToDoList = async () => {
     try {
       setShowToDoListModal(false);
@@ -2083,6 +2114,18 @@ const DetailPekerjaan = () => {
               }
             };
 
+            // Warna latar dropdown status inline (desktop/tablet), selaras dengan getStatusBadge().
+            const statusSelectColors = {
+              "": { bg: "#e9ecef", fg: "#000" },
+              "Belum Proses": { bg: "rgba(255, 0, 0, 0.6)", fg: "#fff" },
+              "Proses": { bg: "rgba(255, 255, 0, 0.6)", fg: "#000" },
+              "QC Pass": { bg: "rgba(0, 0, 255, 0.6)", fg: "#fff" },
+              "Servis": { bg: "rgba(255, 165, 0, 0.6)", fg: "#fff" },
+              "Selesai": { bg: "rgba(0, 255, 0, 0.6)", fg: "#fff" },
+              "Ready Stock": { bg: "rgba(128, 128, 128, 0.6)", fg: "#fff" },
+            };
+            const selectColor = statusSelectColors[status || ""] || statusSelectColors[""];
+
             const getWorkerBadge = () => {
               if (azwad) return <div className="text-center text-light" style={{ backgroundColor: "green", width: "20px", height: "20px", borderRadius: "20px" }}>II</div>;
               if (pakde) return <div className="text-center text-light" style={{ backgroundColor: "blue", width: "20px", height: "20px", borderRadius: "20px" }}>I</div>;
@@ -2114,7 +2157,35 @@ const DetailPekerjaan = () => {
                 <div className="d-flex align-items-center gap-2">
                   {dataProjectFromDB.length > 0 && (
                     <>
-                      {getStatusBadge()}
+                      {isMobile ? (
+                        getStatusBadge()
+                      ) : (
+                        <select
+                          value={status || ""}
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={(e) => handleQuickStatusChange(category, e.target.value || null)}
+                          title="Ubah status cepat"
+                          style={{
+                            backgroundColor: selectColor.bg,
+                            color: selectColor.fg,
+                            border: "none",
+                            borderRadius: "20px",
+                            padding: "2px 10px",
+                            fontSize: "13px",
+                            fontWeight: 500,
+                            cursor: "pointer",
+                            minWidth: "110px",
+                          }}
+                        >
+                          <option value="">— Tidak ada —</option>
+                          <option value="Belum Proses">Belum Proses</option>
+                          <option value="Proses">Proses</option>
+                          <option value="QC Pass">QC Pass</option>
+                          <option value="Servis">Servis</option>
+                          <option value="Selesai">Selesai</option>
+                          <option value="Ready Stock">Ready Stock</option>
+                        </select>
+                      )}
                       {getWorkerBadge()}
                     </>
                   )}

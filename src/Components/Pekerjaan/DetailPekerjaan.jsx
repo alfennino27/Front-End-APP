@@ -1803,7 +1803,7 @@ const DetailPekerjaan = () => {
 
 
   return (
-    <Col className="lowonganPekerjaan overflow-auto" ref={scrollableElementRef}>
+    <Col className="lowonganPekerjaan overflow-auto" ref={scrollableElementRef} style={isMobile ? { paddingBottom: 110 } : undefined}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", position: "sticky", ...(isMobile ? { top: 0 } : { top: 0 }), zIndex: 1, padding: "10px 15px 0px 15px", marginBottom: "10px", color: globalTheme == "light" ? "#000000" : "#ffffff", backgroundColor: isScrolled ? (globalTheme === "light" ? "#f3f3f3" : "#151515") : "transparent", borderRadius: "30px", border: isScrolled ? (globalTheme === "light" ? "1px solid #5f5f5f" : "1px solid white") : "1px solid transparent", transition: "background-color 1s ease, border 1s ease", }}>
         <h4>Information</h4>
         <IoNewspaperOutline className='button-effect' size={20} style={{ marginTop: "-7px" }} onClick={() => setShowEvaluationModal(true)} />

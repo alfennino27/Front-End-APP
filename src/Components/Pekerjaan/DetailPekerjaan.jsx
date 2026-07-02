@@ -56,6 +56,11 @@ const DetailPekerjaan = () => {
   const [editCommentText, setEditCommentText] = useState('');
   const [editCommentId, setEditCommentId] = useState('');
   const [editCommentType, setEditCommentType] = useState('');
+  // Gambar yang sudah ada (dari server) — { key: 'image1', url }. Dihapus dari sini = ditandai untuk dihapus.
+  const [editExistingImages, setEditExistingImages] = useState([]);
+  const [editRemoveKeys, setEditRemoveKeys] = useState([]);
+  // Gambar baru yang mau ditambahkan (File[]), dipilih via ImageUploadZone.
+  const [editNewImages, setEditNewImages] = useState([]);
   const [showToast, setShowToast] = useState(false);
   const [showToast2, setShowToast2] = useState(false);
   const [newCommentClass, setNewCommentClass] = useState('');
@@ -431,14 +436,25 @@ const DetailPekerjaan = () => {
     handleShowReplyModal();
   }
 
-  const handleEditComment = (id, comment, type) => {
+  const handleEditComment = (id, comment, type, fullObj) => {
     setEditCommentType(type);
     setEditCommentId(id);
     setEditCommentText(comment);
+    const existingImages = Array.from({ length: 10 }, (_, i) => `image${i + 1}`)
+      .filter((key) => fullObj && fullObj[key])
+      .map((key) => ({ key, url: fullObj[key] }));
+    setEditExistingImages(existingImages);
+    setEditRemoveKeys([]);
+    setEditNewImages([]);
     setShowModalEditComment(true);
   };
   const handleCloseEditComment = () => {
     setShowModalEditComment(false);
+  };
+
+  const handleRemoveExistingEditImage = (key) => {
+    setEditExistingImages((prev) => prev.filter((img) => img.key !== key));
+    setEditRemoveKeys((prev) => [...prev, key]);
   };
 
   const handleDeleteClick = () => {
@@ -971,25 +987,26 @@ const DetailPekerjaan = () => {
     setShowModalEditComment(false);
 
     try {
-      const payload = {
-        type: editCommentType, // 'Comment' atau 'Reply'
-        id: editCommentId,
-        text: editCommentText,
-        user: user.uid,
-        idProduct: slug,
-        category: category,
-      };
+      const formData = new FormData();
+      formData.append('type', editCommentType); // 'Comment' atau 'Reply'
+      formData.append('id', editCommentId);
+      formData.append('text', editCommentText);
+      formData.append('user', user.uid);
+      formData.append('idProduct', slug);
+      formData.append('category', category);
+      formData.append('removeImages', JSON.stringify(editRemoveKeys));
 
       if (editCommentType === "Reply") {
-        payload.commentId = commentId;
+        formData.append('commentId', commentId);
       }
+
+      editNewImages.forEach((file) => {
+        if (file) formData.append('images', file);
+      });
 
       const response = await fetch(`${baseUrl}/comments/edit`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
+        body: formData,
       });
 
       const result = await response.json();
@@ -3374,7 +3391,7 @@ const DetailPekerjaan = () => {
           return (
             <div className={`deskripsiPekerjaan p-3 position-relative mt-4 shadow ${index === dataCommentsFromDB.length - 1 ? newCommentClass : ''}`} style={{ backgroundImage: globalTheme === "light" ? "linear-gradient(to right, #ffffff, #e7e7e7)" : "linear-gradient(to right, #151515, #303030)", border: globalTheme === "light" ? "2px solid rgb(163, 163, 163)" : "2px solid #7a7a7a" }} key={index} id={comment.id}>
 
-              <div style={{ cursor: isMe ? "pointer" : "" }} onClick={isMe ? () => handleEditComment(comment.id, comment.text, 'Comment') : undefined}>
+              <div style={{ cursor: isMe ? "pointer" : "" }} onClick={isMe ? () => handleEditComment(comment.id, comment.text, 'Comment', comment) : undefined}>
 
                 <div className="d-flex align-items-center mb-2">
                   <img src={getImageUrl(UserProfilePicture)} alt="" style={{ width: "4vh", height: "4vh", borderRadius: "100%", marginRight: "1vh" }} />
@@ -3481,7 +3498,7 @@ const DetailPekerjaan = () => {
                   }
 
                   return (
-                    <div className={`deskripsiPekerjaan p-3 position-relative mt-2 ${replyIndex === dataRepliesFromDB.length - 1 ? newReplyClass : ''}`} style={{ cursor: isMeReply ? "pointer" : "", background: globalTheme == "light" ? "#f5f5f5" : "#151515", border: globalTheme == "light" ? "2px solid #cdcdcd" : "2px solid #7a7a7a" }} key={replyIndex} id={replies.id} onClick={isMeReply ? () => { handleEditComment(replies.id, replies.text, 'Reply'); setCommentId(comment.id) } : undefined}>
+                    <div className={`deskripsiPekerjaan p-3 position-relative mt-2 ${replyIndex === dataRepliesFromDB.length - 1 ? newReplyClass : ''}`} style={{ cursor: isMeReply ? "pointer" : "", background: globalTheme == "light" ? "#f5f5f5" : "#151515", border: globalTheme == "light" ? "2px solid #cdcdcd" : "2px solid #7a7a7a" }} key={replyIndex} id={replies.id} onClick={isMeReply ? () => { handleEditComment(replies.id, replies.text, 'Reply', replies); setCommentId(comment.id) } : undefined}>
                       <div className="d-flex align-items-center mb-2">
                         <img src={getImageUrl(UserProfilePictureReply)} alt="" style={{ width: "4vh", height: "4vh", borderRadius: "100%", marginRight: "1vh" }} />
                         <h6 className="fw-semibold" style={{ color: globalTheme == "light" ? "black" : "white" }}>{replyUserName}</h6>
@@ -3707,23 +3724,52 @@ const DetailPekerjaan = () => {
         </Modal.Header>
         <Modal.Body>
           {/* Your comment form here */}
-          {/* <label>Image :</label><br />
-          <input className="form-control" type="file"
-            multiple
-            onChange={(e) => {
-              const files = e.target.files;
-              setFileToUpload(files[0]);
-              setFileToUpload2(files[1]);
-              setFileToUpload3(files[2]);
-              setFileToUpload4(files[3]);
-              setFileToUpload5(files[4]);
-              setFileToUpload6(files[5]);
-              setFileToUpload7(files[6]);
-              setFileToUpload8(files[7]);
-              setFileToUpload9(files[8]);
-              setFileToUpload10(files[9]);
-            }} />
-          <br /> */}
+          {editExistingImages.length > 0 && (
+            <>
+              <label className='mb-2'>Gambar saat ini :</label>
+              <div className='d-flex flex-wrap py-1' style={{ gap: '8px' }}>
+                {editExistingImages.map((img) => (
+                  <div
+                    key={img.key}
+                    style={{
+                      position: 'relative', width: '70px', height: '70px',
+                      borderRadius: '6px', overflow: 'hidden',
+                      border: globalTheme === 'light' ? '1px solid #ddd' : '1px solid #444',
+                    }}
+                  >
+                    <img
+                      src={getImageUrl(img.url)}
+                      alt=""
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    />
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); handleRemoveExistingEditImage(img.key); }}
+                      title="Hapus gambar ini"
+                      style={{
+                        position: 'absolute', top: '2px', right: '2px',
+                        width: '18px', height: '18px', borderRadius: '50%',
+                        border: 'none', background: 'rgba(0,0,0,0.6)', color: '#fff',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        cursor: 'pointer', padding: 0, fontSize: '10px', lineHeight: 1,
+                      }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+
+          <label className='mt-2 mb-2'>Tambah gambar baru :</label>
+          <ImageUploadZone
+            images={editNewImages}
+            onChange={setEditNewImages}
+            max={Math.max(0, 10 - editExistingImages.length)}
+            theme={globalTheme}
+          />
+
           <label className='mt-2 mb-2'>Text :</label>
           {/* <textarea className="form-control" rows="3" type='text' value={editCommentText} onChange={(e) => setEditCommentText(e.target.value)}></textarea> */}
 

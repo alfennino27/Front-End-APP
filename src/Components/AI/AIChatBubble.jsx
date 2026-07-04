@@ -110,13 +110,13 @@ const AIChatBubble = () => {
 
     // Gambar bukti (kalau ada) — dikompres dulu lalu dikirim ke AI untuk dibaca.
     // Disimpan di ref untuk dipakai saat user klik Setujui.
-    let imageBase64 = null;
+    let imageBase64 = paymentImgBase64Ref.current || null;
     if (paymentImageFile) {
       try {
-        imageBase64 = await compressImage(paymentImageFile) || await fileToBase64(paymentImageFile);
+        imageBase64 = imageBase64 || await compressImage(paymentImageFile) || await fileToBase64(paymentImageFile);
         paymentImgBase64Ref.current = imageBase64;
-        setPaymentImageFile(null);
       } catch { /* abaikan, lanjut tanpa gambar */ }
+      setPaymentImageFile(null);
     }
 
     try {
@@ -259,6 +259,9 @@ const AIChatBubble = () => {
     }
     setPaymentImageFile(f);
     if (imgRef.current) imgRef.current.value = '';
+    // Kompres & simpan base64 segera — jangan tunggu pesan chat berikutnya dikirim,
+    // supaya bukti tetap ikut kalau user langsung klik "Setujui" tanpa kirim pesan lagi.
+    try { paymentImgBase64Ref.current = await compressImage(f) || await fileToBase64(f); } catch { /* abaikan, tetap dicoba lagi saat kirim pesan */ }
   };
 
   // Proses file WA yang terlampir ke satu invoice.

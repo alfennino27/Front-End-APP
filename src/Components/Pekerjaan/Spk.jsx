@@ -494,11 +494,16 @@ useEffect(() => {
   };
 
 
+  // DEBOUNCE: filteredData berubah tiap ketikan search → dulu memicu 2 POST rekap
+  // berat per-keystroke (kirim seluruh list). Sekarang ditunda 400ms sampai user
+  // berhenti mengetik/memfilter → jauh lebih ringan di tablet & hemat beban server.
   useEffect(() => {
-    if (filteredData && filteredData.length > 0) {
+    if (!(filteredData && filteredData.length > 0)) return;
+    const t = setTimeout(() => {
       fetchDataPaymentRekap();
       fetchDataProductRekap();
-    }
+    }, 400);
+    return () => clearTimeout(t);
   }, [filteredData]);
 
 
@@ -918,21 +923,25 @@ useEffect(() => {
 
 
 
+  // LAZY: /projects/get (semua project) hanya dipakai dropdown "tambah produk"
+  // di dalam SPK (butuh saat slug dibuka atau mode product). Dulu di-fetch saat
+  // mount → berat di tablet. Sekarang di-fetch sekali saat pertama dibutuhkan.
+  const projectsLoadedRef = useRef(false);
   useEffect(() => {
-    console.log(searchProduct);
-    const getDataProject = async () => {
+    if (!(slug || showProduct) || projectsLoadedRef.current) return;
+    projectsLoadedRef.current = true;
+    (async () => {
       try {
         const res = await fetch(`${baseUrl}/projects/get`);
         if (!res.ok) throw new Error('Gagal mengambil data');
-
         const data = await res.json();
         setDataProjectFromDB(data);
       } catch (err) {
+        projectsLoadedRef.current = false; // biar bisa dicoba lagi
         console.error('Error:', err);
       }
-    };
-    getDataProject();
-  }, []);
+    })();
+  }, [slug, showProduct]);
 
 
   useEffect(() => {
@@ -952,21 +961,11 @@ useEffect(() => {
     );
   }, [searchSPK, SPK]);
 
-  useEffect(() => {
-    getDataAllSPKproduct();
-  }, []);
-
-  const getDataAllSPKproduct = async () => {
-    try {
-      const res = await fetch(`${baseUrl}/spkproduct/all/get`);
-      if (!res.ok) throw new Error('Gagal mengambil data');
-
-      const data = await res.json();
-      setDataAllSPKproductFromDB(data);
-    } catch (err) {
-      console.error('Error:', err);
-    }
-  };
+  // OPTIMASI: dulu fetch /spkproduct/all/get (SEMUA item SPK) saat mount & tiap
+  // create/update produk — hasilnya (dataAllSPKproductFromDB) TIDAK dipakai di
+  // mana pun. Fetch besar sia-sia yang bikin halaman berat di tablet. Dijadikan
+  // no-op supaya pemanggil (create/update produk) tetap aman tanpa beban fetch.
+  const getDataAllSPKproduct = () => {};
 
 
   const [isScrolled, setIsScrolled] = useState(false);

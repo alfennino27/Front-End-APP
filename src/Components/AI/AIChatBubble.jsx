@@ -185,6 +185,7 @@ const AIChatBubble = () => {
           body: JSON.stringify({
             type: prop.type || 'comment',
             project_id: prop.project_id, category: prop.category, text: prop.text,
+            categoryStatus: prop.category_status,
             created_by_uid: getUid(), tag_uids,
           }),
         });
@@ -454,11 +455,16 @@ const AIChatBubble = () => {
                           ) : (
                             <>
                               <div style={{ fontWeight: 700, marginBottom: 2 }}>
-                                {p.type === 'category_description' ? `📝 Tambah deskripsi → ${p.category}`
+                                {p.type === 'category_status' ? `🔄 Ubah status → ${p.category}`
+                                  : p.type === 'category_description' ? `📝 Tambah deskripsi → ${p.category}`
                                   : p.type === 'product_description' ? '📝 Tambah deskripsi produk'
                                   : `📝 Usulan komentar → ${p.category}`}
                               </div>
-                              <div style={{ whiteSpace: 'pre-wrap', marginBottom: 4 }}>{p.text}</div>
+                              {p.type === 'category_status' ? (
+                                <div style={{ marginBottom: 4 }}>Status baru: <b>{p.category_status}</b></div>
+                              ) : (
+                                <div style={{ whiteSpace: 'pre-wrap', marginBottom: 4 }}>{p.text}</div>
+                              )}
                               {p.tag_names && p.tag_names.length > 0 && (
                                 <div style={{ fontSize: 12, opacity: 0.8, marginBottom: 4 }}>Tag: {p.tag_names.join(', ')}</div>
                               )}

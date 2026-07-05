@@ -361,7 +361,7 @@ const AIChatBubble = () => {
     h2: (p) => <div style={{ fontWeight: 700, fontSize: 14, margin: '6px 0' }} {...p} />,
     h3: (p) => <div style={{ fontWeight: 700, fontSize: 13, margin: '4px 0' }} {...p} />,
     code: (p) => <code style={{ background: isLight ? '#eee' : '#333', padding: '1px 4px', borderRadius: 3 }} {...p} />,
-    a: (p) => <a style={{ color: accent }} {...p} />,
+    a: (p) => <a style={{ color: accent, textDecoration: 'underline' }} target="_blank" rel="noopener noreferrer" {...p} />,
   };
 
   return (

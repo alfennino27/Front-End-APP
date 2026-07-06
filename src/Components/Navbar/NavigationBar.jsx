@@ -977,7 +977,7 @@ const NavigationBar = () => {
             role="button"
             onClick={() => setOpenOperations(!openOperations)}
             style={
-              ["/invoice", "/project", "/spk", "/category", "/todo", "/books", "/crm"].some((path) => location.pathname.startsWith(path))
+              ["/invoice", "/quote", "/project", "/spk", "/category", "/todo", "/books", "/crm"].some((path) => location.pathname.startsWith(path))
                 ? { color: "#234dba", fontWeight: 600 }
                 : { color: globalTheme === "light" ? "black" : "white" }
             }
@@ -1012,6 +1012,20 @@ const NavigationBar = () => {
                 >
                   <FaFileInvoiceDollar />
                   <span className="fw-semibold">Invoice</span>
+                </Link>
+                <hr className="my-1" style={dividerStyle} />
+
+                <Link
+                  to={hasMenuAccess(user.uid, "Quote") ? "/quote" : "#"}
+                  className={`d-flex align-items-center gap-2 py-2 text-decoration-none link-hover ${!hasMenuAccess(user.uid, "Quote") ? "disabled-link" : ""
+                    }`}
+                  style={isActive("/quote")}
+                  onClick={(e) => {
+                    if (!hasMenuAccess(user.uid, "Quote")) e.preventDefault();
+                  }}
+                >
+                  <span role="img" aria-label="quote">🧾</span>
+                  <span className="fw-semibold">Quote</span>
                 </Link>
                 <hr className="my-1" style={dividerStyle} />
 

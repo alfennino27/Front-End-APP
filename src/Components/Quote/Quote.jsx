@@ -163,6 +163,7 @@ const Quote = () => {
   const [custList, setCustList] = useState([]);
   const [search, setSearch] = useState('');
   const [tplMgr, setTplMgr] = useState(null); // null | 'desc' | 'terms'
+  const [dragIdx, setDragIdx] = useState(null); // item index yang sedang di-drag-over
 
   // ---- form state ----
   const blankForm = () => ({
@@ -318,6 +319,16 @@ const Quote = () => {
       }
       alert('Tidak ada gambar di clipboard.');
     } catch (e) { alert('Gagal paste gambar: ' + e.message); }
+  };
+  // drop file (drag & drop, termasuk dari Photos / Finder di Mac)
+  const handleDropFiles = (idx, e) => {
+    const dt = e.dataTransfer;
+    let files = [];
+    if (dt.items && dt.items.length) {
+      for (const item of dt.items) { if (item.kind === 'file') { const f = item.getAsFile(); if (f) files.push(f); } }
+    }
+    if (!files.length && dt.files && dt.files.length) files = Array.from(dt.files);
+    addFilesToItem(idx, files);
   };
   // paste langsung (Ctrl/Cmd+V) di dalam card item
   const onCardPaste = (idx, e) => {
@@ -629,23 +640,37 @@ const Quote = () => {
               {form.items.length > 1 && <button style={{ ...btnGhost, color: '#c0392b', padding: '4px 10px' }} onClick={() => removeItem(idx)}>Hapus</button>}
             </div>
 
-            {/* gambar: thumbnail + tombol tambah (file / paste) */}
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
-              {it.images.map((im, i) => (
-                <div key={i} style={{ position: 'relative' }}>
-                  <img src={im.url ? `${baseUrl}${im.url}` : im.preview} alt="" style={{ width: 74, height: 74, objectFit: 'cover', borderRadius: 8, border: `1px solid ${border}` }} />
-                  <button onClick={() => removeItemImage(idx, i)} style={{ position: 'absolute', top: -6, right: -6, background: '#c0392b', color: '#fff', border: 'none', borderRadius: '50%', width: 20, height: 20, cursor: 'pointer', lineHeight: '18px' }}>×</button>
-                </div>
-              ))}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <label style={{ width: 74, height: 44, borderRadius: 8, border: `1px dashed ${border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: sub, fontSize: 12, gap: 4 }}>
-                  📁 File
-                  <input type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={(e) => { addItemImages(idx, e.target.files); e.target.value = ''; }} />
-                </label>
-                <button onClick={() => pasteImageFromClipboard(idx)} style={{ width: 74, height: 26, borderRadius: 8, border: `1px dashed ${border}`, background: 'transparent', cursor: 'pointer', color: sub, fontSize: 12 }}>📋 Paste</button>
+            {/* gambar: thumbnail + zona drag & drop */}
+            {it.images.length > 0 && (
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
+                {it.images.map((im, i) => (
+                  <div key={i} style={{ position: 'relative' }}>
+                    <img src={im.url ? `${baseUrl}${im.url}` : im.preview} alt="" style={{ width: 74, height: 74, objectFit: 'cover', borderRadius: 8, border: `1px solid ${border}` }} />
+                    <button onClick={() => removeItemImage(idx, i)} style={{ position: 'absolute', top: -6, right: -6, background: '#c0392b', color: '#fff', border: 'none', borderRadius: '50%', width: 20, height: 20, cursor: 'pointer', lineHeight: '18px' }}>×</button>
+                  </div>
+                ))}
               </div>
+            )}
+            <div style={{ display: 'flex', gap: 8, alignItems: 'stretch', marginBottom: 10 }}>
+              <label
+                onDragOver={(e) => { e.preventDefault(); setDragIdx(idx); }}
+                onDragLeave={() => setDragIdx(null)}
+                onDrop={(e) => { e.preventDefault(); setDragIdx(null); handleDropFiles(idx, e); }}
+                style={{
+                  flex: 1, border: `2px dashed ${dragIdx === idx ? primary : border}`, borderRadius: 8,
+                  padding: '16px', textAlign: 'center', cursor: 'pointer', color: sub,
+                  background: dragIdx === idx ? (dark ? '#1c2733' : '#eef4ff') : 'transparent', transition: 'all .15s',
+                }}>
+                <div style={{ fontSize: 22, marginBottom: 4 }}>🖼️</div>
+                <div style={{ fontSize: 13, lineHeight: 1.4 }}>
+                  Drag &amp; drop gambar di sini
+                  <br /><span style={{ fontSize: 11 }}>(dari Photos / Finder), klik untuk pilih file, atau paste (Cmd+V)</span>
+                </div>
+                <input type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={(e) => { addItemImages(idx, e.target.files); e.target.value = ''; }} />
+              </label>
+              <button type="button" title="Tempel dari clipboard" onClick={() => pasteImageFromClipboard(idx)}
+                style={{ ...btnGhost, width: 52, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>📋</button>
             </div>
-            <div style={{ color: sub, fontSize: 11, marginBottom: 10 }}>Bisa juga tekan Ctrl/Cmd+V untuk tempel gambar di kartu ini.</div>
 
             {/* template deskripsi */}
             <div style={{ display: 'flex', gap: 8, marginBottom: 6, alignItems: 'center' }}>

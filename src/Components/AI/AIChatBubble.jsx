@@ -164,7 +164,20 @@ const AIChatBubble = () => {
 
     updateProposal(msgId, idx, { _status: 'saving' });
     try {
-      if (prop.type === 'invoice_payment' || prop.type === 'spk_payment') {
+      if (prop.type === 'potong_piutang_spk') {
+        const res = await fetch(`${baseUrl}/ai/chat/potong-piutang/confirm`, {
+          method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
+          body: JSON.stringify({
+            spk_id: prop.spk_id, kode_spk: prop.kode_spk, pengrajin: prop.pengrajin,
+            id_piutang: prop.id_piutang, jumlah: prop.jumlah, tanggal: prop.tanggal,
+            beban_kode_akun: prop.beban?.kodeAkun,
+            hutang_kode_akun: prop.hutang?.kodeAkun,
+            piutang_kode_akun: prop.piutang_usaha?.kodeAkun,
+            created_by_uid: getUid(),
+          }),
+        });
+        updateProposal(msgId, idx, { _status: res.ok ? 'saved' : 'error' });
+      } else if (prop.type === 'invoice_payment' || prop.type === 'spk_payment') {
         const res = await fetch(`${baseUrl}/ai/chat/payment/confirm`, {
           method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
           body: JSON.stringify({
@@ -432,12 +445,30 @@ const AIChatBubble = () => {
                   <div style={{ marginTop: 6 }}>
                     {m.proposals.map((p, i) => {
                       const isPayment = p.type === 'invoice_payment' || p.type === 'spk_payment';
+                      const isPotong = p.type === 'potong_piutang_spk';
                       const formatRp = (n) => 'Rp ' + Number(n || 0).toLocaleString('id-ID');
                       return (
                         <div key={i} style={{ fontSize: 13, padding: '8px 10px', marginBottom: 6, borderRadius: 8,
-                          background: isPayment ? (isLight ? '#fff3cd' : '#2a2108') : (isLight ? '#fff8e1' : '#2a2620'),
-                          border: isPayment ? '2px solid #ffc107' : '1px solid #f0c000' }}>
-                          {isPayment ? (
+                          background: isPotong ? (isLight ? '#e7f1ff' : '#0d1b2a') : isPayment ? (isLight ? '#fff3cd' : '#2a2108') : (isLight ? '#fff8e1' : '#2a2620'),
+                          border: isPotong ? '2px solid #0d6efd' : isPayment ? '2px solid #ffc107' : '1px solid #f0c000' }}>
+                          {isPotong ? (
+                            <>
+                              <div style={{ fontWeight: 700, marginBottom: 4 }}>🧾 Bayar Bon / Potong Piutang Supplier</div>
+                              <div><b>{p.kode_spk}</b> <span style={{ opacity: 0.7 }}>({p.pengrajin})</span></div>
+                              <div>Potong piutang: <b>{p.nama_piutang}</b></div>
+                              <div>Nominal: <b>{formatRp(p.jumlah)}</b> &nbsp;·&nbsp; Tgl: {p.tanggal}</div>
+                              <div style={{ marginTop: 4, padding: '4px 8px', borderRadius: 6, background: isLight ? '#f3f8ff' : '#0a1420', fontSize: 12 }}>
+                                <div style={{ fontWeight: 600, marginBottom: 2 }}>Jurnal (2 record):</div>
+                                <div>1. D: <b>{p.beban?.namaAkun}</b> {p.beban_auto && <span style={{ color: '#dc3545' }}>⚠ cek</span>} / K: {p.hutang?.namaAkun}</div>
+                                <div>2. D: {p.hutang?.namaAkun} / K: {p.piutang_usaha?.namaAkun}</div>
+                              </div>
+                              <div style={{ marginTop: 4, fontSize: 12, opacity: 0.85 }}>
+                                SPK: {formatRp(p.sisa_spk_sekarang)} → <b>{formatRp(Math.max(0, (p.sisa_spk_sekarang || 0) - p.jumlah))}</b>
+                                {' '}·{' '}Piutang: {formatRp(p.sisa_piutang_sekarang)} → <b>{formatRp(Math.max(0, (p.sisa_piutang_sekarang || 0) - p.jumlah))}</b>
+                              </div>
+                              {p.beban_auto && <div style={{ marginTop: 4, fontSize: 11.5, color: '#dc3545' }}>Akun Beban hasil auto-match — pastikan benar sebelum menyetujui.</div>}
+                            </>
+                          ) : isPayment ? (
                             <>
                               <div style={{ fontWeight: 700, marginBottom: 4 }}>
                                 {p.type === 'invoice_payment' ? '💳 Catat Payment Customer' : '💳 Catat Payment ke Supplier'}
@@ -477,7 +508,7 @@ const AIChatBubble = () => {
                             </div>
                           )}
                           {p._status === 'saving' && <span style={{ opacity: 0.7 }}>Menyimpan…</span>}
-                          {p._status === 'saved' && <span style={{ color: '#198754' }}>✅ {isPayment ? 'Payment berhasil dicatat' : 'Tersimpan oleh "AI Chatbot"'}</span>}
+                          {p._status === 'saved' && <span style={{ color: '#198754' }}>✅ {isPotong ? 'Bon dibayar — jurnal, SPK & piutang terpotong' : isPayment ? 'Payment berhasil dicatat' : 'Tersimpan oleh "AI Chatbot"'}</span>}
                           {p._status === 'rejected' && <span style={{ opacity: 0.6 }}>Ditolak</span>}
                           {p._status === 'error' && <span style={{ color: '#dc3545' }}>❌ Gagal menyimpan</span>}
                         </div>

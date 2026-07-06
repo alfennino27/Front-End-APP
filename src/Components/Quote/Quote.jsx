@@ -1,7 +1,41 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { getApiBaseUrl } from '../../Config/APIurl';
 import { useTheme } from '../../ThemeContext';
+
+// Dropdown dengan search bar (dipakai untuk pilih customer & template).
+const SearchableSelect = ({ options, value, onChange, placeholder, ui }) => {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState('');
+  const ref = useRef(null);
+  const current = options.find((o) => o.value === value);
+  useEffect(() => {
+    const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', h);
+    return () => document.removeEventListener('mousedown', h);
+  }, []);
+  const filtered = options.filter((o) => (o.label || '').toLowerCase().includes(q.toLowerCase()));
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <div onClick={() => setOpen((v) => !v)} style={{ ...ui.input, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: current ? ui.text : ui.sub }}>{current ? current.label : (placeholder || 'Pilih…')}</span>
+        <span style={{ color: ui.sub }}>▾</span>
+      </div>
+      {open && (
+        <div style={{ position: 'absolute', zIndex: 60, top: '100%', left: 0, right: 0, background: ui.card, border: `1px solid ${ui.border}`, borderRadius: 8, maxHeight: 300, overflowY: 'auto', marginTop: 4, boxShadow: '0 6px 20px rgba(0,0,0,.25)' }}>
+          <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari…" style={{ ...ui.input, borderRadius: 0, border: 'none', borderBottom: `1px solid ${ui.border}`, position: 'sticky', top: 0 }} />
+          {filtered.map((o, i) => (
+            <div key={`${o.value}-${i}`} onClick={() => { onChange(o.value); setOpen(false); setQ(''); }}
+              style={{ padding: '10px 12px', cursor: 'pointer', color: ui.text, background: o.value === value ? (ui.dark ? '#2b3038' : '#eef1f6') : 'transparent' }}>
+              {o.label}
+            </div>
+          ))}
+          {filtered.length === 0 && <div style={{ padding: '10px 12px', color: ui.sub }}>Tidak ada hasil</div>}
+        </div>
+      )}
+    </div>
+  );
+};
 
 // Kategori costing = kategori estimasi sistem (mirror backend). Saat quote jadi
 // invoice, costing → estimasi<Category> (biaya sementara / budget).
@@ -25,6 +59,89 @@ const emptyItem = () => ({
   costingOpen: false,
 });
 
+// Modal kelola template (deskripsi item ATAU payment terms) — tambah/edit/hapus.
+const TemplateManager = ({ type, baseUrl, ui, templates, onClose, onChanged }) => {
+  const isDesc = type === 'desc';
+  const base = `${baseUrl}/quotation/${isDesc ? 'desctemplate' : 'terms'}`;
+  const blank = isDesc ? { nama: '', isi: '' } : { nama: '', isiTerms: '', bankInfo: '' };
+  const [draft, setDraft] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  const save = async () => {
+    if (!draft || !(draft.nama || '').trim()) { alert('Nama template wajib diisi'); return; }
+    setBusy(true);
+    try {
+      const url = draft.id ? `${base}/update/${draft.id}` : `${base}/create`;
+      await fetch(url, { method: draft.id ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(draft) });
+      setDraft(null); await onChanged();
+    } catch (e) { alert('Gagal simpan template: ' + e.message); }
+    setBusy(false);
+  };
+  const del = async (id) => {
+    if (!window.confirm('Hapus template ini?')) return;
+    try { await fetch(`${base}/delete/${id}`, { method: 'DELETE' }); await onChanged(); } catch (e) { alert('Gagal hapus: ' + e.message); }
+  };
+
+  const overlay = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 100, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: 16, overflowY: 'auto' };
+  const box = { background: ui.card, border: `1px solid ${ui.border}`, borderRadius: 12, padding: 18, width: '100%', maxWidth: 560, marginTop: 40 };
+  const btn = { background: '#234dba', color: '#fff', border: 'none', borderRadius: 8, padding: '9px 14px', cursor: 'pointer', fontWeight: 600 };
+  const ghost = { background: 'transparent', color: ui.text, border: `1px solid ${ui.border}`, borderRadius: 8, padding: '7px 12px', cursor: 'pointer' };
+
+  return (
+    <div style={overlay} onClick={onClose}>
+      <div style={box} onClick={(e) => e.stopPropagation()}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <h5 style={{ color: ui.text, margin: 0 }}>Kelola Template {isDesc ? 'Deskripsi' : 'Payment Terms'}</h5>
+          <button style={ghost} onClick={onClose}>Tutup</button>
+        </div>
+
+        {!draft && (
+          <>
+            <div style={{ display: 'grid', gap: 8, marginBottom: 12 }}>
+              {(templates || []).map((t) => (
+                <div key={t.id} style={{ border: `1px solid ${ui.border}`, borderRadius: 8, padding: 10, display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center' }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontWeight: 600, color: ui.text }}>{t.nama}</div>
+                    <div style={{ color: ui.sub, fontSize: 12, whiteSpace: 'pre-line', maxHeight: 40, overflow: 'hidden' }}>{isDesc ? t.isi : t.isiTerms}</div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                    <button style={ghost} onClick={() => setDraft({ ...t })}>Edit</button>
+                    <button style={{ ...ghost, color: '#c0392b' }} onClick={() => del(t.id)}>Hapus</button>
+                  </div>
+                </div>
+              ))}
+              {(templates || []).length === 0 && <div style={{ color: ui.sub }}>Belum ada template.</div>}
+            </div>
+            <button style={btn} onClick={() => setDraft({ ...blank })}>+ Template Baru</button>
+          </>
+        )}
+
+        {draft && (
+          <div style={{ display: 'grid', gap: 10 }}>
+            <label style={{ display: 'grid', gap: 4, color: ui.sub, fontSize: 13 }}>Nama template
+              <input style={ui.input} value={draft.nama} onChange={(e) => setDraft({ ...draft, nama: e.target.value })} /></label>
+            {isDesc ? (
+              <label style={{ display: 'grid', gap: 4, color: ui.sub, fontSize: 13 }}>Isi deskripsi
+                <textarea style={{ ...ui.input, minHeight: 140, fontFamily: 'inherit' }} value={draft.isi} onChange={(e) => setDraft({ ...draft, isi: e.target.value })} /></label>
+            ) : (
+              <>
+                <label style={{ display: 'grid', gap: 4, color: ui.sub, fontSize: 13 }}>Isi terms
+                  <textarea style={{ ...ui.input, minHeight: 110, fontFamily: 'inherit' }} value={draft.isiTerms} onChange={(e) => setDraft({ ...draft, isiTerms: e.target.value })} /></label>
+                <label style={{ display: 'grid', gap: 4, color: ui.sub, fontSize: 13 }}>Info rekening / bank
+                  <textarea style={{ ...ui.input, minHeight: 60, fontFamily: 'inherit' }} value={draft.bankInfo} onChange={(e) => setDraft({ ...draft, bankInfo: e.target.value })} /></label>
+              </>
+            )}
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button style={btn} disabled={busy} onClick={save}>{busy ? 'Menyimpan…' : 'Simpan'}</button>
+              <button style={ghost} onClick={() => setDraft(null)}>Batal</button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 const Quote = () => {
   const baseUrl = getApiBaseUrl();
   const { globalTheme } = useTheme();
@@ -41,9 +158,11 @@ const Quote = () => {
   const [allQuotes, setAllQuotes] = useState([]);
   const [customerDetail, setCustomerDetail] = useState(null);
   const [terms, setTerms] = useState([]);
+  const [descTpls, setDescTpls] = useState([]);
   const [campaigns, setCampaigns] = useState([]);
   const [custList, setCustList] = useState([]);
   const [search, setSearch] = useState('');
+  const [tplMgr, setTplMgr] = useState(null); // null | 'desc' | 'terms'
 
   // ---- form state ----
   const blankForm = () => ({
@@ -92,6 +211,11 @@ const Quote = () => {
     setLoading(false);
   }, [baseUrl]);
 
+  const refreshTemplates = useCallback(async () => {
+    try { setTerms(await (await fetch(`${baseUrl}/quotation/terms/get`)).json()); } catch (e) { /* ignore */ }
+    try { setDescTpls(await (await fetch(`${baseUrl}/quotation/desctemplate/get`)).json()); } catch (e) { /* ignore */ }
+  }, [baseUrl]);
+
   const fetchCustomerDetail = useCallback(async (kodeCust) => {
     setLoading(true);
     try {
@@ -105,8 +229,8 @@ const Quote = () => {
   useEffect(() => {
     if (!user) { navigate('/login'); return; }
     fetchFolders();
+    refreshTemplates();
     (async () => {
-      try { setTerms(await (await fetch(`${baseUrl}/quotation/terms/get`)).json()); } catch (e) { /* ignore */ }
       try { setCampaigns(await (await fetch(`${baseUrl}/crm/campaigns/get`)).json()); } catch (e) { /* ignore */ }
       try { setCustList(await (await fetch(`${baseUrl}/accounting/cust/get`)).json()); } catch (e) { /* ignore */ }
     })();
@@ -176,11 +300,38 @@ const Quote = () => {
   }));
   const addItem = () => setForm((f) => ({ ...f, items: [...f.items, emptyItem()] }));
   const removeItem = (idx) => setForm((f) => ({ ...f, items: f.items.filter((_, i) => i !== idx) }));
-  const addItemImages = (idx, fileList) => {
-    const files = Array.from(fileList || []);
-    if (!files.length) return;
-    const added = files.map((file) => ({ file, preview: URL.createObjectURL(file) }));
+  const addFilesToItem = (idx, files) => {
+    const arr = Array.from(files || []).filter((f) => f && f.type && f.type.startsWith('image/'));
+    if (!arr.length) return;
+    const added = arr.map((file) => ({ file, preview: URL.createObjectURL(file) }));
     updateItem(idx, { images: [...form.items[idx].images, ...added] });
+  };
+  const addItemImages = (idx, fileList) => addFilesToItem(idx, fileList);
+  // paste dari tombol (Clipboard API)
+  const pasteImageFromClipboard = async (idx) => {
+    try {
+      if (!navigator.clipboard || !navigator.clipboard.read) { alert('Browser tidak mendukung paste gambar. Pakai tombol File.'); return; }
+      const items = await navigator.clipboard.read();
+      for (const it of items) {
+        const type = it.types.find((t) => t.startsWith('image/'));
+        if (type) { const blob = await it.getType(type); addFilesToItem(idx, [new File([blob], `paste-${Date.now()}.png`, { type })]); return; }
+      }
+      alert('Tidak ada gambar di clipboard.');
+    } catch (e) { alert('Gagal paste gambar: ' + e.message); }
+  };
+  // paste langsung (Ctrl/Cmd+V) di dalam card item
+  const onCardPaste = (idx, e) => {
+    const files = Array.from(e.clipboardData?.items || [])
+      .filter((i) => i.type && i.type.startsWith('image/'))
+      .map((i) => i.getAsFile()).filter(Boolean);
+    if (files.length) { e.preventDefault(); addFilesToItem(idx, files); }
+  };
+  // terapkan template deskripsi
+  const applyDescTemplate = (idx, tplId) => {
+    const t = descTpls.find((x) => x.id === tplId);
+    if (!t) return;
+    const cur = form.items[idx].details;
+    updateItem(idx, { details: cur && cur.trim() ? cur + '\n' + t.isi : t.isi });
   };
   const removeItemImage = (idx, imgIdx) => updateItem(idx, {
     images: form.items[idx].images.filter((_, i) => i !== imgIdx),
@@ -298,6 +449,7 @@ const Quote = () => {
   };
 
   const inputStyle = { width: '100%', padding: '10px 12px', borderRadius: 8, border: `1px solid ${border}`, background: dark ? '#2b3038' : '#fff', color: text, fontSize: 15, boxSizing: 'border-box' };
+  const ui = { input: inputStyle, card, border, text, sub, dark };
   const btn = (color) => ({ background: color, color: '#fff', border: 'none', borderRadius: 8, padding: '10px 16px', fontWeight: 600, cursor: 'pointer', fontSize: 14 });
   const btnGhost = { background: 'transparent', color: text, border: `1px solid ${border}`, borderRadius: 8, padding: '8px 14px', cursor: 'pointer', fontSize: 14 };
 
@@ -314,14 +466,21 @@ const Quote = () => {
   );
 
   const renderFolders = () => {
-    const filtered = folders.filter((c) => (c.namaCust || '').toLowerCase().includes(search.toLowerCase()));
+    const q = search.trim().toLowerCase();
+    // dedupe by kodeCust (data lama bisa ada duplikat) + key unik → cegah bug render
+    const seen = new Set();
+    const uniqueFolders = folders.filter((c) => {
+      const k = c.kodeCust || `__${c.namaCust}`;
+      if (seen.has(k)) return false; seen.add(k); return true;
+    });
+    const filtered = q ? uniqueFolders.filter((c) => (c.namaCust || '').toLowerCase().includes(q)) : uniqueFolders;
     return (
       <div>
         <input placeholder="Cari customer…" value={search} onChange={(e) => setSearch(e.target.value)} style={{ ...inputStyle, marginBottom: 14 }} />
         {loading && <p style={{ color: sub }}>Memuat…</p>}
         <div className="klf-quote-grid">
-          {filtered.map((c) => (
-            <div key={c.kodeCust} className="klf-quote-folder" style={{ background: card, border: `1px solid ${border}`, borderRadius: 12, padding: 16, cursor: 'pointer' }}
+          {filtered.map((c, idx) => (
+            <div key={`${c.kodeCust || 'x'}-${idx}`} className="klf-quote-folder" style={{ background: card, border: `1px solid ${border}`, borderRadius: 12, padding: 16, cursor: 'pointer' }}
               onClick={() => fetchCustomerDetail(c.kodeCust)}>
               <div style={{ fontSize: 30, marginBottom: 6 }}>📁</div>
               <div style={{ fontWeight: 700, color: text, fontSize: 16, marginBottom: 2 }}>{c.namaCust || '(tanpa nama)'}</div>
@@ -442,11 +601,9 @@ const Quote = () => {
           <label className="klf-fld"><span style={{ color: sub }}>Tipe dokumen</span>
             <select style={inputStyle} value={form.docLabel} onChange={(e) => setF({ docLabel: e.target.value })}>
               <option value="QUOTATION">Quotation</option><option value="INVOICE">Invoice</option></select></label>
-          <label className="klf-fld"><span style={{ color: sub }}>Customer (pilih)</span>
-            <select style={inputStyle} value={form.kodeCust} onChange={(e) => pickCustomer(e.target.value)}>
-              <option value="">— baru / ketik manual —</option>
-              {custList.map((c) => <option key={c.kodeCust} value={c.kodeCust}>{c.namaCust}</option>)}
-            </select></label>
+          <label className="klf-fld"><span style={{ color: sub }}>Customer (pilih / cari)</span>
+            <SearchableSelect ui={ui} value={form.kodeCust} onChange={pickCustomer} placeholder="— baru / ketik manual —"
+              options={[{ value: '', label: '— baru / ketik manual —' }, ...custList.map((c, i) => ({ value: c.kodeCust || `__${i}`, label: c.namaCust || '(tanpa nama)' }))]} /></label>
           <label className="klf-fld"><span style={{ color: sub }}>Nama customer</span>
             <input style={inputStyle} value={form.customer} onChange={(e) => setF({ customer: e.target.value })} /></label>
           <label className="klf-fld"><span style={{ color: sub }}>WA / HP</span>
@@ -466,24 +623,38 @@ const Quote = () => {
       <h6 style={{ color: text }}>Item</h6>
       <div style={{ display: 'grid', gap: 12, marginBottom: 12 }}>
         {form.items.map((it, idx) => (
-          <div key={idx} style={{ background: card, border: `1px solid ${border}`, borderRadius: 12, padding: 14 }}>
+          <div key={idx} style={{ background: card, border: `1px solid ${border}`, borderRadius: 12, padding: 14 }} onPaste={(e) => onCardPaste(idx, e)}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
               <strong style={{ color: text }}>Item #{idx + 1}</strong>
               {form.items.length > 1 && <button style={{ ...btnGhost, color: '#c0392b', padding: '4px 10px' }} onClick={() => removeItem(idx)}>Hapus</button>}
             </div>
 
-            {/* gambar */}
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+            {/* gambar: thumbnail + tombol tambah (file / paste) */}
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
               {it.images.map((im, i) => (
                 <div key={i} style={{ position: 'relative' }}>
                   <img src={im.url ? `${baseUrl}${im.url}` : im.preview} alt="" style={{ width: 74, height: 74, objectFit: 'cover', borderRadius: 8, border: `1px solid ${border}` }} />
                   <button onClick={() => removeItemImage(idx, i)} style={{ position: 'absolute', top: -6, right: -6, background: '#c0392b', color: '#fff', border: 'none', borderRadius: '50%', width: 20, height: 20, cursor: 'pointer', lineHeight: '18px' }}>×</button>
                 </div>
               ))}
-              <label style={{ width: 74, height: 74, borderRadius: 8, border: `1px dashed ${border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: sub, fontSize: 26 }}>
-                +
-                <input type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={(e) => addItemImages(idx, e.target.files)} />
-              </label>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <label style={{ width: 74, height: 44, borderRadius: 8, border: `1px dashed ${border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: sub, fontSize: 12, gap: 4 }}>
+                  📁 File
+                  <input type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={(e) => { addItemImages(idx, e.target.files); e.target.value = ''; }} />
+                </label>
+                <button onClick={() => pasteImageFromClipboard(idx)} style={{ width: 74, height: 26, borderRadius: 8, border: `1px dashed ${border}`, background: 'transparent', cursor: 'pointer', color: sub, fontSize: 12 }}>📋 Paste</button>
+              </div>
+            </div>
+            <div style={{ color: sub, fontSize: 11, marginBottom: 10 }}>Bisa juga tekan Ctrl/Cmd+V untuk tempel gambar di kartu ini.</div>
+
+            {/* template deskripsi */}
+            <div style={{ display: 'flex', gap: 8, marginBottom: 6, alignItems: 'center' }}>
+              <div style={{ flex: 1 }}>
+                <SearchableSelect ui={ui} value="" placeholder="↧ Sisipkan template deskripsi…"
+                  options={descTpls.map((t, i) => ({ value: t.id || `__${i}`, label: t.nama }))}
+                  onChange={(id) => applyDescTemplate(idx, id)} />
+              </div>
+              <button style={{ ...btnGhost, padding: '8px 10px' }} title="Kelola template deskripsi" onClick={() => setTplMgr('desc')}>⚙</button>
             </div>
 
             <textarea style={{ ...inputStyle, minHeight: 96, resize: 'vertical', fontFamily: 'inherit' }} placeholder={'Dimensi : ...\nBahan : ...\nFinishing : ...'} value={it.details} onChange={(e) => updateItem(idx, { details: e.target.value })} />
@@ -536,9 +707,12 @@ const Quote = () => {
 
         <div className="klf-quote-form-grid">
           <label className="klf-fld"><span style={{ color: sub }}>Template Payment Terms</span>
-            <select style={inputStyle} value={form.termsTemplateId || ''} onChange={(e) => setF({ termsTemplateId: e.target.value })}>
-              {terms.map((t) => <option key={t.id} value={t.id}>{t.nama}</option>)}
-            </select></label>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <select style={{ ...inputStyle, flex: 1 }} value={form.termsTemplateId || ''} onChange={(e) => setF({ termsTemplateId: e.target.value })}>
+                {terms.map((t) => <option key={t.id} value={t.id}>{t.nama}</option>)}
+              </select>
+              <button type="button" style={{ ...btnGhost, padding: '8px 10px' }} title="Kelola payment terms" onClick={() => setTplMgr('terms')}>⚙</button>
+            </div></label>
           <label className="klf-fld"><span style={{ color: sub }}>Catatan ongkir</span>
             <select style={inputStyle} value={form.ongkirNote} onChange={(e) => setF({ ongkirNote: e.target.value })}>
               {ONGKIR_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
@@ -604,6 +778,16 @@ const Quote = () => {
         {view === 'allQuotes' && renderAllQuotes()}
         {view === 'form' && renderForm()}
       </div>
+      {tplMgr && (
+        <TemplateManager
+          type={tplMgr}
+          baseUrl={baseUrl}
+          ui={{ ...ui, sub }}
+          templates={tplMgr === 'desc' ? descTpls : terms}
+          onClose={() => setTplMgr(null)}
+          onChanged={refreshTemplates}
+        />
+      )}
     </div>
   );
 };

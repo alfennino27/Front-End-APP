@@ -35,6 +35,7 @@ Kunci sukses:
 | Rev | Mulai 1, **+1 setiap simpan perubahan** setelah pembuatan awal. |
 | Grand Total | **Manual** (nominal jatuh tempo di dokumen ini, mis. = DP). Default subtotal−discount, bisa diedit. |
 | Responsive | **HP-first**, melebar otomatis di iPad/desktop. |
+| Customer layer | **Reuse & extend koleksi `Cust`** (bukan koleksi baru). Landing `/quote` = folder per customer. |
 
 ## 3. Anatomi Template PDF (yang harus direplikasi)
 
@@ -85,7 +86,36 @@ Catatan format:
 - Blok PAYMENT TERMS: background biru, teks putih, berisi terms + info rekening.
 - Bila item > 1 halaman, tabel lanjut ke halaman berikutnya (header tabel diulang).
 
-## 4. Data Model (koleksi baru)
+## 3b. Customer Layer (folder per customer)
+
+**Keputusan: integrasikan & extend koleksi `Cust` yang sudah ada** — bukan koleksi baru.
+Alasan: `Cust` sudah jadi identitas customer yang terhubung ke `Invoice` (`kodeCustomer`=`kodeCust`)
+dan dipakai di CRM/accounting. Bikin koleksi kedua = dua daftar customer tumpang tindih. Yang kurang
+dari fitur lama hanya field alamat/email, tampilan folder, dan penempatan yang mudah diakses.
+
+### Extend koleksi `Cust`
+Field lama tetap: `kodeCust`, `namaCust`, `noTelpCust`. Tambah **opsional** (backward-compatible):
+```
+alamatCust, emailCust, waCust
+```
+Endpoint `/accounting/cust/create` & `/accounting/cust/update` diperluas agar menerima field baru
+(tetap jalan bila field tidak dikirim). Komponen lama `Accounting/Customer.jsx` tidak wajib diubah.
+
+### Alur (mirror kebiasaan owner: folder customer → quote → simpan PDF)
+- Landing `/quote` menampilkan **daftar folder customer** (nama, jumlah quote, total nilai quote).
+- Tap folder → detail customer: semua quote-nya (status, nilai, rev, Download PDF) + invoice yang
+  sudah jadi (yang punya `invoiceId`).
+- "+ Quote baru" di dalam folder → customer ter-prefill. Customer baru bisa dibuat **inline** dari
+  form quote (cepat dari HP).
+- Ada tab alternatif **"Semua Quote"** (tabel flat lintas customer).
+
+### Snapshot vs referensi
+- Quote **link** ke customer via `kodeCust`.
+- Saat quote dibuat, data customer (nama/alamat/email/wa) **di-snapshot** ke dalam dokumen quote
+  (field `customer`, `customerAddress`, dst) supaya PDF historis tetap akurat walau data customer
+  diedit belakangan. Edit master customer tidak mengubah quote lama.
+
+## 4. Data Model
 
 ### `Quotation` (header + item embedded)
 ```js
@@ -93,7 +123,8 @@ Catatan format:
   id,                      // string = _id.toString() (pola insertWithIdField)
   kodeInvoice,             // manual, mis. "Mila/26/VI/01"
   docLabel,                // 'INVOICE' | 'QUOTATION' (judul header PDF; default 'QUOTATION')
-  customer,                // nama
+  kodeCust,                // link ke Cust.kodeCust (identitas customer / folder)
+  customer,                // nama (snapshot dari Cust saat dibuat)
   customerAddress,
   customerEmail,
   customerWA,
@@ -147,6 +178,12 @@ DELETE /quotation/delete/:id           # hapus quote + hapus CRM lead terkait
 POST   /quotation/:id/status           # ubah status: quote|deal|lost (lihat §6)
 GET    /quotation/:id/pdf?mode=quote|pricelist   # puppeteer → PDF (mirror spkPdf.js)
 
+# Customer layer (reuse koleksi Cust)
+GET    /accounting/cust/get            # (existing) list customer — dipakai folder view
+GET    /quotation/customers/summary    # list customer + agregat: jumlah quote & total nilai per kodeCust
+GET    /quotation/customer/:kodeCust   # detail folder: quote[] + invoice[] milik customer itu
+# /accounting/cust/create & /update DIPERLUAS: terima alamatCust, emailCust, waCust (opsional)
+
 # Terms templates
 GET    /quotation/terms/get
 POST   /quotation/terms/create
@@ -164,6 +201,9 @@ Untuk quote yang belum jadi invoice, hitung `deal_value`/`gross_profit` langsung
 (harga, qty, costing→HPP, discount) memakai formula yang sama.
 
 ### Buat Quote (`POST /create`)
+- Bila customer baru (inline): upsert ke `Cust` dulu (dapat `kodeCust`).
+- **Snapshot** data customer dari `Cust` ke dokumen quote (`customer`, `customerAddress`,
+  `customerEmail`, `customerWA`) + simpan `kodeCust` sebagai link.
 - Simpan `Quotation` (status `quote`).
 - Buat `CRMLeads`: `stage='quotation'`, `nama=customer`, `wa=customerWA`,
   `deal_value = Σ(harga×qty) − discount`, `gross_profit` dari costing,
@@ -202,13 +242,19 @@ Untuk quote yang belum jadi invoice, hitung `deal_value`/`gross_profit` langsung
 - Tambah menu **Quote** di `NavigationBar.jsx` grup Operations.
 - User Management: checkbox akses menu key `"Quote"` (pola `getCheckboxState`).
 
-### Tampilan daftar (tabel)
-Kolom: **No | Kode | Customer | Nilai Quote | Rev | Status (badge Quote/Deal/Lost) | Aksi
-(Edit / Download PDF / Ubah Status / Hapus)**. Search by kode/customer. Badge warna:
-Quote=abu, Deal=hijau, Lost=merah.
+### Struktur tampilan (2 tab)
+- **Tab "Customer" (default / landing)** = daftar **folder customer** (kartu: nama, jumlah quote,
+  total nilai quote). Search by nama. Tap folder → **detail customer**:
+  daftar quote-nya (kode, nilai, rev, status, Download PDF) + daftar invoice yang sudah jadi.
+  Tombol "+ Quote baru" di folder → form dengan customer ter-prefill. Bisa **buat customer baru inline**.
+- **Tab "Semua Quote"** = tabel flat lintas customer.
+  Kolom: **No | Kode | Customer | Nilai Quote | Rev | Status (badge Quote/Deal/Lost) | Aksi
+  (Edit / Download PDF / Ubah Status / Hapus)**. Search by kode/customer. Badge warna:
+  Quote=abu, Deal=hijau, Lost=merah.
 
 ### Form buat/edit (HP-first responsive, inline-style sesuai konvensi komponen baru)
-- **Header**: kode (manual), docLabel (Quotation/Invoice), customer + kontak, tanggal, deadline,
+- **Header**: kode (manual), docLabel (Quotation/Invoice), **pilih customer** dari `Cust`
+  (atau buat baru inline: nama/alamat/email/wa → tersimpan ke `Cust`), tanggal, deadline,
   pilih **terms template**, pilih **catatan ongkir** (gratis Jawa&Bali / belum termasuk / none),
   toggle **sembunyikan subtotal & grand total** (mode pricelist), campaign + toggle Repeat Order.
 - **Items**: daftar *card* (1 kolom di HP, multi-kolom di layar lebar). Tiap card:

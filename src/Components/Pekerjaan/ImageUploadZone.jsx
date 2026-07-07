@@ -1,22 +1,34 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { Button } from 'react-bootstrap';
-import { FaPaste, FaTimes, FaRegImages } from 'react-icons/fa';
+import { FaPaste, FaTimes, FaRegImages, FaCamera } from 'react-icons/fa';
+import { compressImageFiles } from '../../Utils/compressImage';
 
 // Zona upload gambar serbaguna: drag & drop (termasuk drag langsung dari
-// aplikasi Photos / Finder di Mac), paste banyak gambar dari clipboard, dan
-// pilih file biasa. `images` = array File, `onChange` = setter (boleh fungsi
-// updater seperti setState). Maksimal `max` gambar.
+// aplikasi Photos / Finder di Mac), paste banyak gambar dari clipboard, pilih
+// file biasa, dan AMBIL FOTO LANGSUNG dari kamera HP (untuk tim lapangan).
+// Semua gambar dikompres di HP dulu sebelum masuk daftar → upload jadi ringan
+// & tahan sinyal jelek. `images` = array File, `onChange` = setter (boleh
+// fungsi updater seperti setState). Maksimal `max` gambar.
 const ImageUploadZone = ({ images = [], onChange, max = 10, theme = 'light' }) => {
   const inputRef = useRef(null);
+  const cameraRef = useRef(null);
   const [dragOver, setDragOver] = useState(false);
+  const [processing, setProcessing] = useState(false);
   const isLight = theme === 'light';
 
-  const addFiles = (incoming) => {
+  const addFiles = async (incoming) => {
     const onlyImages = Array.from(incoming || []).filter(
       (f) => f && f.type && f.type.startsWith('image/')
     );
     if (onlyImages.length === 0) return;
-    onChange((prev) => [...(prev || []), ...onlyImages].slice(0, max));
+    setProcessing(true);
+    try {
+      // Kompres di HP dulu (resize + webp) sebelum masuk daftar upload.
+      const compressed = await compressImageFiles(onlyImages);
+      onChange((prev) => [...(prev || []), ...compressed].slice(0, max));
+    } finally {
+      setProcessing(false);
+    }
   };
 
   const removeAt = (idx) => {
@@ -135,7 +147,24 @@ const ImageUploadZone = ({ images = [], onChange, max = 10, theme = 'light' }) =
               {count}/{max} gambar dipilih
             </div>
           )}
+          {processing && (
+            <div style={{ fontSize: '11px', marginTop: '6px', color: '#0d6efd' }}>
+              Memproses gambar…
+            </div>
+          )}
         </div>
+        <Button
+          variant="primary"
+          title="Ambil foto dari kamera"
+          style={{ height: 'auto', alignSelf: 'stretch' }}
+          onClick={(e) => {
+            e.stopPropagation();
+            cameraRef.current && cameraRef.current.click();
+          }}
+          disabled={count >= max}
+        >
+          <FaCamera />
+        </Button>
         <Button
           variant="secondary"
           title="Tempel dari clipboard"
@@ -155,6 +184,20 @@ const ImageUploadZone = ({ images = [], onChange, max = 10, theme = 'light' }) =
         onChange={(e) => {
           addFiles(e.target.files);
           e.target.value = ''; // reset agar file yang sama bisa dipilih lagi
+        }}
+      />
+
+      {/* Ambil foto langsung dari kamera belakang HP (tim lapangan).
+          `capture="environment"` → buka app kamera OS, hasilnya masuk & langsung dikompres. */}
+      <input
+        ref={cameraRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        style={{ display: 'none' }}
+        onChange={(e) => {
+          addFiles(e.target.files);
+          e.target.value = '';
         }}
       />
 

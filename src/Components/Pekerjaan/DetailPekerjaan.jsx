@@ -198,6 +198,7 @@ const DetailPekerjaan = () => {
   // drag & drop, paste banyak gambar, atau pilih file.
   const [commentImages, setCommentImages] = useState([]);
   const [replyImages, setReplyImages] = useState([]);
+  const [submittingComment, setSubmittingComment] = useState(false);
 
   const [showImageCategoryEdit, setShowImageCategoryEdit] = useState(false);
 
@@ -911,10 +912,28 @@ const DetailPekerjaan = () => {
 
 
 
-  const handleSubmitComment = async () => {
-    try {
-      setShowModal(false);
+  // POST FormData dengan retry — untuk kondisi sinyal lapangan yang naik-turun.
+  const postWithRetry = async (url, formData, retries = 2) => {
+    let lastErr;
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      try {
+        const res = await fetch(url, { method: 'POST', body: formData });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res;
+      } catch (err) {
+        lastErr = err;
+        if (attempt < retries) {
+          await new Promise((r) => setTimeout(r, 1500 * (attempt + 1))); // backoff
+        }
+      }
+    }
+    throw lastErr;
+  };
 
+  const handleSubmitComment = async () => {
+    if (submittingComment) return; // cegah double-submit
+    setSubmittingComment(true);
+    try {
       const formData = new FormData();
       formData.append('user', user.uid);
       formData.append('idProduct', slug);
@@ -927,10 +946,13 @@ const DetailPekerjaan = () => {
         }
       });
 
-      await fetch(`${baseUrl}/comments/create`, {
-        method: 'POST',
-        body: formData,
-      });
+      // Retry untuk sinyal lapangan yang jelek: coba beberapa kali sebelum menyerah.
+      await postWithRetry(`${baseUrl}/comments/create`, formData);
+
+      // Sukses → baru tutup & bersihkan (gambar tidak hilang kalau tadi gagal).
+      setShowModal(false);
+      setCommentImages([]);
+      setTextComment('');
 
       await commentsData();
       setTimeout(() => {
@@ -939,6 +961,9 @@ const DetailPekerjaan = () => {
       }, 300);
     } catch (e) {
       console.error('Error adding comment: ', e);
+      alert('Gagal mengirim komentar (sinyal kurang bagus). Foto masih tersimpan — coba Submit lagi.');
+    } finally {
+      setSubmittingComment(false);
     }
   };
 
@@ -3373,7 +3398,9 @@ const DetailPekerjaan = () => {
 
         </Modal.Body>
         <Modal.Footer>
-          <Button variant="primary" onClick={handleSubmitComment}>Submit</Button>
+          <Button variant="primary" onClick={handleSubmitComment} disabled={submittingComment}>
+            {submittingComment ? 'Mengirim…' : 'Submit'}
+          </Button>
         </Modal.Footer>
       </Modal>
       {/* End Modal */}

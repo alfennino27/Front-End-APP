@@ -1511,7 +1511,8 @@ useEffect(() => {
 
                       {dataSPKpaymentFromDB.map((payment, index) => (
                         <tr key={index}>
-                          <td className='tableStyle text-center' colSpan="5">{payment.detail}</td>
+                          <td className='tableStyle text-center' colSpan="4">{payment.detail}</td>
+                          <td className='tableStyle text-center' colSpan="1">{payment.tanggal ? dayjs(payment.tanggal, 'YYYY-MM-DD').format('DD-MM-YYYY') : ''}</td>
                           <td className='tableStyle text-center' colSpan="2">Rp. {Number(payment.jumlah).toLocaleString('id-ID')}</td>
                         </tr>
                       ))}

@@ -177,6 +177,15 @@ const AIChatBubble = () => {
           }),
         });
         updateProposal(msgId, idx, { _status: res.ok ? 'saved' : 'error' });
+      } else if (prop.type === 'target_kirim') {
+        const res = await fetch(`${baseUrl}/ai/chat/target-kirim/confirm`, {
+          method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
+          body: JSON.stringify({
+            items: (prop.items || []).map((it) => ({ project_id: it.project_id, target_kirim: it.target_kirim_baru })),
+            created_by_uid: getUid(),
+          }),
+        });
+        updateProposal(msgId, idx, { _status: res.ok ? 'saved' : 'error' });
       } else if (prop.type === 'invoice_payment' || prop.type === 'spk_payment') {
         const res = await fetch(`${baseUrl}/ai/chat/payment/confirm`, {
           method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
@@ -446,12 +455,26 @@ const AIChatBubble = () => {
                     {m.proposals.map((p, i) => {
                       const isPayment = p.type === 'invoice_payment' || p.type === 'spk_payment';
                       const isPotong = p.type === 'potong_piutang_spk';
+                      const isTarget = p.type === 'target_kirim';
                       const formatRp = (n) => 'Rp ' + Number(n || 0).toLocaleString('id-ID');
                       return (
                         <div key={i} style={{ fontSize: 13, padding: '8px 10px', marginBottom: 6, borderRadius: 8,
-                          background: isPotong ? (isLight ? '#e7f1ff' : '#0d1b2a') : isPayment ? (isLight ? '#fff3cd' : '#2a2108') : (isLight ? '#fff8e1' : '#2a2620'),
-                          border: isPotong ? '2px solid #0d6efd' : isPayment ? '2px solid #ffc107' : '1px solid #f0c000' }}>
-                          {isPotong ? (
+                          background: isTarget ? (isLight ? '#e8f5e9' : '#0f2417') : isPotong ? (isLight ? '#e7f1ff' : '#0d1b2a') : isPayment ? (isLight ? '#fff3cd' : '#2a2108') : (isLight ? '#fff8e1' : '#2a2620'),
+                          border: isTarget ? '2px solid #2e9e5b' : isPotong ? '2px solid #0d6efd' : isPayment ? '2px solid #ffc107' : '1px solid #f0c000' }}>
+                          {isTarget ? (
+                            <>
+                              <div style={{ fontWeight: 700, marginBottom: 4 }}>🚚 Ubah Target Kirim ({(p.items || []).length} item)</div>
+                              {(p.items || []).map((it, k) => (
+                                <div key={k} style={{ marginBottom: 2 }}>
+                                  <b>{it.nama_barang || it.project_id}</b>{it.kode_invoice ? <span style={{ opacity: 0.7 }}> ({it.kode_invoice})</span> : null}
+                                  <div style={{ fontSize: 12 }}>{it.target_kirim_lama || '(kosong)'} → <b>{it.target_kirim_baru}</b></div>
+                                </div>
+                              ))}
+                              {p.skipped && p.skipped.length > 0 && (
+                                <div style={{ marginTop: 4, fontSize: 11.5, color: '#dc3545' }}>{p.skipped.length} item dilewati (tidak valid / bukan Ongoing).</div>
+                              )}
+                            </>
+                          ) : isPotong ? (
                             <>
                               <div style={{ fontWeight: 700, marginBottom: 4 }}>🧾 Bayar Bon / Potong Piutang Supplier</div>
                               <div><b>{p.kode_spk}</b> <span style={{ opacity: 0.7 }}>({p.pengrajin})</span></div>
@@ -508,7 +531,7 @@ const AIChatBubble = () => {
                             </div>
                           )}
                           {p._status === 'saving' && <span style={{ opacity: 0.7 }}>Menyimpan…</span>}
-                          {p._status === 'saved' && <span style={{ color: '#198754' }}>✅ {isPotong ? 'Bon dibayar — jurnal, SPK & piutang terpotong' : isPayment ? 'Payment berhasil dicatat' : 'Tersimpan oleh "AI Chatbot"'}</span>}
+                          {p._status === 'saved' && <span style={{ color: '#198754' }}>✅ {isTarget ? 'Target kirim diperbarui' : isPotong ? 'Bon dibayar — jurnal, SPK & piutang terpotong' : isPayment ? 'Payment berhasil dicatat' : 'Tersimpan oleh "AI Chatbot"'}</span>}
                           {p._status === 'rejected' && <span style={{ opacity: 0.6 }}>Ditolak</span>}
                           {p._status === 'error' && <span style={{ color: '#dc3545' }}>❌ Gagal menyimpan</span>}
                         </div>

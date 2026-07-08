@@ -188,7 +188,7 @@ const Quote = () => {
     campaignId: 'organic',
     isRepeatOrder: false,
     repeatRefCampaignId: '',
-    paymentRows: [{ label: 'DP 1', amount: '' }],
+    paymentRows: [{ label: 'DP 1', amount: '', paid: false }],
     items: [emptyItem()],
     status: 'quote',
     invoiceId: null,
@@ -300,7 +300,7 @@ const Quote = () => {
           ...q,
           discount: q.discount || '',
           grandTotal: q.grandTotal || '',
-          paymentRows: (q.paymentRows && q.paymentRows.length) ? q.paymentRows.map((p) => ({ label: p.label, amount: p.amount })) : [{ label: 'DP 1', amount: '' }],
+          paymentRows: (q.paymentRows && q.paymentRows.length) ? q.paymentRows.map((p) => ({ label: p.label, amount: p.amount, paid: !!p.paid })) : [{ label: 'DP 1', amount: '', paid: false }],
           items: (q.items && q.items.length ? q.items : [emptyItem()]).map((it) => ({
             images: (it.images || []).map((u) => ({ url: u })),
             details: it.details || '',
@@ -370,12 +370,18 @@ const Quote = () => {
   const removeItemImage = (idx, imgIdx) => updateItem(idx, {
     images: form.items[idx].images.filter((_, i) => i !== imgIdx),
   });
+  // pindahkan gambar ke urutan pertama = jadi foto utama (paling besar di PDF)
+  const makeImageMain = (idx, imgIdx) => {
+    const imgs = [...form.items[idx].images];
+    const [chosen] = imgs.splice(imgIdx, 1);
+    updateItem(idx, { images: [chosen, ...imgs] });
+  };
 
   // payment rows
   const updatePayRow = (idx, patch) => setForm((f) => ({
     ...f, paymentRows: f.paymentRows.map((p, i) => (i === idx ? { ...p, ...patch } : p)),
   }));
-  const addPayRow = () => setForm((f) => ({ ...f, paymentRows: [...f.paymentRows, { label: '', amount: '' }] }));
+  const addPayRow = () => setForm((f) => ({ ...f, paymentRows: [...f.paymentRows, { label: `DP ${f.paymentRows.length + 1}`, amount: '', paid: false }] }));
   const removePayRow = (idx) => setForm((f) => ({ ...f, paymentRows: f.paymentRows.filter((_, i) => i !== idx) }));
 
   // pilih customer existing dari dropdown
@@ -395,7 +401,7 @@ const Quote = () => {
       return { images: existingUrls, details: it.details, harga: numParse(it.harga), qty: numParse(it.qty), costing };
     });
     fd.append('items', JSON.stringify(itemsPayload));
-    fd.append('paymentRows', JSON.stringify(form.paymentRows.filter((p) => p.label || p.amount).map((p) => ({ label: p.label, amount: numParse(p.amount) }))));
+    fd.append('paymentRows', JSON.stringify(form.paymentRows.filter((p) => p.label || p.amount).map((p) => ({ label: p.label, amount: numParse(p.amount), paid: !!p.paid }))));
     fd.append('kodeInvoice', form.kodeInvoice);
     fd.append('docLabel', form.docLabel);
     fd.append('kodeCust', form.kodeCust);
@@ -690,12 +696,14 @@ const Quote = () => {
               {form.items.length > 1 && <button style={{ ...btnGhost, color: '#c0392b', padding: '4px 10px' }} onClick={() => removeItem(idx)}>Hapus</button>}
             </div>
 
-            {/* gambar: thumbnail + zona drag & drop */}
+            {/* gambar: thumbnail + zona drag & drop. Foto pertama (badge ⭐) = foto utama di PDF */}
             {it.images.length > 0 && (
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
                 {it.images.map((im, i) => (
                   <div key={i} style={{ position: 'relative' }}>
-                    <img src={im.url ? `${baseUrl}${im.url}` : im.preview} alt="" style={{ width: 74, height: 74, objectFit: 'cover', borderRadius: 8, border: `1px solid ${border}` }} />
+                    <img src={im.url ? `${baseUrl}${im.url}` : im.preview} alt="" style={{ width: 74, height: 74, objectFit: 'cover', borderRadius: 8, border: i === 0 ? `2px solid ${primary}` : `1px solid ${border}` }} />
+                    {i === 0 && <span title="Foto utama" style={{ position: 'absolute', bottom: 2, left: 2, background: primary, color: '#fff', fontSize: 10, padding: '1px 5px', borderRadius: 6 }}>⭐ Utama</span>}
+                    {i !== 0 && <button title="Jadikan foto utama" onClick={() => makeImageMain(idx, i)} style={{ position: 'absolute', bottom: 2, left: 2, background: 'rgba(0,0,0,.6)', color: '#fff', fontSize: 10, padding: '1px 5px', borderRadius: 6, border: 'none', cursor: 'pointer' }}>⭐ Utama</button>}
                     <button onClick={() => removeItemImage(idx, i)} style={{ position: 'absolute', top: -6, right: -6, background: '#c0392b', color: '#fff', border: 'none', borderRadius: '50%', width: 20, height: 20, cursor: 'pointer', lineHeight: '18px' }}>×</button>
                   </div>
                 ))}
@@ -767,11 +775,15 @@ const Quote = () => {
         <label className="klf-fld" style={{ marginBottom: 10 }}><span style={{ color: sub }}>Discount</span>
           <input inputMode="numeric" style={inputStyle} value={form.discount} onChange={(e) => setF({ discount: e.target.value })} /></label>
 
-        <div style={{ color: sub, fontSize: 13, marginBottom: 6 }}>Baris pembayaran (DP / termin)</div>
+        <div style={{ color: sub, fontSize: 13, marginBottom: 6 }}>Baris pembayaran (DP / termin) — bisa banyak</div>
         {form.paymentRows.map((p, i) => (
-          <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-            <input style={{ ...inputStyle, flex: 1 }} placeholder="Label (mis. DP 1)" value={p.label} onChange={(e) => updatePayRow(i, { label: e.target.value })} />
-            <input inputMode="numeric" style={{ ...inputStyle, flex: 1 }} placeholder="Nominal" value={p.amount} onChange={(e) => updatePayRow(i, { amount: e.target.value })} />
+          <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <input style={{ ...inputStyle, flex: '1 1 120px' }} placeholder="Label (mis. DP 1)" value={p.label} onChange={(e) => updatePayRow(i, { label: e.target.value })} />
+            <input inputMode="numeric" style={{ ...inputStyle, flex: '1 1 120px' }} placeholder="Nominal" value={p.amount} onChange={(e) => updatePayRow(i, { amount: e.target.value })} />
+            <label style={{ display: 'flex', gap: 6, alignItems: 'center', color: p.paid ? '#1e7b34' : sub, fontWeight: p.paid ? 700 : 400, cursor: 'pointer', whiteSpace: 'nowrap', fontSize: 13 }}>
+              <input type="checkbox" checked={!!p.paid} onChange={(e) => updatePayRow(i, { paid: e.target.checked })} />
+              *PAID
+            </label>
             <button style={{ ...btnGhost, color: '#c0392b' }} onClick={() => removePayRow(i)}>×</button>
           </div>
         ))}

@@ -192,6 +192,8 @@ const Quote = () => {
     items: [emptyItem()],
     status: 'quote',
     invoiceId: null,
+    isDraft: true,
+    rev: 1,
   });
   const [form, setForm] = useState(blankForm());
   const [saving, setSaving] = useState(false);
@@ -463,6 +465,22 @@ const Quote = () => {
     } catch (e) { alert('Gagal ubah status: ' + e.message); }
   };
 
+  const finalizeQuote = async (qid, isDraft) => {
+    // isDraft=false → finalkan; isDraft=true → kembalikan ke draft
+    if (!isDraft && !window.confirm('Finalkan quote ini? Setelah final, tiap kali diedit nomor revisi (rev) akan naik +1.')) return;
+    try {
+      const res = await fetch(`${baseUrl}/quotation/${qid}/finalize`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ isDraft }),
+      });
+      const r = await res.json();
+      if (!res.ok) throw new Error(r.message);
+      if (form.id === qid) setForm((f) => ({ ...f, isDraft }));
+      if (customerDetail) fetchCustomerDetail(customerDetail.customer.kodeCust);
+      fetchFolders();
+      if (view === 'allQuotes') fetchAllQuotes();
+    } catch (e) { alert('Gagal ubah status draft: ' + e.message); }
+  };
+
   const deleteQuote = async (q) => {
     const warn = q.invoiceId ? 'Quote ini sudah jadi Invoice. Menghapus quote TIDAK menghapus Invoice. Lanjutkan?' : 'Hapus quote ini?';
     if (!window.confirm(warn)) return;
@@ -591,6 +609,7 @@ const Quote = () => {
                   <div style={{ color: sub, fontSize: 13 }}>{q.tanggal} · {rupiah(q.nilai)}</div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  {q.isDraft !== false && <span style={{ background: '#b7791f', color: '#fff', padding: '2px 10px', borderRadius: 12, fontSize: 12, fontWeight: 600 }}>DRAFT</span>}
                   {statusBadge(q.status)}
                   {q.invoiceId && <span style={{ fontSize: 12, color: '#1e7b34' }}>✔ Invoice</span>}
                 </div>
@@ -599,6 +618,7 @@ const Quote = () => {
                 <a href={`${baseUrl}/quotation/${q.id}/pdf`} target="_blank" rel="noreferrer" style={{ ...btnGhost, textDecoration: 'none' }}>⬇ PDF</a>
                 <a href={`${baseUrl}/quotation/${q.id}/pdf?mode=pricelist`} target="_blank" rel="noreferrer" style={{ ...btnGhost, textDecoration: 'none' }}>Pricelist</a>
                 <button style={btnGhost} onClick={() => openEdit(q.id)}>Edit</button>
+                {q.isDraft !== false && <button style={btn('#b7791f')} onClick={() => finalizeQuote(q.id, false)}>✓ Finalkan</button>}
                 {q.status !== 'deal' && <button style={btn('#1e7b34')} onClick={() => changeStatus(q.id, 'deal')}>Deal</button>}
                 {q.status !== 'lost' && <button style={btnGhost} onClick={() => changeStatus(q.id, 'lost')}>Lost</button>}
                 <button style={{ ...btnGhost, color: '#c0392b' }} onClick={() => deleteQuote(q)}>Hapus</button>
@@ -658,7 +678,22 @@ const Quote = () => {
   const renderForm = () => (
     <div>
       <button style={{ ...btnGhost, marginBottom: 14 }} onClick={() => { setView('folders'); fetchFolders(); }}>← Kembali</button>
-      <h5 style={{ color: text }}>{form.id ? 'Edit' : 'Buat'} {form.docLabel === 'INVOICE' ? 'Invoice' : 'Quote'} {form.id ? `· rev ${form.rev || 1}` : ''}</h5>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 4 }}>
+        <h5 style={{ color: text, margin: 0 }}>{form.id ? 'Edit' : 'Buat'} {form.docLabel === 'INVOICE' ? 'Invoice' : 'Quote'} {form.id ? `· rev ${form.rev || 1}` : ''}</h5>
+        {form.id && (form.isDraft
+          ? <span style={{ background: '#b7791f', color: '#fff', padding: '2px 10px', borderRadius: 12, fontSize: 12, fontWeight: 600 }}>DRAFT</span>
+          : <span style={{ background: '#1e7b34', color: '#fff', padding: '2px 10px', borderRadius: 12, fontSize: 12, fontWeight: 600 }}>FINAL</span>)}
+        {form.id && (form.isDraft
+          ? <button style={{ ...btnGhost, padding: '4px 12px' }} onClick={() => finalizeQuote(form.id, false)}>✓ Finalkan</button>
+          : <button style={{ ...btnGhost, padding: '4px 12px' }} onClick={() => finalizeQuote(form.id, true)}>↩ Kembalikan ke draft</button>)}
+      </div>
+      {form.id && (
+        <div style={{ color: sub, fontSize: 12, marginBottom: 10 }}>
+          {form.isDraft
+            ? 'Mode DRAFT — menyimpan perubahan tidak menaikkan nomor revisi. Klik Finalkan saat siap kirim ke customer.'
+            : 'Mode FINAL — tiap simpan perubahan menaikkan rev +1 (revisi resmi).'}
+        </div>
+      )}
 
       {/* HEADER */}
       <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 12, padding: 16, marginBottom: 16 }}>

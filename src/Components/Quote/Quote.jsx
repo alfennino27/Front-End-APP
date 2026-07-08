@@ -164,6 +164,9 @@ const Quote = () => {
   const [search, setSearch] = useState('');
   const [tplMgr, setTplMgr] = useState(null); // null | 'desc' | 'terms'
   const [dragIdx, setDragIdx] = useState(null); // item index yang sedang di-drag-over
+  const [renamingFolder, setRenamingFolder] = useState(false);
+  const [folderNameDraft, setFolderNameDraft] = useState('');
+  const [renamingBusy, setRenamingBusy] = useState(false);
 
   // ---- form state ----
   const blankForm = () => ({
@@ -222,10 +225,29 @@ const Quote = () => {
     try {
       const res = await fetch(`${baseUrl}/quotation/customer/${encodeURIComponent(kodeCust)}`);
       setCustomerDetail(await res.json());
+      setRenamingFolder(false);
       setView('customerDetail');
     } catch (e) { console.error('fetch customer detail', e); }
     setLoading(false);
   }, [baseUrl]);
+
+  const saveFolderRename = async () => {
+    const kodeCust = customerDetail?.customer?.kodeCust;
+    if (!kodeCust || !folderNameDraft.trim()) return;
+    setRenamingBusy(true);
+    try {
+      const res = await fetch(`${baseUrl}/quotation/customer/${encodeURIComponent(kodeCust)}/rename`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ namaCust: folderNameDraft.trim() }),
+      });
+      const r = await res.json();
+      if (!res.ok) throw new Error(r.message);
+      setCustomerDetail((cd) => ({ ...cd, customer: { ...cd.customer, namaCust: r.namaCust } }));
+      setRenamingFolder(false);
+      fetchFolders();
+      try { setCustList(await (await fetch(`${baseUrl}/accounting/cust/get`)).json()); } catch (e) { /* ignore */ }
+    } catch (e) { alert('Gagal ubah nama folder: ' + e.message); }
+    setRenamingBusy(false);
+  };
 
   useEffect(() => {
     if (!user) { navigate('/login'); return; }
@@ -516,8 +538,22 @@ const Quote = () => {
         <button style={{ ...btnGhost, marginBottom: 14 }} onClick={() => { setView('folders'); fetchFolders(); }}>← Kembali</button>
         <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 12, padding: 16, marginBottom: 16 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
-            <div>
-              <div style={{ fontSize: 20, fontWeight: 700, color: text }}>📁 {c.namaCust || '(tanpa nama)'}</div>
+            <div style={{ flex: 1, minWidth: 200 }}>
+              {renamingFolder ? (
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6, flexWrap: 'wrap' }}>
+                  <input autoFocus style={{ ...inputStyle, maxWidth: 320 }} value={folderNameDraft}
+                    onChange={(e) => setFolderNameDraft(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') saveFolderRename(); if (e.key === 'Escape') setRenamingFolder(false); }} />
+                  <button style={btn('#1e7b34')} disabled={renamingBusy} onClick={saveFolderRename}>{renamingBusy ? 'Menyimpan…' : 'Simpan'}</button>
+                  <button style={btnGhost} onClick={() => setRenamingFolder(false)}>Batal</button>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+                  <div style={{ fontSize: 20, fontWeight: 700, color: text }}>📁 {c.namaCust || '(tanpa nama)'}</div>
+                  <button title="Edit nama folder" style={{ ...btnGhost, padding: '4px 9px', fontSize: 13 }}
+                    onClick={() => { setFolderNameDraft(c.namaCust || ''); setRenamingFolder(true); }}>✏️</button>
+                </div>
+              )}
               <div style={{ color: sub, fontSize: 14 }}>{c.waCust || c.noTelpCust || ''} {c.emailCust ? '· ' + c.emailCust : ''}</div>
               {c.alamatCust && <div style={{ color: sub, fontSize: 13 }}>{c.alamatCust}</div>}
             </div>

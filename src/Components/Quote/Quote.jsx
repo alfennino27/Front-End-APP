@@ -165,7 +165,7 @@ const Quote = () => {
   const [tplMgr, setTplMgr] = useState(null); // null | 'desc' | 'terms'
   const [dragIdx, setDragIdx] = useState(null); // item index yang sedang di-drag-over
   const [renamingFolder, setRenamingFolder] = useState(false);
-  const [folderNameDraft, setFolderNameDraft] = useState('');
+  const [folderDraft, setFolderDraft] = useState({ namaCust: '', waCust: '', alamatCust: '' });
   const [renamingBusy, setRenamingBusy] = useState(false);
 
   // ---- form state ----
@@ -233,19 +233,20 @@ const Quote = () => {
 
   const saveFolderRename = async () => {
     const kodeCust = customerDetail?.customer?.kodeCust;
-    if (!kodeCust || !folderNameDraft.trim()) return;
+    if (!kodeCust || !folderDraft.namaCust.trim()) return;
     setRenamingBusy(true);
     try {
       const res = await fetch(`${baseUrl}/quotation/customer/${encodeURIComponent(kodeCust)}/rename`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ namaCust: folderNameDraft.trim() }),
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ namaCust: folderDraft.namaCust.trim(), waCust: folderDraft.waCust.trim(), alamatCust: folderDraft.alamatCust.trim() }),
       });
       const r = await res.json();
       if (!res.ok) throw new Error(r.message);
-      setCustomerDetail((cd) => ({ ...cd, customer: { ...cd.customer, namaCust: r.namaCust } }));
+      setCustomerDetail((cd) => ({ ...cd, customer: { ...cd.customer, namaCust: r.namaCust, waCust: r.waCust, alamatCust: r.alamatCust } }));
       setRenamingFolder(false);
       fetchFolders();
       try { setCustList(await (await fetch(`${baseUrl}/accounting/cust/get`)).json()); } catch (e) { /* ignore */ }
-    } catch (e) { alert('Gagal ubah nama folder: ' + e.message); }
+    } catch (e) { alert('Gagal ubah data folder: ' + e.message); }
     setRenamingBusy(false);
   };
 
@@ -540,22 +541,35 @@ const Quote = () => {
           <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
             <div style={{ flex: 1, minWidth: 200 }}>
               {renamingFolder ? (
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6, flexWrap: 'wrap' }}>
-                  <input autoFocus style={{ ...inputStyle, maxWidth: 320 }} value={folderNameDraft}
-                    onChange={(e) => setFolderNameDraft(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') saveFolderRename(); if (e.key === 'Escape') setRenamingFolder(false); }} />
-                  <button style={btn('#1e7b34')} disabled={renamingBusy} onClick={saveFolderRename}>{renamingBusy ? 'Menyimpan…' : 'Simpan'}</button>
-                  <button style={btnGhost} onClick={() => setRenamingFolder(false)}>Batal</button>
+                <div style={{ display: 'grid', gap: 8, marginBottom: 6, maxWidth: 420 }}>
+                  <label className="klf-fld"><span style={{ color: sub, fontSize: 12 }}>Nama folder</span>
+                    <input autoFocus style={inputStyle} value={folderDraft.namaCust}
+                      onChange={(e) => setFolderDraft((f) => ({ ...f, namaCust: e.target.value }))}
+                      onKeyDown={(e) => { if (e.key === 'Escape') setRenamingFolder(false); }} /></label>
+                  <label className="klf-fld"><span style={{ color: sub, fontSize: 12 }}>Nomor telepon / WA</span>
+                    <input style={inputStyle} value={folderDraft.waCust}
+                      onChange={(e) => setFolderDraft((f) => ({ ...f, waCust: e.target.value }))}
+                      onKeyDown={(e) => { if (e.key === 'Escape') setRenamingFolder(false); }} /></label>
+                  <label className="klf-fld"><span style={{ color: sub, fontSize: 12 }}>Alamat</span>
+                    <input style={inputStyle} value={folderDraft.alamatCust}
+                      onChange={(e) => setFolderDraft((f) => ({ ...f, alamatCust: e.target.value }))}
+                      onKeyDown={(e) => { if (e.key === 'Enter') saveFolderRename(); if (e.key === 'Escape') setRenamingFolder(false); }} /></label>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button style={btn('#1e7b34')} disabled={renamingBusy} onClick={saveFolderRename}>{renamingBusy ? 'Menyimpan…' : 'Simpan'}</button>
+                    <button style={btnGhost} onClick={() => setRenamingFolder(false)}>Batal</button>
+                  </div>
                 </div>
               ) : (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
-                  <div style={{ fontSize: 20, fontWeight: 700, color: text }}>📁 {c.namaCust || '(tanpa nama)'}</div>
-                  <button title="Edit nama folder" style={{ ...btnGhost, padding: '4px 9px', fontSize: 13 }}
-                    onClick={() => { setFolderNameDraft(c.namaCust || ''); setRenamingFolder(true); }}>✏️</button>
-                </div>
+                <>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+                    <div style={{ fontSize: 20, fontWeight: 700, color: text }}>📁 {c.namaCust || '(tanpa nama)'}</div>
+                    <button title="Edit folder (nama, telepon, alamat)" style={{ ...btnGhost, padding: '4px 9px', fontSize: 13 }}
+                      onClick={() => { setFolderDraft({ namaCust: c.namaCust || '', waCust: c.waCust || c.noTelpCust || '', alamatCust: c.alamatCust || '' }); setRenamingFolder(true); }}>✏️</button>
+                  </div>
+                  <div style={{ color: sub, fontSize: 14 }}>{c.waCust || c.noTelpCust || ''} {c.emailCust ? '· ' + c.emailCust : ''}</div>
+                  {c.alamatCust && <div style={{ color: sub, fontSize: 13 }}>{c.alamatCust}</div>}
+                </>
               )}
-              <div style={{ color: sub, fontSize: 14 }}>{c.waCust || c.noTelpCust || ''} {c.emailCust ? '· ' + c.emailCust : ''}</div>
-              {c.alamatCust && <div style={{ color: sub, fontSize: 13 }}>{c.alamatCust}</div>}
             </div>
             <button style={btn('#1e7b34')} onClick={() => openCreate(c)}>+ Quote Baru</button>
           </div>

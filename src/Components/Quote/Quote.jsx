@@ -59,6 +59,7 @@ const formatRibuan = (v) => {
 };
 
 const emptyItem = () => ({
+  pid: null,        // link ke Projects.id bila quote sudah jadi Invoice
   images: [],       // { url } (existing) atau { file, preview } (baru)
   details: '',
   harga: '',
@@ -312,6 +313,7 @@ const Quote = () => {
           grandTotal: formatRibuan(q.grandTotal),
           paymentRows: (q.paymentRows && q.paymentRows.length) ? q.paymentRows.map((p) => ({ label: p.label, amount: formatRibuan(p.amount), paid: !!p.paid })) : [{ label: 'DP 1', amount: '', paid: false }],
           items: (q.items && q.items.length ? q.items : [emptyItem()]).map((it) => ({
+            pid: it.pid || null,
             images: (it.images || []).map((u) => ({ url: u })),
             details: it.details || '',
             harga: formatRibuan(it.harga),
@@ -408,7 +410,7 @@ const Quote = () => {
       it.images.filter((im) => im.file).forEach((im) => fd.append(`item_${idx}_image`, im.file));
       const costing = {};
       CATEGORIES.forEach((c) => { costing[c] = numParse(it.costing[c]); });
-      return { images: existingUrls, details: it.details, harga: numParse(it.harga), qty: numParse(it.qty), costing };
+      return { pid: it.pid || null, images: existingUrls, details: it.details, harga: numParse(it.harga), qty: numParse(it.qty), costing };
     });
     fd.append('items', JSON.stringify(itemsPayload));
     fd.append('paymentRows', JSON.stringify(form.paymentRows.filter((p) => p.label || p.amount).map((p) => ({ label: p.label, amount: numParse(p.amount), paid: !!p.paid }))));
@@ -628,9 +630,11 @@ const Quote = () => {
                 <button style={btnGhost} onClick={() => openEdit(q.id)}>Edit</button>
                 {q.isDraft !== false && <button style={btn('#b7791f')} onClick={() => finalizeQuote(q.id, false)}>✓ Finalkan</button>}
                 {q.status !== 'deal' && <button style={btn('#1e7b34')} onClick={() => changeStatus(q.id, 'deal')}>Deal</button>}
-                {q.status !== 'lost' && <button style={btnGhost} onClick={() => changeStatus(q.id, 'lost')}>Lost</button>}
-                <button style={{ ...btnGhost, color: '#c0392b' }} onClick={() => deleteQuote(q)}>Hapus</button>
+                {/* setelah jadi Invoice (Deal), Lost & Hapus dikunci — batalkan invoice di modul Invoice dulu */}
+                {!q.invoiceId && q.status !== 'lost' && <button style={btnGhost} onClick={() => changeStatus(q.id, 'lost')}>Lost</button>}
+                {!q.invoiceId && <button style={{ ...btnGhost, color: '#c0392b' }} onClick={() => deleteQuote(q)}>Hapus</button>}
               </div>
+              {q.invoiceId && <div style={{ color: sub, fontSize: 12, marginTop: 8 }}>🔒 Sudah jadi Invoice. Edit harga/qty/item di sini otomatis sinkron ke Invoice. Untuk membatalkan, hapus invoice-nya di modul Invoice (quote akan kembali bisa diubah).</div>}
             </div>
           ))}
           {(customerDetail.quotes || []).length === 0 && <p style={{ color: sub }}>Belum ada quote untuk customer ini.</p>}

@@ -49,6 +49,14 @@ const ONGKIR_OPTIONS = [
 
 const rupiah = (n) => 'Rp ' + Math.round(Number(n) || 0).toLocaleString('id-ID');
 const numParse = (v) => Number(String(v ?? '').replace(/[^\d-]/g, '')) || 0;
+// Format input angka jadi ada titik pemisah ribuan saat diketik (mis. "1.100.000"),
+// supaya harga/DP/costing tidak rawan typo. Simpan sebagai string berformat di
+// state; numParse() di atas sudah strip titik saat baca nilai aslinya.
+const formatRibuan = (v) => {
+  const digits = String(v ?? '').replace(/\D/g, '').replace(/^0+(?=\d)/, '');
+  if (!digits) return '';
+  return digits.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+};
 
 const emptyItem = () => ({
   images: [],       // { url } (existing) atau { file, preview } (baru)
@@ -300,15 +308,15 @@ const Quote = () => {
         setForm({
           ...blankForm(),
           ...q,
-          discount: q.discount || '',
-          grandTotal: q.grandTotal || '',
-          paymentRows: (q.paymentRows && q.paymentRows.length) ? q.paymentRows.map((p) => ({ label: p.label, amount: p.amount, paid: !!p.paid })) : [{ label: 'DP 1', amount: '', paid: false }],
+          discount: formatRibuan(q.discount),
+          grandTotal: formatRibuan(q.grandTotal),
+          paymentRows: (q.paymentRows && q.paymentRows.length) ? q.paymentRows.map((p) => ({ label: p.label, amount: formatRibuan(p.amount), paid: !!p.paid })) : [{ label: 'DP 1', amount: '', paid: false }],
           items: (q.items && q.items.length ? q.items : [emptyItem()]).map((it) => ({
             images: (it.images || []).map((u) => ({ url: u })),
             details: it.details || '',
-            harga: it.harga || '',
+            harga: formatRibuan(it.harga),
             qty: it.qty || 1,
-            costing: CATEGORIES.reduce((a, c) => ({ ...a, [c]: (it.costing && it.costing[c]) || '' }), {}),
+            costing: CATEGORIES.reduce((a, c) => ({ ...a, [c]: formatRibuan(it.costing && it.costing[c]) }), {}),
             costingOpen: false,
           })),
           campaignId: q.campaignId || 'organic',
@@ -779,7 +787,7 @@ const Quote = () => {
 
             <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
               <label className="klf-fld" style={{ flex: 1 }}><span style={{ color: sub }}>Harga satuan</span>
-                <input inputMode="numeric" style={inputStyle} value={it.harga} onChange={(e) => updateItem(idx, { harga: e.target.value })} /></label>
+                <input inputMode="numeric" style={inputStyle} value={it.harga} onChange={(e) => updateItem(idx, { harga: formatRibuan(e.target.value) })} /></label>
               <label className="klf-fld" style={{ width: 90 }}><span style={{ color: sub }}>Qty</span>
                 <input inputMode="numeric" style={inputStyle} value={it.qty} onChange={(e) => updateItem(idx, { qty: e.target.value })} /></label>
             </div>
@@ -793,7 +801,7 @@ const Quote = () => {
               <div className="klf-quote-costing" style={{ marginTop: 10 }}>
                 {CATEGORIES.map((cat) => (
                   <label key={cat} className="klf-fld"><span style={{ color: sub, fontSize: 12 }}>{cat}</span>
-                    <input inputMode="numeric" style={{ ...inputStyle, padding: '8px 10px' }} value={it.costing[cat]} onChange={(e) => updateItem(idx, { costing: { ...it.costing, [cat]: e.target.value } })} /></label>
+                    <input inputMode="numeric" style={{ ...inputStyle, padding: '8px 10px' }} value={it.costing[cat]} onChange={(e) => updateItem(idx, { costing: { ...it.costing, [cat]: formatRibuan(e.target.value) } })} /></label>
                 ))}
               </div>
             )}
@@ -808,13 +816,13 @@ const Quote = () => {
           <span style={{ color: sub }}>Subtotal</span><strong style={{ color: text }}>{rupiah(subtotal)}</strong>
         </div>
         <label className="klf-fld" style={{ marginBottom: 10 }}><span style={{ color: sub }}>Discount</span>
-          <input inputMode="numeric" style={inputStyle} value={form.discount} onChange={(e) => setF({ discount: e.target.value })} /></label>
+          <input inputMode="numeric" style={inputStyle} value={form.discount} onChange={(e) => setF({ discount: formatRibuan(e.target.value) })} /></label>
 
         <div style={{ color: sub, fontSize: 13, marginBottom: 6 }}>Baris pembayaran (DP / termin) — bisa banyak</div>
         {form.paymentRows.map((p, i) => (
           <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center', flexWrap: 'wrap' }}>
             <input style={{ ...inputStyle, flex: '1 1 120px' }} placeholder="Label (mis. DP 1)" value={p.label} onChange={(e) => updatePayRow(i, { label: e.target.value })} />
-            <input inputMode="numeric" style={{ ...inputStyle, flex: '1 1 120px' }} placeholder="Nominal" value={p.amount} onChange={(e) => updatePayRow(i, { amount: e.target.value })} />
+            <input inputMode="numeric" style={{ ...inputStyle, flex: '1 1 120px' }} placeholder="Nominal" value={p.amount} onChange={(e) => updatePayRow(i, { amount: formatRibuan(e.target.value) })} />
             <label style={{ display: 'flex', gap: 6, alignItems: 'center', color: p.paid ? '#1e7b34' : sub, fontWeight: p.paid ? 700 : 400, cursor: 'pointer', whiteSpace: 'nowrap', fontSize: 13 }}>
               <input type="checkbox" checked={!!p.paid} onChange={(e) => updatePayRow(i, { paid: e.target.checked })} />
               *PAID
@@ -825,7 +833,7 @@ const Quote = () => {
         <button style={{ ...btnGhost, marginBottom: 12 }} onClick={addPayRow}>+ Baris pembayaran</button>
 
         <label className="klf-fld" style={{ marginBottom: 10 }}><span style={{ color: sub }}>Grand Total (nominal jatuh tempo dokumen ini)</span>
-          <input inputMode="numeric" style={inputStyle} value={form.grandTotal} placeholder={`default ${rupiah(subtotal - numParse(form.discount))}`} onChange={(e) => setF({ grandTotal: e.target.value })} /></label>
+          <input inputMode="numeric" style={inputStyle} value={form.grandTotal} placeholder={`default ${rupiah(subtotal - numParse(form.discount))}`} onChange={(e) => setF({ grandTotal: formatRibuan(e.target.value) })} /></label>
 
         <div className="klf-quote-form-grid">
           <label className="klf-fld"><span style={{ color: sub }}>Template Payment Terms</span>

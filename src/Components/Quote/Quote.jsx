@@ -283,6 +283,12 @@ const Quote = () => {
     () => form.items.reduce((a, it) => a + numParse(it.harga) * numParse(it.qty), 0),
     [form.items],
   );
+  // Grand Total OTOMATIS = subtotal − discount − Σ DP (sisa yang harus dibayar)
+  const totalDP = useMemo(
+    () => form.paymentRows.reduce((a, p) => a + numParse(p.amount), 0),
+    [form.paymentRows],
+  );
+  const grandTotalCalc = subtotal - numParse(form.discount) - totalDP;
 
   // ================= form actions =================
   const setF = (patch) => setForm((f) => ({ ...f, ...patch }));
@@ -424,7 +430,7 @@ const Quote = () => {
     fd.append('tanggal', form.tanggal);
     fd.append('deadline', form.deadline);
     fd.append('discount', numParse(form.discount));
-    fd.append('grandTotal', form.grandTotal === '' ? '' : numParse(form.grandTotal));
+    // grandTotal dihitung otomatis di backend (subtotal − discount − DP)
     fd.append('hideTotals', form.hideTotals);
     fd.append('termsTemplateId', form.termsTemplateId || '');
     fd.append('ongkirNote', form.ongkirNote);
@@ -836,8 +842,10 @@ const Quote = () => {
         ))}
         <button style={{ ...btnGhost, marginBottom: 12 }} onClick={addPayRow}>+ Baris pembayaran</button>
 
-        <label className="klf-fld" style={{ marginBottom: 10 }}><span style={{ color: sub }}>Grand Total (nominal jatuh tempo dokumen ini)</span>
-          <input inputMode="numeric" style={inputStyle} value={form.grandTotal} placeholder={`default ${rupiah(subtotal - numParse(form.discount))}`} onChange={(e) => setF({ grandTotal: formatRibuan(e.target.value) })} /></label>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, padding: '10px 12px', background: dark ? '#2b3038' : '#eef1f6', borderRadius: 8 }}>
+          <span style={{ color: sub, fontWeight: 600 }}>Grand Total <span style={{ fontWeight: 400, fontSize: 12 }}>(otomatis: subtotal − discount − DP)</span></span>
+          <strong style={{ color: grandTotalCalc < 0 ? '#c0392b' : text, fontSize: 18 }}>{rupiah(grandTotalCalc)}</strong>
+        </div>
 
         <div className="klf-quote-form-grid">
           <label className="klf-fld"><span style={{ color: sub }}>Template Payment Terms</span>

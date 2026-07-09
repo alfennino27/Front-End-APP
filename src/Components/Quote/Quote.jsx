@@ -60,6 +60,8 @@ const formatRibuan = (v) => {
 
 const emptyItem = () => ({
   pid: null,        // link ke Projects.id bila quote sudah jadi Invoice
+  kategori: '',     // kategori produk (ProductsCategory)
+  judul: '',        // judul produk → Projects.NamaBarang
   images: [],       // { url } (existing) atau { file, preview } (baru)
   details: '',
   harga: '',
@@ -170,6 +172,7 @@ const Quote = () => {
   const [descTpls, setDescTpls] = useState([]);
   const [campaigns, setCampaigns] = useState([]);
   const [custList, setCustList] = useState([]);
+  const [prodCats, setProdCats] = useState([]);
   const [search, setSearch] = useState('');
   const [tplMgr, setTplMgr] = useState(null); // null | 'desc' | 'terms'
   const [dragIdx, setDragIdx] = useState(null); // item index yang sedang di-drag-over
@@ -268,6 +271,7 @@ const Quote = () => {
     (async () => {
       try { setCampaigns(await (await fetch(`${baseUrl}/crm/campaigns/get`)).json()); } catch (e) { /* ignore */ }
       try { setCustList(await (await fetch(`${baseUrl}/accounting/cust/get`)).json()); } catch (e) { /* ignore */ }
+      try { setProdCats(await (await fetch(`${baseUrl}/products/category/get`)).json()); } catch (e) { /* ignore */ }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -320,6 +324,8 @@ const Quote = () => {
           paymentRows: (q.paymentRows && q.paymentRows.length) ? q.paymentRows.map((p) => ({ label: p.label, amount: formatRibuan(p.amount), paid: !!p.paid })) : [{ label: 'DP 1', amount: '', paid: false }],
           items: (q.items && q.items.length ? q.items : [emptyItem()]).map((it) => ({
             pid: it.pid || null,
+            kategori: it.kategori || '',
+            judul: it.judul || '',
             images: (it.images || []).map((u) => ({ url: u })),
             details: it.details || '',
             harga: formatRibuan(it.harga),
@@ -416,7 +422,7 @@ const Quote = () => {
       it.images.filter((im) => im.file).forEach((im) => fd.append(`item_${idx}_image`, im.file));
       const costing = {};
       CATEGORIES.forEach((c) => { costing[c] = numParse(it.costing[c]); });
-      return { pid: it.pid || null, images: existingUrls, details: it.details, harga: numParse(it.harga), qty: numParse(it.qty), costing };
+      return { pid: it.pid || null, kategori: it.kategori || '', judul: it.judul || '', images: existingUrls, details: it.details, harga: numParse(it.harga), qty: numParse(it.qty), costing };
     });
     fd.append('items', JSON.stringify(itemsPayload));
     fd.append('paymentRows', JSON.stringify(form.paymentRows.filter((p) => p.label || p.amount).map((p) => ({ label: p.label, amount: numParse(p.amount), paid: !!p.paid }))));
@@ -747,6 +753,16 @@ const Quote = () => {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
               <strong style={{ color: text }}>Item #{idx + 1}</strong>
               {form.items.length > 1 && <button style={{ ...btnGhost, color: '#c0392b', padding: '4px 10px' }} onClick={() => removeItem(idx)}>Hapus</button>}
+            </div>
+
+            {/* judul produk + kategori (→ Projects.NamaBarang & kategori) */}
+            <div className="klf-quote-form-grid" style={{ marginBottom: 10 }}>
+              <label className="klf-fld"><span style={{ color: sub }}>Judul produk <span style={{ fontSize: 11 }}>(jadi Product Name di Invoice)</span></span>
+                <input style={inputStyle} value={it.judul} placeholder="mis. Kursi Teras - Loreta" onChange={(e) => updateItem(idx, { judul: e.target.value })} /></label>
+              <label className="klf-fld"><span style={{ color: sub }}>Kategori produk</span>
+                <SearchableSelect ui={ui} value={it.kategori} placeholder="Pilih kategori…"
+                  options={[{ value: '', label: '— tanpa kategori —' }, ...prodCats.map((c) => ({ value: c.name, label: c.name }))]}
+                  onChange={(v) => updateItem(idx, { kategori: v })} /></label>
             </div>
 
             {/* gambar: thumbnail + zona drag & drop. Foto pertama (badge ⭐) = foto utama di PDF */}

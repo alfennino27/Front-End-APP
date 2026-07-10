@@ -186,6 +186,18 @@ const AIChatBubble = () => {
           }),
         });
         updateProposal(msgId, idx, { _status: res.ok ? 'saved' : 'error' });
+      } else if (prop.type === 'bulk_comment' || prop.type === 'bulk_category_description') {
+        const type = prop.type === 'bulk_comment' ? 'comment' : 'category_description';
+        const tag_uids = prop.type === 'bulk_comment' ? await resolveTagUids(prop.tag_names) : [];
+        const res = await fetch(`${baseUrl}/ai/chat/write/confirm-bulk`, {
+          method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
+          body: JSON.stringify({
+            type, category: prop.category, text: prop.text,
+            project_ids: (prop.items || []).map((it) => it.project_id),
+            created_by_uid: getUid(), tag_uids,
+          }),
+        });
+        updateProposal(msgId, idx, { _status: res.ok ? 'saved' : 'error' });
       } else if (prop.type === 'invoice_payment' || prop.type === 'spk_payment') {
         const res = await fetch(`${baseUrl}/ai/chat/payment/confirm`, {
           method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
@@ -456,12 +468,31 @@ const AIChatBubble = () => {
                       const isPayment = p.type === 'invoice_payment' || p.type === 'spk_payment';
                       const isPotong = p.type === 'potong_piutang_spk';
                       const isTarget = p.type === 'target_kirim';
+                      const isBulk = p.type === 'bulk_comment' || p.type === 'bulk_category_description';
                       const formatRp = (n) => 'Rp ' + Number(n || 0).toLocaleString('id-ID');
                       return (
                         <div key={i} style={{ fontSize: 13, padding: '8px 10px', marginBottom: 6, borderRadius: 8,
-                          background: isTarget ? (isLight ? '#e8f5e9' : '#0f2417') : isPotong ? (isLight ? '#e7f1ff' : '#0d1b2a') : isPayment ? (isLight ? '#fff3cd' : '#2a2108') : (isLight ? '#fff8e1' : '#2a2620'),
-                          border: isTarget ? '2px solid #2e9e5b' : isPotong ? '2px solid #0d6efd' : isPayment ? '2px solid #ffc107' : '1px solid #f0c000' }}>
-                          {isTarget ? (
+                          background: isTarget || isBulk ? (isLight ? '#e8f5e9' : '#0f2417') : isPotong ? (isLight ? '#e7f1ff' : '#0d1b2a') : isPayment ? (isLight ? '#fff3cd' : '#2a2108') : (isLight ? '#fff8e1' : '#2a2620'),
+                          border: isTarget || isBulk ? '2px solid #2e9e5b' : isPotong ? '2px solid #0d6efd' : isPayment ? '2px solid #ffc107' : '1px solid #f0c000' }}>
+                          {isBulk ? (
+                            <>
+                              <div style={{ fontWeight: 700, marginBottom: 4 }}>
+                                {p.type === 'bulk_comment' ? `📝 Komentar → ${p.category}` : `📝 Tambah deskripsi → ${p.category}`} ({(p.items || []).length} item)
+                              </div>
+                              <div style={{ whiteSpace: 'pre-wrap', marginBottom: 4 }}>{p.text}</div>
+                              <div style={{ fontSize: 12, opacity: 0.85 }}>
+                                {(p.items || []).map((it, k) => (
+                                  <div key={k}>• {it.nama_barang || it.project_id}{it.kode_invoice ? <span style={{ opacity: 0.7 }}> ({it.kode_invoice})</span> : null}</div>
+                                ))}
+                              </div>
+                              {p.tag_names && p.tag_names.length > 0 && (
+                                <div style={{ fontSize: 12, opacity: 0.8, marginTop: 4 }}>Tag: {p.tag_names.join(', ')}</div>
+                              )}
+                              {p.skipped && p.skipped.length > 0 && (
+                                <div style={{ marginTop: 4, fontSize: 11.5, color: '#dc3545' }}>{p.skipped.length} item dilewati (tidak valid / bukan Ongoing).</div>
+                              )}
+                            </>
+                          ) : isTarget ? (
                             <>
                               <div style={{ fontWeight: 700, marginBottom: 4 }}>🚚 Ubah Target Kirim ({(p.items || []).length} item)</div>
                               {(p.items || []).map((it, k) => (
@@ -531,7 +562,7 @@ const AIChatBubble = () => {
                             </div>
                           )}
                           {p._status === 'saving' && <span style={{ opacity: 0.7 }}>Menyimpan…</span>}
-                          {p._status === 'saved' && <span style={{ color: '#198754' }}>✅ {isTarget ? 'Target kirim diperbarui' : isPotong ? 'Bon dibayar — jurnal, SPK & piutang terpotong' : isPayment ? 'Payment berhasil dicatat' : 'Tersimpan oleh "AI Chatbot"'}</span>}
+                          {p._status === 'saved' && <span style={{ color: '#198754' }}>✅ {isTarget ? 'Target kirim diperbarui' : isBulk ? `Tersimpan ke ${(p.items || []).length} item` : isPotong ? 'Bon dibayar — jurnal, SPK & piutang terpotong' : isPayment ? 'Payment berhasil dicatat' : 'Tersimpan oleh "AI Chatbot"'}</span>}
                           {p._status === 'rejected' && <span style={{ opacity: 0.6 }}>Ditolak</span>}
                           {p._status === 'error' && <span style={{ color: '#dc3545' }}>❌ Gagal menyimpan</span>}
                         </div>

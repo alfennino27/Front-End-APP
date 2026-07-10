@@ -192,6 +192,7 @@ const Quote = () => {
     customerWA: '',
     tanggal: new Date().toISOString().slice(0, 10),
     deadline: '',
+    targetKirim: '',   // tanggal target kirim (date) → Project.Deadline + TargetKirim saat convert
     discount: '',
     grandTotal: '',
     hideTotals: false,
@@ -435,6 +436,7 @@ const Quote = () => {
     fd.append('customerWA', form.customerWA);
     fd.append('tanggal', form.tanggal);
     fd.append('deadline', form.deadline);
+    fd.append('targetKirim', form.targetKirim || '');
     fd.append('discount', numParse(form.discount));
     // grandTotal dihitung otomatis di backend (subtotal − discount − DP)
     fd.append('hideTotals', form.hideTotals);
@@ -742,6 +744,8 @@ const Quote = () => {
             <input type="date" style={inputStyle} value={form.tanggal} onChange={(e) => setF({ tanggal: e.target.value })} /></label>
           <label className="klf-fld"><span style={{ color: sub }}>Deadline</span>
             <input style={inputStyle} value={form.deadline} onChange={(e) => setF({ deadline: e.target.value })} placeholder="mis. 3-4 weeks after payment" /></label>
+          <label className="klf-fld"><span style={{ color: sub }}>Target Kirim (tanggal)</span>
+            <input type="date" style={inputStyle} value={form.targetKirim} onChange={(e) => setF({ targetKirim: e.target.value })} /></label>
         </div>
       </div>
 

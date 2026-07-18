@@ -59,7 +59,7 @@ const ListPekerjaan = () => {
   const [selectedMonth, setSelectedMonth] = useState(null);
 
   // Delivery Tracker
-  const [deliveryView, setDeliveryView] = useState('all'); // 'all' | 'thisWeek' | 'nextWeek' | 'twoWeeks' | 'overdue'
+  const [deliveryView, setDeliveryView] = useState('all'); // 'all' | 'thisWeek' | 'nextWeek' | 'weekAfterNext' | 'overdue'
   const [deliveryData, setDeliveryData] = useState(null);
   const [deliveryLoading, setDeliveryLoading] = useState(false);
   const [showPelunasanModal, setShowPelunasanModal] = useState(false);
@@ -69,7 +69,7 @@ const ListPekerjaan = () => {
   const [tipeLabel, setTipeLabel] = useState('Pengiriman');
   const [pdfSupplierCategory, setPdfSupplierCategory] = useState('Besi');
   const [pdfSupplierName, setPdfSupplierName] = useState('');
-  const [pdfTargetKirimFilter, setPdfTargetKirimFilter] = useState('semua'); // 'semua' | 'thisWeek' | 'nextWeek' | 'twoWeeks'
+  const [pdfTargetKirimFilter, setPdfTargetKirimFilter] = useState('semua'); // 'semua' | 'thisWeek' | 'nextWeek' | 'weekAfterNext'
 
   const handleSearchClick = () => {
     setShowSearch(!showSearch);
@@ -323,7 +323,7 @@ const ListPekerjaan = () => {
     if (deliveryView === 'all' || !deliveryData) return null;
     const items = deliveryView === 'thisWeek' ? deliveryData.thisWeek
       : deliveryView === 'nextWeek' ? deliveryData.nextWeek
-      : deliveryView === 'twoWeeks' ? deliveryData.twoWeeks
+      : deliveryView === 'weekAfterNext' ? deliveryData.weekAfterNext
       : deliveryData.overdue;
     return new Set((items || []).map(i => i.id));
   }, [deliveryView, deliveryData]);
@@ -477,9 +477,9 @@ const ListPekerjaan = () => {
         : masterDataFalse.filter(p => p[supplierKey] === pdfSupplierName);
 
       if (pdfTargetKirimFilter !== 'semua') {
-        // twoWeeks = minggu ini + minggu depan (start awal minggu ini s/d akhir minggu depan)
-        const start = pdfTargetKirimFilter === 'nextWeek' ? getWeekBounds(1).start : getWeekBounds(0).start;
-        const end = pdfTargetKirimFilter === 'thisWeek' ? getWeekBounds(0).end : getWeekBounds(1).end;
+        // Tiap opsi = 1 minggu penuh (Senin–Minggu): thisWeek offset 0, nextWeek +1, weekAfterNext +2.
+        const offset = pdfTargetKirimFilter === 'nextWeek' ? 1 : pdfTargetKirimFilter === 'weekAfterNext' ? 2 : 0;
+        const { start, end } = getWeekBounds(offset);
         filtered = filtered.filter(p => {
           const dateStr = p.TargetKirim || p.Deadline;
           if (!dateStr) return false;
@@ -612,8 +612,8 @@ const ListPekerjaan = () => {
             <Radio value="nextWeek">
               Minggu Depan {deliveryData ? <span style={{ color: '#888', fontSize: 11 }}>({deliveryData.nextWeek?.length || 0})</span> : null}
             </Radio>
-            <Radio value="twoWeeks">
-              2 Minggu ke Depan {deliveryData ? <span style={{ color: '#888', fontSize: 11 }}>({deliveryData.twoWeeks?.length || 0})</span> : null}
+            <Radio value="weekAfterNext">
+              2 Minggu Lagi {deliveryData ? <span style={{ color: '#888', fontSize: 11 }}>({deliveryData.weekAfterNext?.length || 0})</span> : null}
             </Radio>
             <Radio value="overdue">
               Overdue {deliveryData?.overdue?.length > 0 ? <span style={{ color: '#e74c3c', fontSize: 11, fontWeight: 600 }}>({deliveryData.overdue.length})</span> : <span style={{ color: '#888', fontSize: 11 }}>(0)</span>}
@@ -701,7 +701,7 @@ const ListPekerjaan = () => {
           <div>
             <small style={{ color: globalTheme === 'light' ? '#013175' : '#6fa8ff', fontWeight: 600 }}>
               <TbTruckDelivery style={{ marginRight: 4 }} />
-              {deliveryView === 'thisWeek' ? 'Pelunasan Minggu Ini' : deliveryView === 'nextWeek' ? 'Pelunasan Minggu Depan' : deliveryView === 'twoWeeks' ? 'Pelunasan 2 Minggu ke Depan' : 'Pelunasan Overdue'}
+              {deliveryView === 'thisWeek' ? 'Pelunasan Minggu Ini' : deliveryView === 'nextWeek' ? 'Pelunasan Minggu Depan' : deliveryView === 'weekAfterNext' ? 'Pelunasan 2 Minggu Lagi' : 'Pelunasan Overdue'}
             </small>
           </div>
           <div style={{ fontWeight: 700, fontSize: '14px', color: globalTheme === 'light' ? '#013175' : '#6fa8ff' }}>
@@ -715,7 +715,7 @@ const ListPekerjaan = () => {
         title={
           <span style={{ fontWeight: 700 }}>
             <TbTruckDelivery style={{ marginRight: 6 }} />
-            Detail Pelunasan — {deliveryView === 'thisWeek' ? 'Minggu Ini' : deliveryView === 'nextWeek' ? 'Minggu Depan' : deliveryView === 'twoWeeks' ? '2 Minggu ke Depan' : 'Overdue'}
+            Detail Pelunasan — {deliveryView === 'thisWeek' ? 'Minggu Ini' : deliveryView === 'nextWeek' ? 'Minggu Depan' : deliveryView === 'weekAfterNext' ? '2 Minggu Lagi' : 'Overdue'}
           </span>
         }
         open={showPelunasanModal}
@@ -726,7 +726,7 @@ const ListPekerjaan = () => {
         {deliveryData && (() => {
           const items = deliveryView === 'thisWeek' ? deliveryData.thisWeek
             : deliveryView === 'nextWeek' ? deliveryData.nextWeek
-            : deliveryView === 'twoWeeks' ? deliveryData.twoWeeks
+            : deliveryView === 'weekAfterNext' ? deliveryData.weekAfterNext
             : deliveryData.overdue;
           if (!items || items.length === 0) return <p style={{ textAlign: 'center', color: '#999' }}>Tidak ada data.</p>;
 
@@ -1088,7 +1088,7 @@ const ListPekerjaan = () => {
                   <option value="semua">Semua</option>
                   <option value="thisWeek">Minggu Ini</option>
                   <option value="nextWeek">Minggu Depan</option>
-                  <option value="twoWeeks">2 Minggu ke Depan</option>
+                  <option value="weekAfterNext">2 Minggu Lagi</option>
                 </Form.Select>
               </Form.Group>
             </>

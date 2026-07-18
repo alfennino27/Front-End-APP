@@ -2906,6 +2906,7 @@ const DetailPekerjaan = () => {
               <h6 style={{ color: '#6c757d', marginBottom: '8px' }}>Deskripsi Produk (Invoice)</h6>
               <p style={{ whiteSpace: 'pre-line', color: globalTheme === 'light' ? 'black' : 'white', fontSize: '14px' }}>
                 {dataProjectFromDB[0]?.Spesifikasi || '-'}
+                {dataProjectFromDB[0]?.Qty ? `\nQty : ${dataProjectFromDB[0].Qty}` : ''}
               </p>
             </div>
           </div>

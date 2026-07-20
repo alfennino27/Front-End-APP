@@ -304,9 +304,10 @@ const Quote = () => {
     const hppUnit = CATEGORIES.reduce((a, c) => a + numParse(it.costing[c]), 0);
     const hppTotal = hppUnit * qty;
     const sale = harga * qty;
-    const marginTotal = (harga - hppUnit) * qty;
+    const marginPerUnit = harga - hppUnit;
+    const marginTotal = marginPerUnit * qty;
     const marginPct = sale > 0 ? (marginTotal / sale) * 100 : 0;
-    return { hppUnit, hppTotal, sale, marginTotal, marginPct };
+    return { hppUnit, hppTotal, sale, marginPerUnit, marginTotal, marginPct };
   }), [form.items]);
   const totalHPP = useMemo(() => itemFin.reduce((a, f) => a + f.hppTotal, 0), [itemFin]);
   const totalMarginRaw = useMemo(() => itemFin.reduce((a, f) => a + f.marginTotal, 0), [itemFin]);
@@ -854,9 +855,13 @@ const Quote = () => {
                     <span style={{ color: sub, fontSize: 11 }}>{rupiah(fin.hppUnit)}/unit</span>
                   </div>
                   <div className="klf-itemfin-cell">
-                    <span style={{ color: sub, fontSize: 12 }}>Margin</span>
+                    <span style={{ color: sub, fontSize: 12 }}>Total Margin</span>
                     <strong style={{ color: marginColor, fontSize: 14 }}>{rupiah(fin.marginTotal)}</strong>
                     <span style={{ color: marginColor, fontSize: 11 }}>{(fin.marginPct || 0).toFixed(1)}%</span>
+                  </div>
+                  <div className="klf-itemfin-cell">
+                    <span style={{ color: sub, fontSize: 12 }}>Margin per piece</span>
+                    <strong style={{ color: marginColor, fontSize: 14 }}>{rupiah(fin.marginPerUnit)}</strong>
                   </div>
                   {fin.hppTotal === 0 && (
                     <div style={{ color: '#b7791f', fontSize: 11, alignSelf: 'center' }}>⚠ Costing belum diisi — margin belum akurat</div>

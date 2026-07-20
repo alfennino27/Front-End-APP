@@ -29,6 +29,13 @@ const extractDimensiBahan = (text) => {
   return result.join('\n').trim() || text;
 };
 
+const fmtDeadline = (d) => {
+  if (!d) return '-';
+  const date = new Date(d);
+  if (isNaN(date.getTime())) return '-';
+  return date.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+};
+
 const CetakLabelSupplier = () => {
   const [items, setItems] = useState([]);
   const [category, setCategory] = useState('');
@@ -113,7 +120,7 @@ const CetakLabelSupplier = () => {
                           {item.Buyer && <><br /><span style={{ color: '#555' }}>{item.Buyer}</span></>}
                         </td>
                         <td style={{ whiteSpace: 'pre-wrap' }}>{extractDimensiBahan(item[`Description${category}`])}</td>
-                        <td className="deadline"></td>
+                        <td className="deadline">{fmtDeadline(item[`DeadlineSupplier${category}`])}</td>
                       </tr>
                     );
                   })}
@@ -136,7 +143,7 @@ const CetakLabelSupplier = () => {
                   {item.Buyer && <><br /><span style={{ color: '#555' }}>{item.Buyer}</span></>}
                 </td>
                 <td style={{ whiteSpace: 'pre-wrap' }}>{extractDimensiBahan(item[`Description${category}`])}</td>
-                <td className="deadline"></td>
+                <td className="deadline">{fmtDeadline(item[`DeadlineSupplier${category}`])}</td>
               </tr>
             ))
           )}

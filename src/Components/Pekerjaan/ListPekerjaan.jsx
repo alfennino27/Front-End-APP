@@ -70,6 +70,7 @@ const ListPekerjaan = () => {
   const [pdfSupplierCategory, setPdfSupplierCategory] = useState('Besi');
   const [pdfSupplierName, setPdfSupplierName] = useState('');
   const [pdfTargetKirimFilter, setPdfTargetKirimFilter] = useState('semua'); // 'semua' | 'thisWeek' | 'nextWeek' | 'weekAfterNext'
+  const [pdfFilterBasis, setPdfFilterBasis] = useState('customer'); // 'customer' (TargetKirim) | 'supplier' (DeadlineSupplier<cat>)
 
   const handleSearchClick = () => {
     setShowSearch(!showSearch);
@@ -481,7 +482,10 @@ const ListPekerjaan = () => {
         const offset = pdfTargetKirimFilter === 'nextWeek' ? 1 : pdfTargetKirimFilter === 'weekAfterNext' ? 2 : 0;
         const { start, end } = getWeekBounds(offset);
         filtered = filtered.filter(p => {
-          const dateStr = p.TargetKirim || p.Deadline;
+          // Basis 'supplier' = deadline SPK per item (DeadlineSupplier<cat>); 'customer' = target kirim ke customer.
+          const dateStr = pdfFilterBasis === 'supplier'
+            ? p[`DeadlineSupplier${pdfSupplierCategory}`]
+            : (p.TargetKirim || p.Deadline);
           if (!dateStr) return false;
           const d = new Date(dateStr);
           return d >= start && d <= end;
@@ -1083,7 +1087,14 @@ const ListPekerjaan = () => {
                 </Form.Select>
               </Form.Group>
               <Form.Group className="mb-2">
-                <Form.Label>Target Kirim</Form.Label>
+                <Form.Label>Filter Berdasarkan</Form.Label>
+                <Form.Select value={pdfFilterBasis} onChange={(e) => setPdfFilterBasis(e.target.value)}>
+                  <option value="customer">Target Kirim Customer</option>
+                  <option value="supplier">Target Selesai Supplier</option>
+                </Form.Select>
+              </Form.Group>
+              <Form.Group className="mb-2">
+                <Form.Label>Periode ({pdfFilterBasis === 'supplier' ? 'Deadline SPK' : 'Target Kirim'})</Form.Label>
                 <Form.Select value={pdfTargetKirimFilter} onChange={(e) => setPdfTargetKirimFilter(e.target.value)}>
                   <option value="semua">Semua</option>
                   <option value="thisWeek">Minggu Ini</option>

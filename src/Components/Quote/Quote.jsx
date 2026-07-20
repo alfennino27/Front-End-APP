@@ -295,6 +295,25 @@ const Quote = () => {
   );
   const grandTotalCalc = subtotal - numParse(form.discount) - totalDP;
 
+  // Ringkasan HPP & margin per item (internal — tidak dicetak di PDF customer).
+  // HPP costing = per-unit (mirror estimasi<cat>); HPP total item = hppUnit × qty.
+  // Margin item = (harga − hppUnit) × qty. Konsisten dgn crmSync.computeInvoiceFinancials.
+  const itemFin = useMemo(() => form.items.map((it) => {
+    const harga = numParse(it.harga);
+    const qty = numParse(it.qty);
+    const hppUnit = CATEGORIES.reduce((a, c) => a + numParse(it.costing[c]), 0);
+    const hppTotal = hppUnit * qty;
+    const sale = harga * qty;
+    const marginTotal = (harga - hppUnit) * qty;
+    const marginPct = sale > 0 ? (marginTotal / sale) * 100 : 0;
+    return { hppUnit, hppTotal, sale, marginTotal, marginPct };
+  }), [form.items]);
+  const totalHPP = useMemo(() => itemFin.reduce((a, f) => a + f.hppTotal, 0), [itemFin]);
+  const totalMarginRaw = useMemo(() => itemFin.reduce((a, f) => a + f.marginTotal, 0), [itemFin]);
+  // Total margin invoice = Σ margin item − discount (= gross profit; ongkir/admin quote = 0).
+  const totalMargin = totalMarginRaw - numParse(form.discount);
+  const totalMarginPct = subtotal > 0 ? (totalMargin / subtotal) * 100 : 0;
+
   // ================= form actions =================
   const setF = (patch) => setForm((f) => ({ ...f, ...patch }));
 
@@ -823,6 +842,29 @@ const Quote = () => {
             </div>
             <div style={{ textAlign: 'right', color: sub, fontSize: 13, marginTop: 6 }}>Total: <strong style={{ color: text }}>{rupiah(numParse(it.harga) * numParse(it.qty))}</strong></div>
 
+            {/* ringkasan HPP & margin per item (internal, tidak dicetak di PDF) */}
+            {(() => {
+              const fin = itemFin[idx] || {};
+              const marginColor = fin.marginTotal >= 0 ? '#1e7b34' : '#c0392b';
+              return (
+                <div className="klf-quote-itemfin" style={{ marginTop: 8, background: dark ? '#20262e' : '#f4f7fb', border: `1px solid ${border}`, borderRadius: 8, padding: '10px 12px' }}>
+                  <div className="klf-itemfin-cell">
+                    <span style={{ color: sub, fontSize: 12 }}>Total HPP</span>
+                    <strong style={{ color: text, fontSize: 14 }}>{rupiah(fin.hppTotal)}</strong>
+                    <span style={{ color: sub, fontSize: 11 }}>{rupiah(fin.hppUnit)}/unit</span>
+                  </div>
+                  <div className="klf-itemfin-cell">
+                    <span style={{ color: sub, fontSize: 12 }}>Margin</span>
+                    <strong style={{ color: marginColor, fontSize: 14 }}>{rupiah(fin.marginTotal)}</strong>
+                    <span style={{ color: marginColor, fontSize: 11 }}>{(fin.marginPct || 0).toFixed(1)}%</span>
+                  </div>
+                  {fin.hppTotal === 0 && (
+                    <div style={{ color: '#b7791f', fontSize: 11, alignSelf: 'center' }}>⚠ Costing belum diisi — margin belum akurat</div>
+                  )}
+                </div>
+              );
+            })()}
+
             {/* costing accordion */}
             <button style={{ ...btnGhost, width: '100%', marginTop: 8, textAlign: 'left' }} onClick={() => updateItem(idx, { costingOpen: !it.costingOpen })}>
               {it.costingOpen ? '▾' : '▸'} Costing (biaya per kategori) — masuk sebagai budget saat jadi Invoice
@@ -865,6 +907,28 @@ const Quote = () => {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, padding: '10px 12px', background: dark ? '#2b3038' : '#eef1f6', borderRadius: 8 }}>
           <span style={{ color: sub, fontWeight: 600 }}>Grand Total <span style={{ fontWeight: 400, fontSize: 12 }}>(otomatis: subtotal − discount − DP)</span></span>
           <strong style={{ color: grandTotalCalc < 0 ? '#c0392b' : text, fontSize: 18 }}>{rupiah(grandTotalCalc)}</strong>
+        </div>
+
+        {/* ringkasan margin invoice (internal — tidak muncul di PDF customer) */}
+        <div style={{ border: `1px solid ${border}`, borderRadius: 10, padding: '12px 14px', marginBottom: 12, background: dark ? '#20262e' : '#f4f7fb' }}>
+          <div style={{ color: sub, fontSize: 12, fontWeight: 600, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+            🔒 Ringkasan Margin (internal) <span style={{ fontWeight: 400 }}>— tidak dicetak di PDF</span>
+          </div>
+          <div className="klf-quote-margin-grid">
+            <div className="klf-margin-cell">
+              <span style={{ color: sub, fontSize: 12 }}>Total Penjualan</span>
+              <strong style={{ color: text, fontSize: 15 }}>{rupiah(subtotal)}</strong>
+            </div>
+            <div className="klf-margin-cell">
+              <span style={{ color: sub, fontSize: 12 }}>Total HPP</span>
+              <strong style={{ color: text, fontSize: 15 }}>{rupiah(totalHPP)}</strong>
+            </div>
+            <div className="klf-margin-cell">
+              <span style={{ color: sub, fontSize: 12 }}>Total Margin{numParse(form.discount) > 0 ? ' (stlh diskon)' : ''}</span>
+              <strong style={{ color: totalMargin >= 0 ? '#1e7b34' : '#c0392b', fontSize: 16 }}>{rupiah(totalMargin)}</strong>
+              <span style={{ color: totalMargin >= 0 ? '#1e7b34' : '#c0392b', fontSize: 12 }}>{totalMarginPct.toFixed(1)}%</span>
+            </div>
+          </div>
         </div>
 
         <div className="klf-quote-form-grid">
@@ -919,6 +983,10 @@ const Quote = () => {
         .klf-quote-grid { display: grid; grid-template-columns: 1fr; gap: 12px; }
         .klf-quote-form-grid { display: grid; grid-template-columns: 1fr; gap: 12px; }
         .klf-quote-costing { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .klf-quote-itemfin { display: flex; flex-wrap: wrap; gap: 10px 24px; align-items: center; }
+        .klf-itemfin-cell { display: flex; flex-direction: column; gap: 1px; flex: 1 1 120px; }
+        .klf-quote-margin-grid { display: grid; grid-template-columns: 1fr; gap: 10px; }
+        .klf-margin-cell { display: flex; flex-direction: column; gap: 1px; padding: 8px 10px; background: rgba(127,127,127,.06); border-radius: 8px; }
         .klf-fld { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
         .klf-fld-full { grid-column: 1 / -1; }
         .klf-quote-actions { display: flex; gap: 10px; flex-wrap: wrap; position: sticky; bottom: 0; padding: 12px 0; margin-top: 8px; }
@@ -926,6 +994,7 @@ const Quote = () => {
           .klf-quote-grid { grid-template-columns: repeat(2, 1fr); }
           .klf-quote-form-grid { grid-template-columns: repeat(2, 1fr); }
           .klf-quote-costing { grid-template-columns: repeat(3, 1fr); }
+          .klf-quote-margin-grid { grid-template-columns: repeat(3, 1fr); }
         }
         @media (min-width: 1024px) {
           .klf-quote-grid { grid-template-columns: repeat(4, 1fr); }

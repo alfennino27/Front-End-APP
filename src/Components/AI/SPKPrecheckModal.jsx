@@ -62,7 +62,11 @@ const SPKPrecheckModal = ({ show, projectId, category, onClose, onProceed }) => 
   const chipActive = { background: '#6f42c1', color: '#fff', borderColor: '#6f42c1' };
 
   return (
-    <Modal show={show} onHide={onClose} centered size="lg" contentClassName={isLight ? '' : 'bg-dark text-light'}>
+    // onClick stopPropagation: react-bootstrap Modal pakai portal, tapi event React tetap
+    // merambat lewat React tree. Cegah klik di dalam modal memicu onClick card induk
+    // (mis. handleShowInformationModal) yang bikin modal Information ikut muncul.
+    <Modal show={show} onHide={onClose} centered size="lg" contentClassName={isLight ? '' : 'bg-dark text-light'}
+      onClick={(e) => e.stopPropagation()}>
       <Modal.Header closeButton>
         <Modal.Title style={{ fontSize: 18 }}>🔍 Cek Konsistensi SPK — {category}</Modal.Title>
       </Modal.Header>

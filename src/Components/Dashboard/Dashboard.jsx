@@ -15,6 +15,7 @@ const Dashboard = () => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(null); // 'kekurangan' | 'hutang' | 'estimasi' | null
+  const [togglingKey, setTogglingKey] = useState(null); // 'project_id|category' yg sedang diproses
 
   useEffect(() => {
     const cekLogin = () => {
@@ -25,20 +26,37 @@ const Dashboard = () => {
     cekLogin();
   }, []);
 
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const res = await fetch(`${getApiBaseUrl()}/dashboard/informatif/get`);
-        const json = await res.json();
-        setData(json);
-      } catch (e) {
-        console.error('Gagal ambil dashboard informatif:', e);
-      } finally {
-        setLoading(false);
-      }
-    };
-    load();
-  }, []);
+  const load = async () => {
+    try {
+      const res = await fetch(`${getApiBaseUrl()}/dashboard/informatif/get`);
+      const json = await res.json();
+      setData(json);
+    } catch (e) {
+      console.error('Gagal ambil dashboard informatif:', e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { load(); }, []);
+
+  // Toggle exclude satu baris estimasi, lalu muat ulang agar total & sisa piutang ikut update.
+  const toggleExclude = async (it) => {
+    const key = `${it.project_id}|${it.category}`;
+    setTogglingKey(key);
+    try {
+      await fetch(`${getApiBaseUrl()}/dashboard/informatif/estimasi/exclude`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ project_id: it.project_id, category: it.category, excluded: !it.excluded }),
+      });
+      await load();
+    } catch (e) {
+      console.error('Gagal toggle exclude:', e);
+    } finally {
+      setTogglingKey(null);
+    }
+  };
 
   const cardText = isDark ? '#fff' : '#222';
   const cardBg = isDark ? '#1e1e2d' : '#fff';
@@ -177,22 +195,45 @@ const Dashboard = () => {
           </Modal.Title>
         </Modal.Header>
         <Modal.Body style={modalBodyStyle}>
+          <div style={{ fontSize: 12, color: isDark ? '#999' : '#888', marginBottom: 10 }}>
+            Klik <b>Exclude</b> pada baris untuk mengeluarkannya dari hitungan. Baris ter-exclude ditandai coret & tidak dijumlahkan.
+          </div>
           {(data?.estimasi_biaya?.per_kategori || []).map((cat) => (
             <div key={cat.kategori} className="mb-3">
               <div className="d-flex justify-content-between align-items-center" style={{ borderBottom: `2px solid ${border}`, paddingBottom: 4 }}>
-                <span className="fw-semibold" style={{ fontSize: 15 }}>{cat.kategori} <span style={{ color: isDark ? '#888' : '#999', fontWeight: 400 }}>({cat.jumlah_item} item)</span></span>
+                <span className="fw-semibold" style={{ fontSize: 15 }}>
+                  {cat.kategori} <span style={{ color: isDark ? '#888' : '#999', fontWeight: 400 }}>({cat.jumlah_item} item{cat.jumlah_exclude ? `, ${cat.jumlah_exclude} exclude` : ''})</span>
+                </span>
                 <span className="fw-bold" style={{ color: '#e08a2f' }}>{rupiah(cat.total)}</span>
               </div>
               <Table borderless variant={isDark ? 'dark' : undefined} size="sm" className="mb-0">
                 <tbody>
-                  {cat.items.map((it, i) => (
-                    <tr key={i} style={{ fontSize: 13 }}>
-                      <td>{it.kodeInvoice}</td>
-                      <td>{it.namaBarang} {it.customer ? <span style={{ color: isDark ? '#888' : '#999' }}>— {it.customer}</span> : null}</td>
-                      <td className="text-end">{rupiah(it.estimasi_unit)} × {it.qty}</td>
-                      <td className="text-end">{rupiah(it.subtotal)}</td>
-                    </tr>
-                  ))}
+                  {cat.items.map((it, i) => {
+                    const key = `${it.project_id}|${it.category}`;
+                    const busy = togglingKey === key;
+                    const muted = isDark ? '#777' : '#aaa';
+                    return (
+                      <tr key={i} style={{ fontSize: 13, opacity: it.excluded ? 0.55 : 1, textDecoration: it.excluded ? 'line-through' : 'none', color: it.excluded ? muted : undefined }}>
+                        <td>{it.kodeInvoice}</td>
+                        <td>{it.namaBarang} {it.customer ? <span style={{ color: muted }}>— {it.customer}</span> : null}</td>
+                        <td className="text-end">{rupiah(it.estimasi_unit)} × {it.qty}</td>
+                        <td className="text-end">{rupiah(it.subtotal)}</td>
+                        <td className="text-end" style={{ textDecoration: 'none', width: 90 }}>
+                          <button
+                            onClick={() => toggleExclude(it)}
+                            disabled={busy}
+                            style={{
+                              fontSize: 11, padding: '2px 8px', borderRadius: 6, cursor: busy ? 'wait' : 'pointer',
+                              border: `1px solid ${it.excluded ? '#2fa855' : '#e0455e'}`,
+                              background: 'transparent', color: it.excluded ? '#2fa855' : '#e0455e', whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {busy ? '…' : it.excluded ? 'Include' : 'Exclude'}
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </Table>
             </div>

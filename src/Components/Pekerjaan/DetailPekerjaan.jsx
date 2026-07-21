@@ -1992,14 +1992,6 @@ const DetailPekerjaan = () => {
             <ConsistencyCheck projectId={slug} itemName={dataProjectFromDB[0]?.NamaBarang} />
           )}
 
-          <SPKPrecheckModal
-            show={showSpkPrecheck}
-            projectId={slug}
-            category={category}
-            onClose={() => setShowSpkPrecheck(false)}
-            onProceed={() => { setShowSpkPrecheck(false); handlePrintSPK(); }}
-          />
-
           <div onClick={handleShowInformationModal}>
             <div className='mt-4 d-flex align-items-center' style={{ gap: '8px' }}>
               <h6 className='mb-0' style={{ color: globalTheme == "light" ? "black" : "white" }}>Deskripsi Produk</h6>
@@ -2023,6 +2015,19 @@ const DetailPekerjaan = () => {
         </div>
       </div>
 
+
+      {/* SPKPrecheckModal sengaja dirender DI LUAR card deskripsiPekerjaan (yang punya
+          onClick=handleShowInformationModal). React-Bootstrap Modal pakai portal, tapi
+          event sintetis React tetap merambat lewat React tree — kalau modal ini anak dari
+          card ber-onClick, tiap klik di dalam modal (pilih verdict / Kirim jawaban) ikut
+          memicu handleShowInformationModal → modal Information muncul terus. */}
+      <SPKPrecheckModal
+        show={showSpkPrecheck}
+        projectId={slug}
+        category={category}
+        onClose={() => setShowSpkPrecheck(false)}
+        onProceed={() => { setShowSpkPrecheck(false); handlePrintSPK(); }}
+      />
 
       {/* Modal */}
       <Modal className={`${globalTheme === 'light' ? 'modalKLFlight' : 'modalKLF'}`} show={showInformationModal} onHide={handleCloseInformationModal}>

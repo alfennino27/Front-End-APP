@@ -161,6 +161,27 @@ const OrderAssistant = ({ invoiceId, kodeInvoice, projects = [], invoice = {} })
     } catch (err) { /* abaikan */ }
   };
 
+  // Feedback flag -> AJARI extractor. { [flagText]: { open, verdict:'not_critical'|'always_flag', note, status } }
+  const [flagFb, setFlagFb] = useState({});
+  const patchFlagFb = (t, p) => setFlagFb((prev) => ({ ...prev, [t]: { ...(prev[t] || {}), ...p } }));
+  const getUid = () => { try { return JSON.parse(localStorage.getItem('user'))?.uid || null; } catch { return null; } };
+  const submitFlagFeedback = async (f) => {
+    const fb = flagFb[f.text] || {};
+    const verdict = fb.verdict || 'not_critical';
+    const note = (fb.note || '').trim();
+    if (!note) { patchFlagFb(f.text, { status: 'need_note' }); return; }
+    patchFlagFb(f.text, { status: 'saving' });
+    try {
+      const res = await fetch(`${baseUrl}/ai/order/${invoiceId}/flags/feedback`, {
+        method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ flag_text: f.text, item_name: f.item_name || '', verdict, explanation: note, user_uid: getUid() }),
+      });
+      const data = await res.json();
+      if (res.ok) { patchFlagFb(f.text, { status: 'saved' }); if (data.critical_flags) setFlags(data.critical_flags); }
+      else patchFlagFb(f.text, { status: 'error' });
+    } catch (err) { patchFlagFb(f.text, { status: 'error' }); }
+  };
+
   const sendFeedback = async (helpful) => {
     if (helpful) { await postFeedback({ helpful: true }); setMsg('👍 Terima kasih atas feedback-nya.'); return; }
     setFeedbackOpen(true);
@@ -333,12 +354,58 @@ const OrderAssistant = ({ invoiceId, kodeInvoice, projects = [], invoice = {} })
         {flags.length > 0 && (
           <div style={{ marginBottom: 16 }}>
             <label style={{ fontWeight: 600, color: '#dc3545' }}>Critical Flags</label>
-            {flags.map((f, i) => (
-              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, padding: '6px 10px', marginTop: 4, borderRadius: 6, background: f.acknowledged ? 'rgba(108,117,125,0.15)' : 'rgba(220,53,69,0.15)', border: `1px solid ${f.acknowledged ? '#6c757d' : '#dc3545'}` }}>
-                <span style={{ textDecoration: f.acknowledged ? 'line-through' : 'none' }}>{f.acknowledged ? '✔ ' : '⚠ '}{f.item_name ? `[${f.item_name}] ` : ''}{f.text}</span>
-                {!f.acknowledged && <button onClick={() => acknowledgeFlag(f.text)} style={{ ...btn, background: '#6c757d', padding: '4px 10px', fontSize: 13 }}>Acknowledge</button>}
-              </div>
-            ))}
+            {flags.map((f, i) => {
+              const fb = flagFb[f.text] || {};
+              const verdict = fb.verdict || 'not_critical';
+              const vbtn = (val, label) => (
+                <button key={val} onClick={() => patchFlagFb(f.text, { verdict: val })}
+                  style={{ ...chip, borderColor: '#dc3545', color: verdict === val ? '#fff' : (isLight ? '#dc3545' : '#f28b94'), background: verdict === val ? '#dc3545' : 'transparent' }}>{label}</button>
+              );
+              return (
+                <div key={i} style={{ marginTop: 4, borderRadius: 6, background: f.acknowledged ? 'rgba(108,117,125,0.15)' : 'rgba(220,53,69,0.15)', border: `1px solid ${f.acknowledged ? '#6c757d' : '#dc3545'}` }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, padding: '6px 10px' }}>
+                    <span style={{ textDecoration: f.acknowledged ? 'line-through' : 'none' }}>
+                      {f.not_critical ? '🚫 ' : f.acknowledged ? '✔ ' : '⚠ '}{f.item_name ? `[${f.item_name}] ` : ''}{f.text}
+                      {f.not_critical && <span style={{ fontSize: 11, opacity: 0.7, marginLeft: 6 }}>(ditandai bukan flag)</span>}
+                    </span>
+                    <span style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                      {!f.acknowledged && <button onClick={() => acknowledgeFlag(f.text)} style={{ ...btn, background: '#6c757d', padding: '4px 10px', fontSize: 13 }}>Acknowledge</button>}
+                      {fb.status !== 'saved' && !f.not_critical && (
+                        <button onClick={() => patchFlagFb(f.text, { open: !fb.open, verdict: fb.verdict || 'not_critical' })}
+                          title="Ajari AI: apakah ini benar critical flag?"
+                          style={{ ...chip, margin: 0, borderColor: '#6f42c1', color: isLight ? '#6f42c1' : '#b794f4' }}>🎓 Ajari AI</button>
+                      )}
+                    </span>
+                  </div>
+
+                  {fb.status === 'saved' ? (
+                    <div style={{ padding: '0 10px 8px', fontSize: 13, color: '#198754' }}>✅ Aturan tersimpan. AI pakai ini saat ekstraksi chat ke depan.</div>
+                  ) : fb.open && (
+                    <div style={{ padding: 10, margin: '0 8px 8px', borderRadius: 6, background: isLight ? '#faf5ff' : '#241b33', border: '1px solid #6f42c1' }}>
+                      <div style={{ fontSize: 13, marginBottom: 6 }}>Menurut kamu flag ini:</div>
+                      <div style={{ marginBottom: 6 }}>
+                        {vbtn('not_critical', '🚫 Bukan flag (rutin/wajar)')}
+                        {vbtn('always_flag', '⚠️ Justru harus selalu di-flag')}
+                      </div>
+                      <textarea value={fb.note || ''} onChange={(e) => patchFlagFb(f.text, { note: e.target.value, status: undefined })} rows={2}
+                        placeholder={verdict === 'not_critical'
+                          ? 'Jelaskan kenapa pola ini rutin/wajar. Mis. "packing kayu standar untuk semua kirim luar kota, bukan hal khusus".'
+                          : 'Jelaskan kenapa pola ini selalu berisiko. Mis. "akses lift sempit wajib dicek untuk semua furniture besar".'}
+                        style={{ ...inputStyle, boxSizing: 'border-box' }} />
+                      {fb.status === 'need_note' && <div style={{ fontSize: 12, color: '#dc3545', marginTop: 4 }}>Tulis penjelasannya dulu.</div>}
+                      <div style={{ marginTop: 6 }}>
+                        <button onClick={() => submitFlagFeedback(f)} disabled={fb.status === 'saving'}
+                          style={{ background: '#6f42c1', color: '#fff', border: 'none', borderRadius: 6, padding: '5px 12px', fontSize: 13, fontWeight: 600, cursor: 'pointer', opacity: fb.status === 'saving' ? 0.6 : 1 }}>
+                          {fb.status === 'saving' ? 'Menyimpan…' : 'Kirim ke AI'}
+                        </button>
+                        <button onClick={() => patchFlagFb(f.text, { open: false })} style={{ ...chip, marginLeft: 6 }}>Batal</button>
+                        {fb.status === 'error' && <span style={{ color: '#dc3545', marginLeft: 8, fontSize: 13 }}>❌ Gagal menyimpan</span>}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
 

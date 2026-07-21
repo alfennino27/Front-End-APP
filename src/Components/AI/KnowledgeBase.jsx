@@ -8,8 +8,8 @@ import { useTheme } from '../../ThemeContext';
 const aiKey = import.meta.env.VITE_KLF_AI_KEY || '';
 const authHeaders = (extra = {}) => ({ ...(aiKey ? { 'X-KLF-Key': aiKey } : {}), ...extra });
 
-const TYPES = ['sop', 'correction', 'example', 'common_mistake', 'learned'];
-const TYPE_LABEL = { sop: 'SOP', correction: 'Koreksi', example: 'Contoh', common_mistake: 'Kesalahan Umum', learned: 'Auto-Learning' };
+const TYPES = ['sop', 'correction', 'consistency_rule', 'flag_rule', 'example', 'common_mistake', 'learned'];
+const TYPE_LABEL = { sop: 'SOP', correction: 'Koreksi', consistency_rule: 'Aturan Konsistensi', flag_rule: 'Aturan Flag', example: 'Contoh', common_mistake: 'Kesalahan Umum', learned: 'Auto-Learning' };
 
 const KnowledgeBase = () => {
   const baseUrl = getApiBaseUrl();

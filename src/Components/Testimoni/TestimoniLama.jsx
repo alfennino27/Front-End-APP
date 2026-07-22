@@ -3,6 +3,7 @@ import { Container, Button, Modal, Form, Spinner, Badge } from 'react-bootstrap'
 import { getApiBaseUrl } from '../../Config/APIurl';
 import { useTheme } from '../../ThemeContext';
 import { getImageUrl } from '../../Utils/image';
+import { heicToJpegAll } from '../../Utils/heic';
 import { MdDelete, MdAddPhotoAlternate } from 'react-icons/md';
 import { FiUploadCloud } from 'react-icons/fi';
 
@@ -43,8 +44,8 @@ const TestimoniLama = () => {
 
     useEffect(() => { fetchData(); }, []);
 
-    const handleFileChange = (e) => {
-        const files = Array.from(e.target.files);
+    const handleFileChange = async (e) => {
+        const files = await heicToJpegAll(e.target.files); // HEIC iPhone → JPEG
         setScreenshots(prev => [...prev, ...files]);
         const newPreviews = files.map(f => URL.createObjectURL(f));
         setPreviews(prev => [...prev, ...newPreviews]);
@@ -227,7 +228,7 @@ const TestimoniLama = () => {
                             ref={fileRef}
                             type="file"
                             multiple
-                            accept="image/*"
+                            accept="image/*,.heic,.heif"
                             style={{ display: 'none' }}
                             onChange={handleFileChange}
                         />

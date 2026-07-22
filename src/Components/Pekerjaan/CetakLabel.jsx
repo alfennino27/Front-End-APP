@@ -60,8 +60,11 @@ const CetakLabel = () => {
         }
       `}</style>
       <div className="label-container">
-        {labels.flatMap((item, index) =>
-          Array.from({ length: item.quantity }, (_, i) => (
+        {labels.flatMap((item, index) => {
+          // Jumlah lembar yang dicetak = Jumlah Print (bebas). Fallback ke
+          // quantity untuk label lama yang belum punya field jumlahPrint.
+          const copies = Math.max(1, Number(item.jumlahPrint ?? item.quantity) || 1);
+          return Array.from({ length: copies }, (_, i) => (
             <div key={`${index}-${i}`} className="label-card">
               <div className="header">{item.buyer}</div>
               <div className="details">{item.telephone}</div>
@@ -70,8 +73,8 @@ const CetakLabel = () => {
               <div className="details">{item.productName}</div>
               <div className="footer">Qty Total: {item.quantity} Pcs</div>
             </div>
-          ))
-        )}
+          ));
+        })}
       </div>
     </>
   );

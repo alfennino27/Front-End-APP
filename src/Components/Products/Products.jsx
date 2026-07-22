@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { useParams } from 'react-router-dom';
 import { getApiBaseUrl } from '../../Config/APIurl';
 import { useNavigate } from 'react-router-dom';
+import { heicToJpeg } from '../../Utils/heic';
 import '../Pekerjaan/pekerjaan.css';
 import 'antd/dist/reset.css';
 import { MdDelete, MdFormatListBulletedAdd, MdOutlineEditNote } from 'react-icons/md';
@@ -172,10 +173,11 @@ const Products = () => {
 
 
   const [fileToUploadEdit, setFileToUploadEdit] = useState({});
-  const handleFileChange = (index, file) => {
+  const handleFileChange = async (index, file) => {
+    const conv = await heicToJpeg(file); // HEIC iPhone → JPEG
     setFileToUploadEdit((prev) => ({
       ...prev,
-      [index]: file
+      [index]: conv
     }));
   };
 
@@ -1612,10 +1614,10 @@ const Products = () => {
           <label className="mt-3">Gambar Varian:</label>
           <input
             type="file"
-            accept="image/*"
+            accept="image/*,.heic,.heif"
             className="form-control"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
+            onChange={async (e) => {
+              const file = await heicToJpeg(e.target.files?.[0]);
               if (file) setSelectedImageFile(file);
             }}
           />
@@ -1779,10 +1781,10 @@ const Products = () => {
           <label className="mt-3">Gambar Varian:</label>
           <input
             type="file"
-            accept="image/*"
+            accept="image/*,.heic,.heif"
             className="form-control"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
+            onChange={async (e) => {
+              const file = await heicToJpeg(e.target.files?.[0]);
               if (file) setSelectedImageFile(file);
             }}
           />

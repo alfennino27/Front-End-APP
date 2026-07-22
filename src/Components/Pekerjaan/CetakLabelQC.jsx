@@ -63,8 +63,10 @@ const CetakLabel = () => {
         }
       `}</style>
       <div className="label-container">
-        {labels.flatMap((item, index) =>
-          Array.from({ length: item.quantity }, (_, i) => (
+        {labels.flatMap((item, index) => {
+          // Jumlah lembar = Jumlah Print (bebas). Fallback ke quantity utk label lama.
+          const copies = Math.max(1, Number(item.jumlahPrint ?? item.quantity) || 1);
+          return Array.from({ length: copies }, (_, i) => (
             <div key={`${index}-${i}`} className="label-card">
               <div className="fw-bold text-center">{item.productName}</div>
               <img src={getImageUrl(item.image)} alt={item.productName} />
@@ -80,8 +82,8 @@ const CetakLabel = () => {
               <div className="border text-start small" style={{ paddingLeft:"5px" }}>Bungkus :</div>
               <div className="border text-start small" style={{ paddingLeft:"5px" }}>Foto :</div>
             </div>
-          ))
-        )}
+          ));
+        })}
       </div>
     </>
   );

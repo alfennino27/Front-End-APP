@@ -24,6 +24,7 @@ import { Image, Progress, Form, Mentions, Space, InputNumber, Select, Popconfirm
 import { Link } from 'react-router-dom';
 import { useTheme } from '../../ThemeContext';
 import { getImageUrl } from '../../Utils/image';
+import { heicToJpeg } from '../../Utils/heic';
 import noImageAvailable from '../../assets/images/noImageAvailable.png';
 import glbLogoImg from '../../assets/images/glbLogo.webp';
 
@@ -105,26 +106,29 @@ const DetailPekerjaan = () => {
   const [jumlahImageCategory, setJumlahImageCategory] = useState(10);
   const [jumlahImageRenderEdit, setJumlahImageRenderEdit] = useState(10);
   const [fileToUploadEdit, setFileToUploadEdit] = useState({});
-  const handleFileChange = (index, file) => {
+  const handleFileChange = async (index, file) => {
+    const conv = await heicToJpeg(file); // HEIC iPhone → JPEG
     setFileToUploadEdit((prev) => ({
       ...prev,
-      [index]: file
+      [index]: conv
     }));
   };
 
   const [fileToUploadCategoryEdit, setFileToUploadCategoryEdit] = useState({});
-  const handleFileChangeCategoryEdit = (index, file) => {
+  const handleFileChangeCategoryEdit = async (index, file) => {
+    const conv = await heicToJpeg(file); // HEIC iPhone → JPEG
     setFileToUploadCategoryEdit((prev) => ({
       ...prev,
-      [index]: file
+      [index]: conv
     }));
   };
 
   const [fileToUploadRenderEdit, setFileToUploadRenderEdit] = useState({});
-  const handleFileRenderChange = (index, file) => {
+  const handleFileRenderChange = async (index, file) => {
+    const conv = await heicToJpeg(file); // HEIC iPhone → JPEG
     setFileToUploadRenderEdit((prev) => ({
       ...prev,
-      [index]: file
+      [index]: conv
     }));
   };
 

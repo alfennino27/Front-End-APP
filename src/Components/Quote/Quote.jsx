@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom';
 import { getApiBaseUrl } from '../../Config/APIurl';
 import { useTheme } from '../../ThemeContext';
+import { isHeic, heicToJpegAll } from '../../Utils/heic';
 
 // Dropdown dengan search bar (dipakai untuk pilih customer & template).
 const SearchableSelect = ({ options, value, onChange, placeholder, ui }) => {
@@ -369,11 +370,18 @@ const Quote = () => {
   }));
   const addItem = () => setForm((f) => ({ ...f, items: [...f.items, emptyItem()] }));
   const removeItem = (idx) => setForm((f) => ({ ...f, items: f.items.filter((_, i) => i !== idx) }));
-  const addFilesToItem = (idx, files) => {
-    const arr = Array.from(files || []).filter((f) => f && f.type && f.type.startsWith('image/'));
+  const addFilesToItem = async (idx, files) => {
+    const arr = Array.from(files || []).filter(
+      (f) => f && ((f.type && f.type.startsWith('image/')) || isHeic(f))
+    );
     if (!arr.length) return;
-    const added = arr.map((file) => ({ file, preview: URL.createObjectURL(file) }));
-    updateItem(idx, { images: [...form.items[idx].images, ...added] });
+    const converted = await heicToJpegAll(arr); // HEIC iPhone → JPEG dulu
+    const added = converted.map((file) => ({ file, preview: URL.createObjectURL(file) }));
+    // pakai functional update: setelah await, `form` bisa stale.
+    setForm((f) => ({
+      ...f,
+      items: f.items.map((it, i) => (i === idx ? { ...it, images: [...it.images, ...added] } : it)),
+    }));
   };
   const addItemImages = (idx, fileList) => addFilesToItem(idx, fileList);
   // paste dari tombol (Clipboard API)
@@ -817,7 +825,7 @@ const Quote = () => {
                   Drag &amp; drop gambar di sini
                   <br /><span style={{ fontSize: 11 }}>(dari Photos / Finder), klik untuk pilih file, atau paste (Cmd+V)</span>
                 </div>
-                <input type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={(e) => { addItemImages(idx, e.target.files); e.target.value = ''; }} />
+                <input type="file" accept="image/*,.heic,.heif" multiple style={{ display: 'none' }} onChange={(e) => { addItemImages(idx, e.target.files); e.target.value = ''; }} />
               </label>
               <button type="button" title="Tempel dari clipboard" onClick={() => pasteImageFromClipboard(idx)}
                 style={{ ...btnGhost, width: 52, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>📋</button>

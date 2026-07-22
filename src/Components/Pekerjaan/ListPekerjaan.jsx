@@ -54,6 +54,8 @@ const ListPekerjaan = () => {
   const [jenisMarmerProject, setJenisMarmerProject] = useState('');
   const [jenisKainProject, setJenisKainProject] = useState('');
   const [qtyProject, setQtyProject] = useState('');
+  const [jumlahPrint, setJumlahPrint] = useState(''); // berapa lembar label mau dicetak (bebas)
+  const [labelProducts, setLabelProducts] = useState([]); // produk dari invoice yg BELUM LUNAS (sumber dropdown label)
 
   const [sortOrder, setSortOrder] = useState('oldest');
   const [selectedMonth, setSelectedMonth] = useState(null);
@@ -225,25 +227,24 @@ const ListPekerjaan = () => {
     setJenisMarmerProject('');
     setJenisKainProject('');
     setQtyProject('');
+    setJumlahPrint('');
 
-    // Ambil data project terbaru dari server supaya perubahan (mis. alamat) langsung nampil tanpa reload
+    // Sumber dropdown label = semua produk dari invoice yang BELUM LUNAS
+    // (termasuk produk yang statusnya sudah Completed). Diambil fresh dari server
+    // supaya perubahan (mis. alamat) & status lunas langsung nampil tanpa reload.
     try {
-      const res = await fetch(`${baseUrl}/projects/list`, {
+      const res = await fetch(`${baseUrl}/projects/label-products`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ showCompleted })
       });
       const freshData = await res.json();
-
-      if (showCompleted) {
-        setMasterDataTrue(freshData);
-      } else {
-        setMasterDataFalse(freshData);
-      }
-      setProjectsCopy([...freshData]);
+      const arr = Array.isArray(freshData) ? freshData : [];
+      setLabelProducts(arr);
+      setProjectsCopy(arr);
     } catch (err) {
-      console.error('Error refetching projects for label:', err);
-      setProjectsCopy([...Projects]);
+      console.error('Error fetching label products:', err);
+      setLabelProducts([]);
+      setProjectsCopy([]);
     }
   };
 
@@ -417,12 +418,12 @@ const ListPekerjaan = () => {
 
   useEffect(() => {
     setProjectsCopy(
-      Projects.filter((item) =>
+      labelProducts.filter((item) =>
         (item.NamaBarang && item.NamaBarang.toLowerCase().includes(searchProduct.toLowerCase())) ||
         (item.Buyer && item.Buyer.toLowerCase().includes(searchProduct.toLowerCase()))
       )
     );
-  }, [searchProduct]);
+  }, [searchProduct, labelProducts]);
 
   const submitLabel = () => {
     const newLabel = {
@@ -435,7 +436,8 @@ const ListPekerjaan = () => {
       finishingQC: finishingProject,
       jenisMarmerQC: jenisMarmerProject,
       jenisKainQC: jenisKainProject,
-      quantity: qtyProject,
+      quantity: qtyProject,       // Quantity Product (dari invoice) — tampil di label
+      jumlahPrint: jumlahPrint,   // berapa lembar label dicetak
     };
     setCetakLabel([...cetakLabel, newLabel]);
     // Reset form fields after submission if needed
@@ -451,6 +453,7 @@ const ListPekerjaan = () => {
     setJenisMarmerProject('');
     setJenisKainProject('');
     setQtyProject('');
+    setJumlahPrint('');
 
     setShowAddLabel(false);
     setShowLabel(true);
@@ -1107,7 +1110,7 @@ const ListPekerjaan = () => {
 
           {cetakLabel.map((item, index) => (
             <div key={index}>
-              <p>{index + 1}. {item.productName} ({item.quantity})</p>
+              <p>{index + 1}. {item.productName} (Qty: {item.quantity}, Print: {item.jumlahPrint ?? item.quantity})</p>
             </div>
           ))}
 
@@ -1156,7 +1159,7 @@ const ListPekerjaan = () => {
                   return (
                     <Dropdown.Item
                       key={index}
-                      onClick={() => { setIdProject(item.id); setSelectedProduct(item.NamaBarang); setProductProject(item.NamaBarang); setBuyerProject(item.Buyer); setTeleponProject(''); setAlamatProject(item.Lokasi); setImageProject(item.image1); setUkuranProject(item.UkuranQC); setFinishingProject(item.FinishingQC); setJenisMarmerProject(item.JenisMarmerQC); setJenisKainProject(item.JenisKainQC); setQtyProject(item.Qty); }}
+                      onClick={() => { setIdProject(item.id); setSelectedProduct(item.NamaBarang); setProductProject(item.NamaBarang); setBuyerProject(item.Buyer); setTeleponProject(''); setAlamatProject(item.Lokasi); setImageProject(item.image1); setUkuranProject(item.UkuranQC); setFinishingProject(item.FinishingQC); setJenisMarmerProject(item.JenisMarmerQC); setJenisKainProject(item.JenisKainQC); setQtyProject(item.Qty); setJumlahPrint(item.Qty); }}
                     >
                       <img
                         src={getImageUrl(item.image1)}
@@ -1179,8 +1182,10 @@ const ListPekerjaan = () => {
             <label className='mt-2'>Product Name :</label>
             <input className="form-control mb-1" type='text' defaultValue={productProject} onChange={(e) => setProductProject(e.target.value)}></input>
           </div>
-          <label className='mt-2'>Quantity :</label>
-          <input className="form-control mb-1" type='number' defaultValue={qtyProject} onChange={(e) => setQtyProject(e.target.value)} onWheel={(e) => e.target.blur()}></input>
+          <label className='mt-2'>Quantity Product :</label>
+          <input className="form-control mb-1" type='number' value={qtyProject} onChange={(e) => setQtyProject(e.target.value)} onWheel={(e) => e.target.blur()}></input>
+          <label className='mt-2'>Jumlah Print :</label>
+          <input className="form-control mb-1" type='number' value={jumlahPrint} onChange={(e) => setJumlahPrint(e.target.value)} onWheel={(e) => e.target.blur()}></input>
         </Modal.Body>
         <Modal.Footer >
           <Button variant="primary" onClick={submitLabel}>Submit</Button>

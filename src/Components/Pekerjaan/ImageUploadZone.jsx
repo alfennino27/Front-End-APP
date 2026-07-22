@@ -2,6 +2,7 @@ import React, { useRef, useState, useEffect } from 'react';
 import { Button } from 'react-bootstrap';
 import { FaPaste, FaTimes, FaRegImages, FaCamera } from 'react-icons/fa';
 import { compressImageFiles } from '../../Utils/compressImage';
+import { isHeic } from '../../Utils/heic';
 
 // Zona upload gambar serbaguna: drag & drop (termasuk drag langsung dari
 // aplikasi Photos / Finder di Mac), paste banyak gambar dari clipboard, pilih
@@ -18,7 +19,8 @@ const ImageUploadZone = ({ images = [], onChange, max = 10, theme = 'light' }) =
 
   const addFiles = async (incoming) => {
     const onlyImages = Array.from(incoming || []).filter(
-      (f) => f && f.type && f.type.startsWith('image/')
+      // HEIC dari iPhone kadang punya file.type kosong → kenali via ekstensi juga.
+      (f) => f && ((f.type && f.type.startsWith('image/')) || isHeic(f))
     );
     if (onlyImages.length === 0) return;
     setProcessing(true);
@@ -178,7 +180,7 @@ const ImageUploadZone = ({ images = [], onChange, max = 10, theme = 'light' }) =
       <input
         ref={inputRef}
         type="file"
-        accept="image/*"
+        accept="image/*,.heic,.heif"
         multiple
         style={{ display: 'none' }}
         onChange={(e) => {
@@ -192,7 +194,7 @@ const ImageUploadZone = ({ images = [], onChange, max = 10, theme = 'light' }) =
       <input
         ref={cameraRef}
         type="file"
-        accept="image/*"
+        accept="image/*,.heic,.heif"
         capture="environment"
         style={{ display: 'none' }}
         onChange={(e) => {

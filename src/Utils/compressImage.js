@@ -6,6 +6,8 @@
 // tapi tetap tajam. Server (compressImage.js) otomatis skip file .webp,
 // jadi tidak dobel proses.
 
+import { heicToJpeg } from './heic';
+
 const DEFAULTS = {
   maxDimension: 1600, // sisi terpanjang (px)
   quality: 0.72,      // kualitas webp/jpeg (0-1)
@@ -54,6 +56,10 @@ function canvasToBlob(canvas, mimeType, quality) {
  */
 export async function compressImageFile(file, options = {}) {
   const opts = { ...DEFAULTS, ...options };
+
+  // iPhone HEIC/HEIF tidak bisa didecode canvas/<img> di browser non-Safari →
+  // ubah ke JPEG dulu supaya bisa dikompres, dipreview & dibaca server.
+  file = await heicToJpeg(file);
 
   if (!file || !file.type || !file.type.startsWith('image/')) return file;
   // GIF (animasi) & SVG jangan diutak-atik lewat canvas.

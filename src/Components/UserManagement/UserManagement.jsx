@@ -5,6 +5,7 @@ import { useParams } from 'react-router-dom';
 import { getApiBaseUrl } from '../../Config/APIurl';
 import { useNavigate } from 'react-router-dom';
 import '../Pekerjaan/pekerjaan.css';
+import { heicToJpeg } from '../../Utils/heic';
 import { MdFormatListBulletedAdd } from 'react-icons/md';
 import { debounce } from 'lodash';
 import { FaFileInvoice, FaPaste, FaSearch } from 'react-icons/fa';
@@ -527,8 +528,8 @@ const UserManagement = () => {
                         <Input
                             type="file"
                             name="profilePicture"
-                            accept="image/*"
-                            onChange={(e) => setFormRegister({ ...formRegister, profilePicture: e.target.files[0] })}
+                            accept="image/*,.heic,.heif"
+                            onChange={async (e) => setFormRegister({ ...formRegister, profilePicture: await heicToJpeg(e.target.files[0]) })}
                         />
                     </div>
 
@@ -588,8 +589,8 @@ const UserManagement = () => {
                         <Input
                             type="file"
                             name="profilePicture"
-                            accept="image/*"
-                            onChange={(e) => setFormData({ ...formData, profilePicture: e.target.files[0] })}
+                            accept="image/*,.heic,.heif"
+                            onChange={async (e) => setFormData({ ...formData, profilePicture: await heicToJpeg(e.target.files[0]) })}
                         />
                     </div>
 

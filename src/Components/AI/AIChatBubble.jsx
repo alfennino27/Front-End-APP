@@ -17,7 +17,7 @@ const getUid = () => { try { return JSON.parse(localStorage.getItem('user'))?.ui
 let MID = 0;
 const nid = () => `m${++MID}`;
 
-const AIChatBubble = () => {
+const AIChatBubble = ({ seedContext = '', greeting = '', onActivity = null } = {}) => {
   const baseUrl = getApiBaseUrl();
   const { globalTheme } = useTheme();
   const isLight = globalTheme === 'light';
@@ -40,6 +40,7 @@ const AIChatBubble = () => {
 
   useEffect(() => {
     if (open && messages.length === 0) {
+      if (greeting) { pushBot(greeting); return; }
       pushBot('Halo! Saya **KLF Chatbot**. Tanya apa saja: progres & deadline order, detail item, '
         + 'atau keuangan seperti _"berapa sisa SPK supplier A?"_ / _"berapa sisa payment invoice B?"_ '
         + '(akses keuangan mengikuti izin akunmu). Saat saya beri detail item, saya sertakan kutipan bukti. '
@@ -106,7 +107,10 @@ const AIChatBubble = () => {
   // ---- chat konsultan (multi-turn, tools, permission, bukti, usulan komentar) ----
   const askChat = async (question) => {
     setBusy(true);
-    apiMsgsRef.current = [...apiMsgsRef.current, { role: 'user', content: question }];
+    // Pada giliran PERTAMA, sematkan konteks halaman (mis. bulan CRM aktif) — tak ditampilkan ke user.
+    const isFirst = apiMsgsRef.current.length === 0;
+    const content = (isFirst && seedContext) ? `[Konteks: ${seedContext}]\n\n${question}` : question;
+    apiMsgsRef.current = [...apiMsgsRef.current, { role: 'user', content }];
 
     // Gambar bukti (kalau ada) — dikompres dulu lalu dikirim ke AI untuk dibaca.
     // Disimpan di ref untuk dipakai saat user klik Setujui.
@@ -136,6 +140,7 @@ const AIChatBubble = () => {
         citations: data.citations || [],
         proposals: (data.proposals || []).map((p) => ({ ...p, _status: 'pending' })),
       });
+      if (onActivity) onActivity(); // mis. refresh daftar evaluasi kalau AI menyimpan evaluasi
     } catch (e) { pushBot('❌ Koneksi gagal: ' + e.message); } finally { setBusy(false); }
   };
 

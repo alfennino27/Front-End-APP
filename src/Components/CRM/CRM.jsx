@@ -3,6 +3,7 @@ import { Container, Modal, Button, Form, Badge, Spinner } from 'react-bootstrap'
 import { getApiBaseUrl } from '../../Config/APIurl';
 import { useTheme } from '../../ThemeContext';
 import { MdAdd, MdEdit, MdDelete, MdFileUpload } from 'react-icons/md';
+import AIChatBubble from '../AI/AIChatBubble';
 
 const STAGES = [
   { key: 'leads',     label: 'Leads Baru',     color: '#378ADD', bg: '#EAF3FB' },
@@ -41,6 +42,7 @@ export default function CRM() {
   const [detailLead, setDetailLead] = useState(null);
   const [dealValue, setDealValue] = useState('');
   const [grossProfit, setGrossProfit] = useState('');
+  const [qualityNote, setQualityNote] = useState('');
   const [editingCampaign, setEditingCampaign] = useState(null);
   const [campForm, setCampForm] = useState({ nama:'', platform:'instagram', bulan:'', spend:'', status:'active' });
   const [showImportModal, setShowImportModal] = useState(false);
@@ -51,6 +53,23 @@ export default function CRM() {
   const [expandedCamp, setExpandedCamp] = useState(null);
   const [syncing, setSyncing] = useState(false);
 
+  // Evaluasi iklan (jurnal per bulan)
+  const [evaluations, setEvaluations] = useState([]);
+  const [showEvalModal, setShowEvalModal] = useState(false);
+  const [editingEval, setEditingEval] = useState(null);
+  const emptyEvalForm = { bulan:'', campaign_ids:[], tanggal: today, title:'', body:'' };
+  const [evalForm, setEvalForm] = useState(emptyEvalForm);
+  const [savingEval, setSavingEval] = useState(false);
+  const currentUser = (() => { try { return JSON.parse(localStorage.getItem('user')||'{}'); } catch { return {}; } })();
+
+  const fetchEvaluations = useCallback(async () => {
+    try {
+      const res = await fetch(baseUrl+'/crm/evaluations/get');
+      const d = await res.json();
+      setEvaluations(Array.isArray(d)?d:[]);
+    } catch(e) { console.error(e); }
+  }, [baseUrl]);
+
   const fetchAll = useCallback(async () => {
     setLoading(true);
     try {
@@ -59,8 +78,40 @@ export default function CRM() {
       setLeads(Array.isArray(ld)?ld:[]);
       setCampaigns(Array.isArray(cd)?cd:[]);
     } catch(e) { console.error(e); }
+    fetchEvaluations();
     setLoading(false);
-  }, [baseUrl]);
+  }, [baseUrl, fetchEvaluations]);
+
+  // Submit evaluasi (create/update entri manual)
+  const submitEval = async () => {
+    if (!evalForm.body.trim()) { alert('Isi evaluasi belum diisi'); return; }
+    const bulan = evalForm.bulan || filterBulan;
+    if (!bulan) { alert('Pilih bulan evaluasi (atau set filter periode dulu)'); return; }
+    setSavingEval(true);
+    try {
+      const payload = {
+        bulan,
+        campaign_ids: evalForm.campaign_ids,
+        tanggal: evalForm.tanggal,
+        title: evalForm.title,
+        body: evalForm.body,
+      };
+      if (editingEval) {
+        await fetch(baseUrl+'/crm/evaluations/update/'+editingEval.id, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
+      } else {
+        await fetch(baseUrl+'/crm/evaluations/create', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({...payload, type:'manual', author_uid: currentUser.uid||null, author_name: currentUser.name||currentUser.displayName||'', source:'app'})});
+      }
+      setShowEvalModal(false); setEditingEval(null); setEvalForm(emptyEvalForm);
+      fetchEvaluations();
+    } catch(e){ alert('Gagal simpan evaluasi'); }
+    setSavingEval(false);
+  };
+
+  const deleteEval = async (id) => {
+    if (!window.confirm('Hapus evaluasi ini?')) return;
+    await fetch(baseUrl+'/crm/evaluations/delete/'+id, {method:'DELETE'});
+    fetchEvaluations();
+  };
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
@@ -102,6 +153,15 @@ export default function CRM() {
   const handleSaveDealValue = async () => {
     await fetch(baseUrl+'/crm/leads/update/'+detailLead.id, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({deal_value:Number(dealValue),gross_profit:Number(grossProfit)})});
     setShowLeadDetail(false); fetchAll();
+  };
+
+  // Kualitas lead (qualified/junk + catatan) — untuk analisa respon lead
+  const handleSaveQuality = async (quality) => {
+    if (!detailLead) return;
+    const newQuality = detailLead.quality === quality ? null : quality; // toggle
+    await fetch(baseUrl+'/crm/leads/update/'+detailLead.id, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({quality:newQuality, quality_note:qualityNote})});
+    setDetailLead(l=>({...l, quality:newQuality, quality_note:qualityNote}));
+    fetchAll();
   };
 
   const handleDeleteConfirmed = async () => {
@@ -280,6 +340,9 @@ export default function CRM() {
   // Campaign attribution: filter by tanggal_masuk (tanggal lead masuk sebenarnya)
   const filteredLeadsMasuk = filterBulan ? leads.filter(l => getLeadMonthMasuk(l) === filterBulan) : leads;
   const filteredCampaigns = filterBulan ? campaigns.filter(c => getCampaignMonthData(c, filterBulan) !== null) : campaigns;
+  // Evaluasi difilter ikut periode; kalau "Semua Periode" tampilkan semua
+  const filteredEvals = filterBulan ? evaluations.filter(e => e.bulan === filterBulan) : evaluations;
+  const campName = (id) => (campaigns.find(c => c.id === id)?.nama) || '(campaign terhapus)';
 
   const activeLeads = filteredLeads.filter(l=>l.stage!=='lost');
   const lostLeads = filteredLeads.filter(l=>l.stage==='lost');
@@ -386,10 +449,12 @@ export default function CRM() {
                 </div>
                 <div style={{padding:8,display:'flex',flexDirection:'column',gap:8,minHeight:80}}>
                   {sl.map(lead=>(
-                    <div key={lead.id} style={{background:dark?'#252535':'#fafafa',border,borderRadius:8,padding:'10px 12px',cursor:'pointer'}} onClick={()=>{setDetailLead(lead);setDealValue(lead.deal_value||'');setGrossProfit(lead.gross_profit||'');setShowLeadDetail(true);}}>
+                    <div key={lead.id} style={{background:dark?'#252535':'#fafafa',border,borderRadius:8,padding:'10px 12px',cursor:'pointer'}} onClick={()=>{setDetailLead(lead);setDealValue(lead.deal_value||'');setGrossProfit(lead.gross_profit||'');setQualityNote(lead.quality_note||'');setShowLeadDetail(true);}}>
                       <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:2}}>
                         <span style={{fontWeight:600,color:text,fontSize:13}}>{lead.nama}</span>
                         {lead.is_repeat_order&&<span style={{fontSize:9,background:'#FFF3CD',color:'#856404',padding:'1px 5px',borderRadius:3,fontWeight:700,whiteSpace:'nowrap'}}>↩ Repeat</span>}
+                        {lead.quality==='qualified'&&<span title="Qualified" style={{fontSize:9,background:'#E3F3E1',color:'#2e6b23',padding:'1px 5px',borderRadius:3,fontWeight:700}}>👍</span>}
+                        {lead.quality==='junk'&&<span title="Junk" style={{fontSize:9,background:'#F8E1E1',color:'#a32d2d',padding:'1px 5px',borderRadius:3,fontWeight:700}}>👎</span>}
                       </div>
                       {lead.wa&&<div style={{fontSize:11,color:'#378ADD',marginBottom:2}}>📱 {lead.wa}</div>}
                       {lead.campaign_id&&<div style={{fontSize:10,color:'#7F77DD',marginBottom:2}}>📢 {getCampaignName(lead.campaign_id)}{lead.is_repeat_order&&<span style={{color:'#856404'}}> (asal)</span>}</div>}
@@ -492,6 +557,54 @@ export default function CRM() {
               </tbody>
             </table>
           </div>}
+
+          {/* ─── EVALUASI IKLAN (jurnal per bulan) ─────────────────────────── */}
+          <div style={{marginTop:36}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
+              <div>
+                <h5 style={{color:text,fontWeight:700,margin:0,fontSize:16}}>📝 Evaluasi Iklan</h5>
+                <small style={{color:muted}}>Catatan evaluasi & analisa hasil iklan {filterBulan?`— ${filterBulan}`:'— semua periode'}</small>
+              </div>
+              <Button size="sm" variant="primary" onClick={()=>{setEditingEval(null);setEvalForm({...emptyEvalForm, bulan: filterBulan||'', tanggal: today});setShowEvalModal(true);}}><MdAdd/> Tambah Evaluasi</Button>
+            </div>
+
+            {filteredEvals.length===0 ? (
+              <div style={{textAlign:'center',color:muted,padding:'40px 20px',border:'1px dashed '+(dark?'#333':'#ddd'),borderRadius:10,fontSize:13}}>
+                Belum ada evaluasi{filterBulan?` untuk ${filterBulan}`:''}. Tulis evaluasi hasil iklan, atau minta bantuan AI (chatbot CRM) untuk menganalisa.
+              </div>
+            ) : (
+              <div style={{display:'flex',flexDirection:'column',gap:10}}>
+                {filteredEvals.map(ev=>{
+                  const isAI = ev.type==='ai';
+                  return (
+                    <div key={ev.id} style={{border, borderLeft:'4px solid '+(isAI?'#7c3aed':'#013175'), borderRadius:10, background:cardBg, padding:'12px 14px'}}>
+                      <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:8,marginBottom:6}}>
+                        <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+                          {isAI
+                            ? <span style={{fontSize:10,background:'#f3e8ff',color:'#7c3aed',padding:'2px 7px',borderRadius:5,fontWeight:700}}>🤖 Evaluasi dengan AI{ev.source==='hermes'?' · Hermes':''}</span>
+                            : <span style={{fontSize:10,background:'#e7efff',color:'#013175',padding:'2px 7px',borderRadius:5,fontWeight:700}}>✍️ Manual</span>}
+                          {ev.title && <strong style={{color:text,fontSize:14}}>{ev.title}</strong>}
+                          <span style={{fontSize:11,color:muted}}>{fmtDate(ev.tanggal)}</span>
+                          {ev.bulan && <span style={{fontSize:10,color:muted,border:'1px solid '+(dark?'#333':'#e0e0e0'),padding:'1px 6px',borderRadius:4}}>{ev.bulan}</span>}
+                        </div>
+                        <div style={{display:'flex',gap:4,flexShrink:0}}>
+                          {!isAI && <button title="Edit" onClick={()=>{setEditingEval(ev);setEvalForm({bulan:ev.bulan||'',campaign_ids:ev.campaign_ids||[],tanggal:ev.tanggal||today,title:ev.title||'',body:ev.body||''});setShowEvalModal(true);}} style={{border:'none',background:'none',cursor:'pointer',color:'#013175',fontSize:15}}><MdEdit/></button>}
+                          <button title="Hapus" onClick={()=>deleteEval(ev.id)} style={{border:'none',background:'none',cursor:'pointer',color:'#a32d2d',fontSize:15}}><MdDelete/></button>
+                        </div>
+                      </div>
+                      {Array.isArray(ev.campaign_ids)&&ev.campaign_ids.length>0 && (
+                        <div style={{display:'flex',gap:5,flexWrap:'wrap',marginBottom:6}}>
+                          {ev.campaign_ids.map(cid=><span key={cid} style={{fontSize:10,background:dark?'#22304d':'#eef4ff',color:'#378ADD',padding:'2px 7px',borderRadius:10,fontWeight:600}}>🎯 {campName(cid)}</span>)}
+                        </div>
+                      )}
+                      <div style={{color:text,fontSize:13,whiteSpace:'pre-wrap',lineHeight:1.55}}>{ev.body}</div>
+                      {ev.author_name && <div style={{marginTop:6,fontSize:11,color:muted}}>— {ev.author_name}</div>}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>}
 
         {activeTab==='analytics'&&<div>
@@ -763,6 +876,14 @@ export default function CRM() {
                 <span style={{fontSize:12,color:muted}}>{fmtDate(detailLead.stage_dates[s.key])}</span>
               </div>)}
             </div>
+            <div style={{borderTop:'1px solid '+(dark?'#333':'#eee'),paddingTop:12,marginBottom:12}}>
+              <div style={{fontSize:12,color:muted,fontWeight:600,marginBottom:8}}>Kualitas Lead</div>
+              <div style={{display:'flex',gap:6,marginBottom:8}}>
+                <Button size="sm" variant={detailLead.quality==='qualified'?'success':'outline-success'} onClick={()=>handleSaveQuality('qualified')}>👍 Qualified</Button>
+                <Button size="sm" variant={detailLead.quality==='junk'?'danger':'outline-danger'} onClick={()=>handleSaveQuality('junk')}>👎 Junk</Button>
+              </div>
+              <Form.Control size="sm" as="textarea" rows={2} placeholder="Catatan respon/objection lead (mis. cuma tanya harga, budget mepet, serius mau deal)..." value={qualityNote} onChange={e=>setQualityNote(e.target.value)} onBlur={()=>{ if((detailLead.quality_note||'')!==qualityNote) fetch(baseUrl+'/crm/leads/update/'+detailLead.id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({quality_note:qualityNote})}).then(()=>{setDetailLead(l=>({...l,quality_note:qualityNote}));fetchAll();}); }}/>
+            </div>
             {detailLead.stage==='deal'&&<div style={{borderTop:'1px solid '+(dark?'#333':'#eee'),paddingTop:12}}>
               <div style={{fontSize:12,color:muted,fontWeight:600,marginBottom:8}}>Nilai Deal</div>
               <div style={{display:'flex',gap:8}}>
@@ -805,6 +926,35 @@ export default function CRM() {
           </Form.Group>
         </Modal.Body>
         <Modal.Footer><Button variant="secondary" onClick={()=>setShowCampaignModal(false)}>Batal</Button><Button variant="primary" onClick={handleSaveCampaign} disabled={!campForm.nama.trim()}>Simpan</Button></Modal.Footer>
+      </Modal>
+
+      {/* Modal Evaluasi Iklan */}
+      <Modal show={showEvalModal} onHide={()=>setShowEvalModal(false)} className={mc}>
+        <Modal.Header closeButton><Modal.Title style={{color:dark?'white':'black'}}>{editingEval?'Edit Evaluasi':'Tambah Evaluasi'}</Modal.Title></Modal.Header>
+        <Modal.Body>
+          <div style={{display:'flex',gap:8}}>
+            <Form.Group className="mb-2" style={{flex:1}}><Form.Label style={{color:dark?'white':'black'}}>Bulan *</Form.Label><Form.Control type="month" value={evalForm.bulan} onChange={e=>setEvalForm(f=>({...f,bulan:e.target.value}))}/></Form.Group>
+            <Form.Group className="mb-2" style={{flex:1}}><Form.Label style={{color:dark?'white':'black'}}>Tanggal</Form.Label><Form.Control type="date" value={evalForm.tanggal} onChange={e=>setEvalForm(f=>({...f,tanggal:e.target.value}))}/></Form.Group>
+          </div>
+          <Form.Group className="mb-2"><Form.Label style={{color:dark?'white':'black'}}>Judul (opsional)</Form.Label><Form.Control value={evalForm.title} onChange={e=>setEvalForm(f=>({...f,title:e.target.value}))} placeholder="mis. Review mingguan Vid Carousel"/></Form.Group>
+          <Form.Group className="mb-2">
+            <Form.Label style={{color:dark?'white':'black'}}>Campaign terkait</Form.Label>
+            <div style={{maxHeight:120,overflowY:'auto',border:'1px solid '+(dark?'#444':'#ddd'),borderRadius:6,padding:'6px 8px'}}>
+              {(() => {
+                const opts = (evalForm.bulan ? campaigns.filter(c=>getCampaignMonthData(c, evalForm.bulan)!==null) : campaigns);
+                if (opts.length===0) return <div style={{fontSize:12,color:muted}}>Tidak ada campaign di bulan ini.</div>;
+                return opts.map(c=>(
+                  <Form.Check key={c.id} type="checkbox" id={`ev-camp-${c.id}`} label={c.nama}
+                    style={{color:text,fontSize:13}}
+                    checked={evalForm.campaign_ids.includes(c.id)}
+                    onChange={e=>setEvalForm(f=>({...f, campaign_ids: e.target.checked ? [...f.campaign_ids, c.id] : f.campaign_ids.filter(x=>x!==c.id)}))}/>
+                ));
+              })()}
+            </div>
+          </Form.Group>
+          <Form.Group className="mb-2"><Form.Label style={{color:dark?'white':'black'}}>Evaluasi *</Form.Label><Form.Control as="textarea" rows={7} value={evalForm.body} onChange={e=>setEvalForm(f=>({...f,body:e.target.value}))} placeholder={"Ceritakan hasil iklan bulan ini...\n- Ada lead bagus / hampir deal?\n- Respon mayoritas qualified atau tidak?\n- Apa yang perlu diperbaiki?"}/></Form.Group>
+        </Modal.Body>
+        <Modal.Footer><Button variant="secondary" onClick={()=>setShowEvalModal(false)}>Batal</Button><Button variant="primary" onClick={submitEval} disabled={savingEval||!evalForm.body.trim()}>{savingEval?<Spinner size="sm"/>:'Simpan'}</Button></Modal.Footer>
       </Modal>
 
       {/* IMPORT META ADS */}
@@ -854,6 +1004,13 @@ export default function CRM() {
         <Modal.Body><p style={{color:dark?'white':'black'}}>Hapus <strong>{deleteTarget?.label}</strong>? Tindakan ini tidak bisa dibatalkan.</p></Modal.Body>
         <Modal.Footer><Button variant="secondary" onClick={()=>setShowDeleteConfirm(false)}>Batal</Button><Button variant="danger" onClick={handleDeleteConfirmed}>Hapus</Button></Modal.Footer>
       </Modal>
+
+      {/* Chatbot CRM — konsultan evaluasi iklan (akses data + tools CRM). Konteks bulan ikut filter. */}
+      <AIChatBubble
+        seedContext={`Kita sedang di modul CRM (evaluasi & analisa iklan). Periode/bulan yang sedang difokuskan: ${filterBulan || '(belum dipilih — tanyakan ke user bulan mana kalau perlu)'}. Bila user mengajak bahas hasil iklan tanpa menyebut bulan, gunakan bulan ini bila sudah dipilih, atau tanyakan dulu.`}
+        greeting={'Halo! Saya **KLF Chatbot** — di sini saya bantu **evaluasi & analisa hasil iklan** untuk menaikkan ROAS & revenue.\n\nContoh yang bisa ditanya:\n- _"Evaluasi iklan '+(filterBulan||'bulan ini')+'"_\n- _"Campaign mana yang boncos?"_\n- _"Ada lead yang hampir deal?"_\n- _"Respon mayoritas lead qualified atau tidak?"_\n\nKalau evaluasinya mau disimpan, bilang saja _"catat evaluasi ini"_ — nanti masuk ke jurnal **Evaluasi dengan AI**.'}
+        onActivity={fetchEvaluations}
+      />
     </Container>
   );
 }

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { Container, Modal, Button, Form, Badge, Spinner } from 'react-bootstrap';
 import { getApiBaseUrl } from '../../Config/APIurl';
 import { useTheme } from '../../ThemeContext';
-import { MdAdd, MdEdit, MdDelete, MdFileUpload } from 'react-icons/md';
+import { MdAdd, MdEdit, MdDelete, MdFileUpload, MdCheck } from 'react-icons/md';
 import AIChatBubble from '../AI/AIChatBubble';
 
 const STAGES = [
@@ -939,16 +939,28 @@ export default function CRM() {
           <Form.Group className="mb-2"><Form.Label style={{color:dark?'white':'black'}}>Judul (opsional)</Form.Label><Form.Control value={evalForm.title} onChange={e=>setEvalForm(f=>({...f,title:e.target.value}))} placeholder="mis. Review mingguan Vid Carousel"/></Form.Group>
           <Form.Group className="mb-2">
             <Form.Label style={{color:dark?'white':'black'}}>Campaign terkait</Form.Label>
-            <div style={{maxHeight:120,overflowY:'auto',border:'1px solid '+(dark?'#444':'#ddd'),borderRadius:6,padding:'6px 8px'}}>
+            <div style={{maxHeight:150,overflowY:'auto',display:'flex',flexDirection:'column',gap:6}}>
               {(() => {
                 const opts = (evalForm.bulan ? campaigns.filter(c=>getCampaignMonthData(c, evalForm.bulan)!==null) : campaigns);
-                if (opts.length===0) return <div style={{fontSize:12,color:muted}}>Tidak ada campaign di bulan ini.</div>;
-                return opts.map(c=>(
-                  <Form.Check key={c.id} type="checkbox" id={`ev-camp-${c.id}`} label={c.nama}
-                    style={{color:text,fontSize:13}}
-                    checked={evalForm.campaign_ids.includes(c.id)}
-                    onChange={e=>setEvalForm(f=>({...f, campaign_ids: e.target.checked ? [...f.campaign_ids, c.id] : f.campaign_ids.filter(x=>x!==c.id)}))}/>
-                ));
+                if (opts.length===0) return <div style={{fontSize:12,color:muted,padding:'6px 2px'}}>Tidak ada campaign di bulan ini.</div>;
+                return opts.map(c=>{
+                  const on = evalForm.campaign_ids.includes(c.id);
+                  return (
+                    <div key={c.id} role="button"
+                      onClick={()=>setEvalForm(f=>({...f, campaign_ids: on ? f.campaign_ids.filter(x=>x!==c.id) : [...f.campaign_ids, c.id]}))}
+                      style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer',userSelect:'none',
+                        padding:'7px 10px',borderRadius:8,fontSize:13,fontWeight:on?600:400,
+                        color: on ? (dark?'#8ec5ff':'#013175') : text,
+                        background: on ? (dark?'#1a2647':'#eef4ff') : (dark?'#252535':'#f6f6f8'),
+                        border:'1.5px solid '+(on ? '#378ADD' : (dark?'#333':'#e2e2e6')),transition:'all .12s ease'}}>
+                      <span style={{width:18,height:18,flexShrink:0,borderRadius:5,display:'flex',alignItems:'center',justifyContent:'center',
+                        background: on ? '#378ADD' : 'transparent', border:'1.5px solid '+(on ? '#378ADD' : (dark?'#555':'#bbb'))}}>
+                        {on && <MdCheck size={14} color="#fff"/>}
+                      </span>
+                      🎯 {c.nama}
+                    </div>
+                  );
+                });
               })()}
             </div>
           </Form.Group>

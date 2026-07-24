@@ -1455,7 +1455,7 @@ const DetailPekerjaan = () => {
       <div
         key={fieldName}
         style={{ display: 'flex', alignItems: 'center', marginBottom: '6px', cursor: isAuthorized ? 'pointer' : 'default' }}
-        onClick={() => isAuthorized && handleAlurKerjaClick(fieldName, label, val)}
+        onClick={(e) => { e.stopPropagation(); if (isAuthorized) handleAlurKerjaClick(fieldName, label, val); }}
         className="no-active"
       >
         <span style={{

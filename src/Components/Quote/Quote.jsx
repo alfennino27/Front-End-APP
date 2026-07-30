@@ -59,6 +59,20 @@ const formatRibuan = (v) => {
   return digits.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
 };
 
+// URL PDF quote. Segmen terakhir sengaja berakhiran ".pdf" (nama file mirror
+// dari quotationPdf.js) karena sebagian PDF viewer memakai nama dari path URL
+// dan mengabaikan Content-Disposition, jadi dialog Save muncul tanpa ekstensi.
+const BULAN_PENDEK = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+const pdfUrl = (baseUrl, q, mode) => {
+  const d = new Date();
+  const p = (x) => String(x).padStart(2, '0');
+  const tgl = `${p(d.getDate())} ${BULAN_PENDEK[d.getMonth()]} ${String(d.getFullYear()).slice(-2)}`;
+  const prefix = (q.invoiceId || q.status === 'deal') ? 'Invoice' : 'Quote';
+  const cust = String(q.customer || q.kodeInvoice || q.id).replace(/[/\\:*?"<>|]+/g, ' ').trim();
+  const name = `${prefix} ${cust} - ${tgl}.pdf`;
+  return `${baseUrl}/quotation/${q.id}/pdf/${encodeURIComponent(name)}${mode ? `?mode=${mode}` : ''}`;
+};
+
 const emptyItem = () => ({
   pid: null,        // link ke Projects.id bila quote sudah jadi Invoice
   kategori: '',     // kategori produk (ProductsCategory)
@@ -490,7 +504,7 @@ const Quote = () => {
       fetchFolders();
       try { setCustList(await (await fetch(`${baseUrl}/accounting/cust/get`)).json()); } catch (e) { /* ignore */ }
       if (thenPdf && saved.id) {
-        window.open(`${baseUrl}/quotation/${saved.id}/pdf`, '_blank');
+        window.open(pdfUrl(baseUrl, saved), '_blank');
       }
       // stay on form in edit mode
       setForm((f) => ({ ...f, id: saved.id, invoiceId: saved.invoiceId ?? f.invoiceId }));
@@ -667,8 +681,8 @@ const Quote = () => {
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap' }}>
-                <a href={`${baseUrl}/quotation/${q.id}/pdf`} target="_blank" rel="noreferrer" style={{ ...btnGhost, textDecoration: 'none' }}>⬇ PDF</a>
-                <a href={`${baseUrl}/quotation/${q.id}/pdf?mode=pricelist`} target="_blank" rel="noreferrer" style={{ ...btnGhost, textDecoration: 'none' }}>Pricelist</a>
+                <a href={pdfUrl(baseUrl, q)} target="_blank" rel="noreferrer" style={{ ...btnGhost, textDecoration: 'none' }}>⬇ PDF</a>
+                <a href={pdfUrl(baseUrl, q, 'pricelist')} target="_blank" rel="noreferrer" style={{ ...btnGhost, textDecoration: 'none' }}>Pricelist</a>
                 <button style={btnGhost} onClick={() => openEdit(q.id)}>Edit</button>
                 {q.isDraft !== false && <button style={btn('#b7791f')} onClick={() => finalizeQuote(q.id, false)}>✓ Finalkan</button>}
                 {q.status !== 'deal' && <button style={btn('#1e7b34')} onClick={() => changeStatus(q.id, 'deal')}>Deal</button>}
@@ -714,7 +728,7 @@ const Quote = () => {
                     <td style={{ padding: '10px 12px' }}>{statusBadge(q.status)}</td>
                     <td style={{ padding: '10px 12px' }}>
                       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                        <a href={`${baseUrl}/quotation/${q.id}/pdf`} target="_blank" rel="noreferrer" style={{ ...btnGhost, padding: '5px 10px', textDecoration: 'none' }}>PDF</a>
+                        <a href={pdfUrl(baseUrl, q)} target="_blank" rel="noreferrer" style={{ ...btnGhost, padding: '5px 10px', textDecoration: 'none' }}>PDF</a>
                         <button style={{ ...btnGhost, padding: '5px 10px' }} onClick={() => openEdit(q.id)}>Edit</button>
                       </div>
                     </td>
@@ -985,7 +999,7 @@ const Quote = () => {
       <div className="klf-quote-actions" style={{ background: card, borderTop: `1px solid ${border}` }}>
         <button style={{ ...btnGhost }} disabled={saving} onClick={() => saveQuote()}>{saving ? 'Menyimpan…' : 'Simpan'}</button>
         <button style={btn(primary)} disabled={saving} onClick={() => saveQuote({ thenPdf: true })}>Simpan & PDF</button>
-        {form.id && <a href={`${baseUrl}/quotation/${form.id}/pdf`} target="_blank" rel="noreferrer" style={{ ...btnGhost, textDecoration: 'none' }}>⬇ PDF</a>}
+        {form.id && <a href={pdfUrl(baseUrl, form)} target="_blank" rel="noreferrer" style={{ ...btnGhost, textDecoration: 'none' }}>⬇ PDF</a>}
       </div>
     </div>
   );

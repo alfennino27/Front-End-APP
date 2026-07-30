@@ -70,7 +70,14 @@ const pdfUrl = (baseUrl, q, mode) => {
   const prefix = (q.invoiceId || q.status === 'deal') ? 'Invoice' : 'Quote';
   const cust = String(q.customer || q.kodeInvoice || q.id).replace(/[/\\:*?"<>|]+/g, ' ').trim();
   const name = `${prefix} ${cust} - ${tgl}.pdf`;
-  return `${baseUrl}/quotation/${q.id}/pdf/${encodeURIComponent(name)}${mode ? `?mode=${mode}` : ''}`;
+  // `t` = cache-buster. Nama file hanya berubah per HARI, jadi tanpa ini URL
+  // cetakan ke-2 dst identik dan browser/CDN (Cloudflare meng-cache .pdf secara
+  // default) menyajikan render LAMA → quote yang baru disimpan tercetak versi
+  // lama. Server juga sudah kirim no-store; ini lapis kedua yang sekaligus
+  // melewati cache 4 jam yang mungkin sudah tersimpan di browser user.
+  const qs = new URLSearchParams({ t: String(Date.now()) });
+  if (mode) qs.set('mode', mode);
+  return `${baseUrl}/quotation/${q.id}/pdf/${encodeURIComponent(name)}?${qs.toString()}`;
 };
 
 const emptyItem = () => ({

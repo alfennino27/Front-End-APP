@@ -345,49 +345,38 @@ const NavigationBar = () => {
 
 
   useEffect(() => {
-    // Inisialisasi flag
-    let hasImportantNotif = false;
+    // Bell "Important!" nyala kalau ada tag @saya yang BELUM dibalas DAN BELUM
+    // saya buka. Read-state (userField) sengaja ikut dihitung: tanpa itu satu-
+    // satunya cara mematikan tag adalah membalas thread-nya, jadi kalau thread
+    // sudah dihapus atau tag sudah diganti orang lain, bell berkedip selamanya
+    // dan user tidak punya jalan keluar. Sekarang klik notif = tag mereda.
+    // userName di-guard karena diisi async — kalau masih kosong, `@${userName}`
+    // jadi "@" dan cocok dengan SEMUA mention siapa pun (false positive).
+    if (!userName) {
+      setNotifPenting(false);
+      return;
+    }
 
-    dataNotifFromDB.forEach(notif => {
-      if (notif.text && notif.text.includes(`@${userName}`)) {
-        // Cek jika notifikasi tipe "comment"
-        if (notif.type === "comment" || notif.type === "EditComment") {
-          const hasReply = dataNotifFromDB.some(otherNotif =>
-            (otherNotif.type === "reply" || otherNotif.type === "EditReply") &&
-            otherNotif.user === user.uid &&
-            otherNotif.date.value._seconds > notif.date.value._seconds &&
-            otherNotif.commentId === notif.id
-          );
+    const readField = `user${user.uid}`;
+    const isReplyType = (t) => t === 'reply' || t === 'EditReply';
 
-          if (!hasReply) {
-            hasImportantNotif = true;
-          }
-        }
+    const hasImportantNotif = dataNotifFromDB.some((notif) => {
+      if (!notif.text || !notif.text.includes(`@${userName}`)) return false;
+      if (notif[readField] === 'true') return false;
 
-        dataNotifFromDB.forEach(notif => {
-          if (notif.text && notif.text.includes(`@${userName}`)) {
-            // Cek jika notifikasi tipe "comment"
-            if (notif.type === "reply" || notif.type === "EditReply") {
-              const hasReply = dataNotifFromDB.some(otherNotif =>
-                (otherNotif.type === "reply" || otherNotif.type === "EditReply") &&
-                otherNotif.user === user.uid &&
-                otherNotif.date.value._seconds > notif.date.value._seconds &&
-                otherNotif.commentId === notif.commentId
-              );
+      const threadId = isReplyType(notif.type) ? notif.commentId : notif.id;
+      const sudahDibalas = dataNotifFromDB.some((other) =>
+        isReplyType(other.type) &&
+        other.user === user.uid &&
+        other.commentId === threadId &&
+        other.date.value._seconds > notif.date.value._seconds
+      );
 
-              if (!hasReply) {
-                hasImportantNotif = true;
-              }
-            }
-          }
-        });
-
-      }
+      return !sudahDibalas;
     });
 
-    // Update state hanya sekali setelah loop selesai
     setNotifPenting(hasImportantNotif);
-  }, [dataNotifFromDB, user.uid]);
+  }, [dataNotifFromDB, user.uid, userName]);
 
   useEffect(() => {
     if (notifPenting) {
@@ -742,11 +731,14 @@ const NavigationBar = () => {
 
 
 
+                      {/* Notif tag ikut meredup setelah dibuka. Dulu kondisinya
+                          `... && !notif.isTagged` sehingga notif tag tidak pernah
+                          bisa ditandai terbaca → nyangkut merah selamanya. */}
                       {processedNotifications.map((notif, index) => (
                         <li
                           key={index}
-                          className={`${theme === 'light' ? 'bg-light' : 'bg-dark'} dropdown-item ${(notif[`user${user.uid}`] === 'true' && !notif.isTagged) || notif.isReplied ? 'text-secondary' : ''} notif-hover-effect`}
-                          style={{ opacity: (notif[`user${user.uid}`] === 'true' && !notif.isTagged) || notif.isReplied ? 0.4 : 1, display: myMention && !notif.isTagged ? "none" : "" }}
+                          className={`${theme === 'light' ? 'bg-light' : 'bg-dark'} dropdown-item ${notif[`user${user.uid}`] === 'true' || notif.isReplied ? 'text-secondary' : ''} notif-hover-effect`}
+                          style={{ opacity: notif[`user${user.uid}`] === 'true' || notif.isReplied ? 0.4 : 1, display: myMention && !notif.isTagged ? "none" : "" }}
                           onClick={async () => {
                             // Memanggil API untuk update status notif
                             try {

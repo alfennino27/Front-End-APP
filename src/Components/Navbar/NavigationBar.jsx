@@ -662,21 +662,39 @@ const NavigationBar = () => {
                   <div className="btn-group dropstart">
                     {notifPenting ? (
 
-                      <Popover content="Important!" open placement="bottom">
+                      // Popover "Important!" selalu open, jadi panelnya melayang di
+                      // bawah bell. Di mobile panel itu menutupi tombol sebelahnya
+                      // (search/clipboard) sehingga tidak bisa diklik → di mobile
+                      // cukup ikon merah berkedip saja. Desktop tetap pakai popover.
+                      isMobile ? (
                         <MdNotificationImportant
                           style={{
                             fontSize: '28px',
                             marginRight: '5px',
-                            color: isPrimaryColor ? primaryColor : secondaryColor, // Ganti warna berdasarkan state
-                            transition: 'color 0.5s ease-in-out', // Tambahkan animasi transisi untuk warna
+                            color: isPrimaryColor ? primaryColor : secondaryColor,
+                            transition: 'color 0.5s ease-in-out',
                           }}
                           onClick={handleNotifClick}
                           data-bs-toggle="dropdown"
                           aria-expanded="false"
                           className='bell-hover'
                         />
-                      </Popover>
-
+                      ) : (
+                        <Popover content="Important!" open placement="bottom">
+                          <MdNotificationImportant
+                            style={{
+                              fontSize: '28px',
+                              marginRight: '5px',
+                              color: isPrimaryColor ? primaryColor : secondaryColor, // Ganti warna berdasarkan state
+                              transition: 'color 0.5s ease-in-out', // Tambahkan animasi transisi untuk warna
+                            }}
+                            onClick={handleNotifClick}
+                            data-bs-toggle="dropdown"
+                            aria-expanded="false"
+                            className='bell-hover'
+                          />
+                        </Popover>
+                      )
 
                     ) : notifStatus === 'on' ? (
                       <MdNotificationsActive

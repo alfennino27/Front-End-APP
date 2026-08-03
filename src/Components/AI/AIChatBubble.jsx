@@ -191,6 +191,16 @@ const AIChatBubble = ({ seedContext = '', greeting = '', onActivity = null } = {
           }),
         });
         updateProposal(msgId, idx, { _status: res.ok ? 'saved' : 'error' });
+      } else if (prop.type === 'spk_item_edit') {
+        // Kirim `set` PERSIS dari proposal — server yang whitelist field-nya.
+        const res = await fetch(`${baseUrl}/ai/chat/spk/confirm`, {
+          method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
+          body: JSON.stringify({
+            items: (prop.items || []).map((it) => ({ spkproduct_id: it.spkproduct_id, set: it.set })),
+            created_by_uid: getUid(),
+          }),
+        });
+        updateProposal(msgId, idx, { _status: res.ok ? 'saved' : 'error' });
       } else if (prop.type === 'bulk_comment' || prop.type === 'bulk_category_description') {
         const type = prop.type === 'bulk_comment' ? 'comment' : 'category_description';
         const tag_uids = prop.type === 'bulk_comment' ? await resolveTagUids(prop.tag_names) : [];
@@ -393,6 +403,17 @@ const AIChatBubble = ({ seedContext = '', greeting = '', onActivity = null } = {
     th: (p) => <th style={{ border: `1px solid ${isLight ? '#aaa' : '#555'}`, padding: '4px 7px', textAlign: 'left', background: isLight ? '#e9ecef' : '#333', whiteSpace: 'nowrap' }} {...p} />,
     td: (p) => <td style={{ border: `1px solid ${isLight ? '#ccc' : '#444'}`, padding: '4px 7px', verticalAlign: 'top' }} {...p} />,
     p: (p) => <p style={{ margin: '4px 0' }} {...p} />,
+    // Gambar dari ERP (hasil tool find_erp_images) ditampilkan inline di chat;
+    // klik = buka ukuran penuh di tab baru.
+    img: (p) => (
+      <a href={p.src} target="_blank" rel="noreferrer">
+        <img
+          {...p}
+          style={{ maxWidth: '100%', maxHeight: 320, borderRadius: 8, margin: '6px 0', display: 'block', border: `1px solid ${isLight ? '#ddd' : '#444'}` }}
+          loading="lazy"
+        />
+      </a>
+    ),
     ul: (p) => <ul style={{ margin: '4px 0', paddingLeft: 18 }} {...p} />,
     ol: (p) => <ol style={{ margin: '4px 0', paddingLeft: 18 }} {...p} />,
     li: (p) => <li style={{ margin: '2px 0' }} {...p} />,
@@ -474,11 +495,12 @@ const AIChatBubble = ({ seedContext = '', greeting = '', onActivity = null } = {
                       const isPotong = p.type === 'potong_piutang_spk';
                       const isTarget = p.type === 'target_kirim';
                       const isBulk = p.type === 'bulk_comment' || p.type === 'bulk_category_description';
+                      const isSpkEdit = p.type === 'spk_item_edit';
                       const formatRp = (n) => 'Rp ' + Number(n || 0).toLocaleString('id-ID');
                       return (
                         <div key={i} style={{ fontSize: 13, padding: '8px 10px', marginBottom: 6, borderRadius: 8,
-                          background: isTarget || isBulk ? (isLight ? '#e8f5e9' : '#0f2417') : isPotong ? (isLight ? '#e7f1ff' : '#0d1b2a') : isPayment ? (isLight ? '#fff3cd' : '#2a2108') : (isLight ? '#fff8e1' : '#2a2620'),
-                          border: isTarget || isBulk ? '2px solid #2e9e5b' : isPotong ? '2px solid #0d6efd' : isPayment ? '2px solid #ffc107' : '1px solid #f0c000' }}>
+                          background: isSpkEdit ? (isLight ? '#fff3cd' : '#2a2108') : isTarget || isBulk ? (isLight ? '#e8f5e9' : '#0f2417') : isPotong ? (isLight ? '#e7f1ff' : '#0d1b2a') : isPayment ? (isLight ? '#fff3cd' : '#2a2108') : (isLight ? '#fff8e1' : '#2a2620'),
+                          border: isSpkEdit ? '2px solid #ffc107' : isTarget || isBulk ? '2px solid #2e9e5b' : isPotong ? '2px solid #0d6efd' : isPayment ? '2px solid #ffc107' : '1px solid #f0c000' }}>
                           {isBulk ? (
                             <>
                               <div style={{ fontWeight: 700, marginBottom: 4 }}>
@@ -495,6 +517,33 @@ const AIChatBubble = ({ seedContext = '', greeting = '', onActivity = null } = {
                               )}
                               {p.skipped && p.skipped.length > 0 && (
                                 <div style={{ marginTop: 4, fontSize: 11.5, color: '#dc3545' }}>{p.skipped.length} item dilewati (tidak valid / bukan Ongoing).</div>
+                              )}
+                            </>
+                          ) : isSpkEdit ? (
+                            <>
+                              <div style={{ fontWeight: 700, marginBottom: 4 }}>✏️ Ubah Item SPK ({(p.items || []).length} item)</div>
+                              {(p.items || []).map((it, k) => (
+                                <div key={k} style={{ marginBottom: 6 }}>
+                                  <b>{it.nama_barang}</b>
+                                  {it.kategori ? <span style={{ opacity: 0.7 }}> ({it.kategori})</span> : null}
+                                  <div style={{ fontSize: 12, opacity: 0.85 }}>
+                                    {it.kode_spk}{it.supplier ? ` · ${it.supplier}` : ''}
+                                    {it.customer ? ` · untuk ${it.customer}` : ''}
+                                  </div>
+                                  {(it.perubahan || []).map((c, j) => (
+                                    <div key={j} style={{ fontSize: 12 }}>
+                                      {c.field}: {String(c.dari) || '(kosong)'} → <b>{String(c.ke)}</b>
+                                    </div>
+                                  ))}
+                                  {it.total_lama !== it.total_baru && (
+                                    <div style={{ fontSize: 12, marginTop: 2 }}>
+                                      Total item: {formatRp(it.total_lama)} → <b>{formatRp(it.total_baru)}</b>
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                              {p.skipped && p.skipped.length > 0 && (
+                                <div style={{ marginTop: 4, fontSize: 11.5, color: '#dc3545' }}>{p.skipped.length} item dilewati (tidak ditemukan / tidak ada perubahan).</div>
                               )}
                             </>
                           ) : isTarget ? (

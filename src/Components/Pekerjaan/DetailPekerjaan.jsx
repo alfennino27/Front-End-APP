@@ -650,6 +650,12 @@ const DetailPekerjaan = () => {
         body: JSON.stringify({ slug, category: cat, categoryStatus: newStatus }),
       });
       if (!response.ok) throw new Error('Gagal update status');
+
+      // Daftar project di kiri (ListPekerjaan) punya state sendiri — tanpa
+      // pemberitahuan ini status di kartu baru berubah setelah reload halaman.
+      window.dispatchEvent(new CustomEvent('categoryStatusChanged', {
+        detail: { projectId: slug, category: cat, status: newStatus },
+      }));
     } catch (error) {
       console.error('Gagal update status category:', error);
       // Revert kalau gagal

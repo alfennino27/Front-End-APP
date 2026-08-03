@@ -18,6 +18,21 @@ import { getImageUrl } from '../../Utils/image';
 import { TbTruckDelivery } from 'react-icons/tb';
 
 //tes
+
+// Deadline sering kosong/tidak valid di data lama → jangan tampilkan "Invalid Date".
+const formatDeadline = (v) => {
+  if (!v) return '-';
+  const d = new Date(v);
+  return isNaN(d.getTime()) ? '-' : d.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+};
+
+// Hanya uid ini yang boleh melihat status SPK di kartu daftar project.
+const BOLEH_LIHAT_STATUS_SPK = [
+  'fYpdHwXRDLhj5XGxM5FZIAvxp9E2', 'w4M5JJjgGQeHFbS2nkyoCfUBE532', '4WGPaHicKWYr0Ny84IUh8xb9Bo62',
+  'ANGTwgX8KxXQy5Ww3cwpLrG0tFT2', 'gwsOqUgVXSPyWFMMHr4bJteBoYs1', '6D4XVa5BSSOl1ugUlkDlTea2COX2',
+  'MjOCxfNdGtf0q12BPzj0EYAcVJD3', 'knydS6fIBdOwHS37dDm3ZDNQXKQ2', 'Q3LWLX4D7Ye8hMnQVF9fa7SZb953',
+];
+
 const ListPekerjaan = () => {
   const baseUrl = getApiBaseUrl();
   const { slug } = useParams();
@@ -162,6 +177,31 @@ const ListPekerjaan = () => {
     };
 
     fetchAllProjects();
+  }, []);
+
+  // Status kategori diubah dari panel detail → tambal data di sini juga supaya
+  // badge di kartu langsung berubah tanpa reload. masterData* yang ditambal
+  // (bukan filteredData) karena filteredData diturunkan darinya.
+  useEffect(() => {
+    const onStatusChanged = (e) => {
+      const { projectId, category, status } = e.detail || {};
+      if (!projectId || !category) return;
+      const tambal = (arr) => {
+        if (!Array.isArray(arr)) return arr;
+        let berubah = false;
+        const next = arr.map((p) => {
+          if (p.id !== projectId) return p;
+          berubah = true;
+          return { ...p, [`CategoryStatus${category}`]: status };
+        });
+        return berubah ? next : arr; // jangan bikin array baru kalau tidak perlu
+      };
+      setMasterDataFalse((prev) => tambal(prev));
+      setMasterDataTrue((prev) => tambal(prev));
+    };
+
+    window.addEventListener('categoryStatusChanged', onStatusChanged);
+    return () => window.removeEventListener('categoryStatusChanged', onStatusChanged);
   }, []);
 
   useEffect(() => {
@@ -408,7 +448,7 @@ const ListPekerjaan = () => {
     return (
       <span
         className={`${getStatusClass(status)} fw-semibold`}
-        style={{ marginLeft: "100px", cursor: spkIds.length > 0 ? 'pointer' : 'default' }}
+        style={{ cursor: spkIds.length > 0 ? 'pointer' : 'default' }}
         onClick={(e) => handleClick(e, spkIds)}
       >
         SPK : {status}
@@ -1245,7 +1285,8 @@ const ListPekerjaan = () => {
           <Row key={index} id={project.id}>
             <Col>
               <Link to={`/project/${project.id}`}>
-                <div className={`listPekerjaan d-flex position-relative mb-1 shadow tema-${globalTheme} ${project.id === slug ? `selected` : ""}`} style={{ backgroundImage: project.id === slug ? (globalTheme === "light" ? "linear-gradient(to right, #cbcbcb, #e7e7e7)" : "linear-gradient(to right, #404040, #252525)") : (globalTheme === "light" ? "linear-gradient(to right, #ffffff, #e7e7e7)" : "linear-gradient(to right, #151515, #252525)"), border: project.id === slug ? (globalTheme === "light" ? "2px solid #c1c1c1" : "2px solid #8e8e8e") : (globalTheme === "light" ? "2px solid rgb(163, 163, 163)" : "2px solid #7a7a7a") }}>
+                <div className={`listPekerjaan d-flex flex-column position-relative mb-1 shadow tema-${globalTheme} ${project.id === slug ? `selected` : ""}`} style={{ backgroundImage: project.id === slug ? (globalTheme === "light" ? "linear-gradient(to right, #cbcbcb, #e7e7e7)" : "linear-gradient(to right, #404040, #252525)") : (globalTheme === "light" ? "linear-gradient(to right, #ffffff, #e7e7e7)" : "linear-gradient(to right, #151515, #252525)"), border: project.id === slug ? (globalTheme === "light" ? "2px solid #c1c1c1" : "2px solid #8e8e8e") : (globalTheme === "light" ? "2px solid rgb(163, 163, 163)" : "2px solid #7a7a7a") }}>
+                  <div className="d-flex" style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
                   <div className="me-3">
                     <img src={getImageUrl(project.image1)} alt=""
                       loading="lazy"
@@ -1256,16 +1297,27 @@ const ListPekerjaan = () => {
                         objectFit: "cover",  // Gambar tidak akan ter-stretch dan terpotong jika terlalu besar
                       }} />
                   </div>
-                  <div>
+                  {/* minWidth:0 wajib pada flex item: tanpa ini progress bar
+                      (width 100%) ikut melar mengikuti judul panjang sehingga
+                      jebol keluar kartu di lebar window tertentu. */}
+                  <div style={{ flex: 1, minWidth: 0 }}>
                     <h5 style={{ color: globalTheme == "light" ? "black" : "white" }}>{project.NamaBarang}</h5>
                     <h6 style={{ color: globalTheme == "light" ? "#292929" : "#c0c0c0" }}>{project.Buyer}</h6>
                     <small>
-                      <div className="progress" role="progressbar" style={{ backgroundColor: '#4c4c4c', height: "15px" }}>
-                        <div className="progress-bar" style={{ width: `${project.Percentage}%`, background: globalTheme == "light" ? `linear-gradient(to left, #007EFF, #14C2F6)` : `linear-gradient(to left, #003797, #00c6ff)` }}>{project.Percentage}%</div>
+                      <div className="progress" role="progressbar" style={{ backgroundColor: '#4c4c4c', height: "15px", width: '100%' }}>
+                        <div className="progress-bar" style={{ width: `${Math.min(100, Math.max(0, Number(project.Percentage) || 0))}%`, background: globalTheme == "light" ? `linear-gradient(to left, #007EFF, #14C2F6)` : `linear-gradient(to left, #003797, #00c6ff)` }}>{project.Percentage}%</div>
                       </div>
                     </small>
                   </div>
-                  <small className="position-absolute bottom-0 start-0 p-3" style={{ display: searchSupplier ? "block" : "none" }}>
+                </div>
+
+                {/* Baris bawah: status kategori · status SPK · deadline.
+                    Dulu ketiganya position-absolute di titik yang sama (bottom-0
+                    start-0) sehingga saling menimpa, dan status SPK digeser paksa
+                    dengan marginLeft 100px yang meleset di lebar lain. Sekarang
+                    satu baris flex — tidak mungkin tumpang tindih lagi. */}
+                <div className="d-flex align-items-center flex-wrap" style={{ gap: '2px 12px', fontSize: '0.75rem', lineHeight: 1.4 }}>
+                  {searchSupplier && (
                     <span style={{
                       color: {
                         'Belum Proses': 'rgba(255, 0, 0, 0.6)',
@@ -1278,12 +1330,14 @@ const ListPekerjaan = () => {
                     }} className='fw-semibold'>
                       {project[`CategoryStatus${localStorage.getItem('searchSupplierCategoryLocalStorage')}`]}
                     </span>
-                  </small>
+                  )}
 
-                  <small className="position-absolute bottom-0 start-0 p-3" style={{ display: searchSupplier && (user.uid === 'fYpdHwXRDLhj5XGxM5FZIAvxp9E2' || user.uid === 'w4M5JJjgGQeHFbS2nkyoCfUBE532' || user.uid === '4WGPaHicKWYr0Ny84IUh8xb9Bo62' || user.uid === 'ANGTwgX8KxXQy5Ww3cwpLrG0tFT2' || user.uid === 'gwsOqUgVXSPyWFMMHr4bJteBoYs1' || user.uid === '6D4XVa5BSSOl1ugUlkDlTea2COX2' || user.uid === 'MjOCxfNdGtf0q12BPzj0EYAcVJD3' || user.uid === 'knydS6fIBdOwHS37dDm3ZDNQXKQ2' || user.uid === 'Q3LWLX4D7Ye8hMnQVF9fa7SZb953') ? "block" : "none" }}>
-                    {renderStatus(project.id)}
-                  </small>
-                  <small className="position-absolute bottom-0 end-0 p-3" style={{ color: globalTheme == "light" ? "black" : "white" }}>Deadline : {new Date(project.Deadline).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</small>
+                  {searchSupplier && BOLEH_LIHAT_STATUS_SPK.includes(user.uid) && renderStatus(project.id)}
+
+                  <span style={{ marginLeft: 'auto', color: globalTheme == "light" ? "black" : "white", whiteSpace: 'nowrap' }}>
+                    Deadline : {formatDeadline(project.Deadline)}
+                  </span>
+                </div>
                 </div>
               </Link>
             </Col>

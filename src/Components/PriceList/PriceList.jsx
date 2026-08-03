@@ -35,6 +35,17 @@ const Stock = () => {
 
   const isMobile = window.innerWidth <= 768;
 
+  // Klik baris → buka halaman project item tsb. Pakai id Projects langsung
+  // (/projects/detail cari by { id: slug } tanpa filter status), jadi project
+  // yang sudah completed pun tetap bisa dibuka dari sini.
+  const navigate = useNavigate();
+  const bukaProject = (e, item) => {
+    if (!item?.id) return;
+    const url = `/project/${item.id}`;
+    // Cmd/Ctrl+klik atau klik tengah = buka tab baru, seperti kebiasaan tabel lain
+    if (e.metaKey || e.ctrlKey || e.button === 1) window.open(url, '_blank');
+    else navigate(url);
+  };
 
 
   //mulai:
@@ -210,6 +221,11 @@ const Stock = () => {
                         return (
                           <tr
                             key={index}
+                            onClick={(e) => bukaProject(e, item)}
+                            onAuxClick={(e) => { if (e.button === 1) bukaProject(e, item); }}
+                            title={`Buka project: ${item.NamaBarang || ''}`}
+                            onMouseEnter={(e) => { e.currentTarget.style.background = '#f2f6ff'; }}
+                            onMouseLeave={(e) => { e.currentTarget.style.background = ''; }}
                             style={{
                               borderBottom: '1px solid #eee',
                               transition: 'background 0.2s',
@@ -217,7 +233,9 @@ const Stock = () => {
                             }}
                           >
                             <td style={{ padding: '8px' }}>{index + 1}</td>
-                            <td style={{ padding: '8px' }}>
+                            {/* stopPropagation: klik thumbnail = buka preview gambar
+                                (fitur bawaan Image antd), jangan ikut pindah halaman */}
+                            <td style={{ padding: '8px' }} onClick={(e) => e.stopPropagation()}>
                               {item.image1 && (
                                 <Image
                                   width={100}

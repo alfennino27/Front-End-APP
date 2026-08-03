@@ -35,16 +35,13 @@ const Stock = () => {
 
   const isMobile = window.innerWidth <= 768;
 
-  // Klik baris → buka halaman project item tsb. Pakai id Projects langsung
-  // (/projects/detail cari by { id: slug } tanpa filter status), jadi project
-  // yang sudah completed pun tetap bisa dibuka dari sini.
-  const navigate = useNavigate();
-  const bukaProject = (e, item) => {
+  // Klik baris → buka halaman project item tsb di TAB BARU, supaya posisi
+  // scroll & filter kategori di pricelist tidak hilang. Pakai id Projects
+  // langsung (/projects/detail cari by { id: slug } tanpa filter status),
+  // jadi project yang sudah completed pun tetap bisa dibuka dari sini.
+  const bukaProject = (item) => {
     if (!item?.id) return;
-    const url = `/project/${item.id}`;
-    // Cmd/Ctrl+klik atau klik tengah = buka tab baru, seperti kebiasaan tabel lain
-    if (e.metaKey || e.ctrlKey || e.button === 1) window.open(url, '_blank');
-    else navigate(url);
+    window.open(`/project/${item.id}`, '_blank', 'noopener');
   };
 
 
@@ -221,9 +218,9 @@ const Stock = () => {
                         return (
                           <tr
                             key={index}
-                            onClick={(e) => bukaProject(e, item)}
-                            onAuxClick={(e) => { if (e.button === 1) bukaProject(e, item); }}
-                            title={`Buka project: ${item.NamaBarang || ''}`}
+                            onClick={() => bukaProject(item)}
+                            onAuxClick={(e) => { if (e.button === 1) bukaProject(item); }}
+                            title={`Buka project di tab baru: ${item.NamaBarang || ''}`}
                             onMouseEnter={(e) => { e.currentTarget.style.background = '#f2f6ff'; }}
                             onMouseLeave={(e) => { e.currentTarget.style.background = ''; }}
                             style={{

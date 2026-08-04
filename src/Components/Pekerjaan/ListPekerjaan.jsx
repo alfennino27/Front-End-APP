@@ -1166,7 +1166,16 @@ const ListPekerjaan = () => {
       {/* End Modal */}
 
       {/* Modal */}
-      <Modal className={`${globalTheme === 'light' ? 'modalKLFlight' : 'modalKLF'}`} show={showAddLabel} onHide={() => setShowAddLabel(false)}>
+      {/* backdrop static + keyboard false: form ini gampang ke-dismiss tidak sengaja
+          (klik meleset di luar modal / ESC) dan semua isian ikut hilang. Tutup
+          hanya lewat tombol X atau Submit. */}
+      <Modal
+        className={`${globalTheme === 'light' ? 'modalKLFlight' : 'modalKLF'}`}
+        show={showAddLabel}
+        onHide={() => setShowAddLabel(false)}
+        backdrop="static"
+        keyboard={false}
+      >
         <Modal.Header closeButton >
           <Modal.Title>Tambah Label</Modal.Title>
         </Modal.Header>

@@ -5,12 +5,15 @@ import './index.css';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import { HelmetProvider } from 'react-helmet-async';
 import { ThemeProvider } from './ThemeContext';
+import ErrorBoundary from './Components/ErrorBoundary';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <HelmetProvider>
       <ThemeProvider>
-        <App />
+        <ErrorBoundary>
+          <App />
+        </ErrorBoundary>
       </ThemeProvider>,
     </HelmetProvider>
   </React.StrictMode>

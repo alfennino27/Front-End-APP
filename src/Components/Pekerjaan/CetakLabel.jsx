@@ -3,17 +3,44 @@ import { getImageUrl } from '../../Utils/image';
 
 const CetakLabel = () => {
   const [labels, setLabels] = useState([]);
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
     const storedLabels = sessionStorage.getItem('cetakLabel');
     if (storedLabels) {
       setLabels(JSON.parse(storedLabels));
     }
+    setReady(true);
   }, []);
 
+  // Print baru dipanggil setelah label ter-render DAN semua gambar selesai
+  // dimuat. Kalau print() dipanggil terlalu cepat, snapshot yang dikirim ke
+  // printer bisa masih kosong / tanpa gambar walau preview terlihat benar.
   useEffect(() => {
-    window.print();
-  }, []);
+    if (!ready) return;
+    let printed = false;
+    const doPrint = () => {
+      if (printed) return;
+      printed = true;
+      window.print();
+    };
+
+    const pending = Array.from(document.images).filter((img) => !img.complete);
+    if (pending.length === 0) {
+      const t = setTimeout(doPrint, 150);
+      return () => clearTimeout(t);
+    }
+
+    let left = pending.length;
+    const tick = () => { if (--left <= 0) doPrint(); };
+    pending.forEach((img) => {
+      img.addEventListener('load', tick, { once: true });
+      img.addEventListener('error', tick, { once: true });
+    });
+    // Jaring pengaman kalau ada gambar yang gagal/lambat
+    const timeout = setTimeout(doPrint, 8000);
+    return () => clearTimeout(timeout);
+  }, [ready, labels]);
 
   return (
     <>
@@ -54,8 +81,25 @@ const CetakLabel = () => {
         }
 
         @media print {
-          .label-container {
+          @page { size: A4 portrait; margin: 10mm; }
+
+          html, body { background: #fff !important; }
+
+          /* Efek transparan (box-shadow rgba) memaksa PDF/spooler bikin
+             transparency group — sebagian driver printer men-drop seluruh
+             halaman jadi kertas kosong padahal preview terlihat normal.
+             Untuk cetak: solid semua, tanpa shadow. */
+          .label-card {
+            box-shadow: none !important;
+            border: 1px solid #000 !important;
+            background: #fff !important;
+            break-inside: avoid;
             page-break-inside: avoid;
+          }
+
+          .label-card img {
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
           }
         }
       `}</style>

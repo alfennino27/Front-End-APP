@@ -3,17 +3,41 @@ import { getImageUrl } from '../../Utils/image';
 
 const CetakLabel = () => {
   const [labels, setLabels] = useState([]);
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
     const storedLabels = sessionStorage.getItem('cetakLabel');
     if (storedLabels) {
       setLabels(JSON.parse(storedLabels));
     }
+    setReady(true);
   }, []);
 
+  // Print setelah label ter-render DAN gambar selesai dimuat (lihat CetakLabel.jsx)
   useEffect(() => {
-    window.print();
-  }, []);
+    if (!ready) return;
+    let printed = false;
+    const doPrint = () => {
+      if (printed) return;
+      printed = true;
+      window.print();
+    };
+
+    const pending = Array.from(document.images).filter((img) => !img.complete);
+    if (pending.length === 0) {
+      const t = setTimeout(doPrint, 150);
+      return () => clearTimeout(t);
+    }
+
+    let left = pending.length;
+    const tick = () => { if (--left <= 0) doPrint(); };
+    pending.forEach((img) => {
+      img.addEventListener('load', tick, { once: true });
+      img.addEventListener('error', tick, { once: true });
+    });
+    const timeout = setTimeout(doPrint, 8000);
+    return () => clearTimeout(timeout);
+  }, [ready, labels]);
 
   return (
     <>
@@ -57,8 +81,23 @@ const CetakLabel = () => {
         }
 
         @media print {
-          .label-container {
+          @page { size: A4 portrait; margin: 10mm; }
+
+          html, body { background: #fff !important; }
+
+          /* box-shadow rgba → transparency group di PDF/spooler; sebagian
+             driver printer men-drop seluruh halaman (kertas keluar kosong). */
+          .label-card {
+            box-shadow: none !important;
+            border: 1px solid #000 !important;
+            background: #fff !important;
+            break-inside: avoid;
             page-break-inside: avoid;
+          }
+
+          .label-card img {
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
           }
         }
       `}</style>

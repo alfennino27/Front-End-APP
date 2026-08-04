@@ -46,10 +46,12 @@ import PriceListPage from './Pages/PriceListPage';
 import ProductsPage from './Pages/ProductsPage';
 import CategoryPage from './Pages/CategoryPage';
 import TodoPage from './Pages/TodoPage';
+import ModalGuard from './Components/ModalGuard';
 
 function App() {
   return (
     <Router>
+      <ModalGuard />
       <Routes>
         <Route path="/" element={<Login />} />
         {/* <Route path="/" element={<PekerjaanPage />} /> */}

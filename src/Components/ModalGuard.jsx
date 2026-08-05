@@ -23,19 +23,34 @@ import { useEffect } from 'react';
 // Overlay yang kita jaga. Sengaja dibatasi ke elemen milik library dialog/preview
 // supaya tidak ikut campur ke elemen lain.
 const OVERLAY = [
+  // Root aplikasi. Ekstensi tadi pernah menyembunyikan ini juga — layar jadi
+  // putih total dan hanya sembuh dengan reload.
+  '#root',
   '.modal', '.modal-backdrop',
   '.ant-image-preview-root', '.ant-image-preview-wrap', '.ant-image-preview-mask',
+  '.ant-image-preview-operations-wrapper',
   '.ant-modal-root', '.ant-modal-wrap', '.ant-modal-mask',
   '.ant-drawer',
 ].join(',');
 
 // Kalau ekstensinya ikut memantau dan menulis ulang terus, berhenti melawan
 // setelah sekian kali supaya tidak jadi loop yang membekukan tab.
-const BATAS_ROLLBACK = 30;
+const BATAS_ROLLBACK = 200;
 
 const ModalGuard = () => {
   useEffect(() => {
     const hitung = new WeakMap();
+
+    // Kalau sudah terlanjur disembunyikan sebelum guard hidup, tidak akan ada
+    // mutasi baru untuk ditangkap — bersihkan sekali di awal.
+    document.querySelectorAll(OVERLAY).forEach((el) => {
+      if (
+        el.style.display === 'none' &&
+        el.style.getPropertyPriority('display') === 'important'
+      ) {
+        el.style.removeProperty('display');
+      }
+    });
 
     const obs = new MutationObserver((muts) => {
       muts.forEach((m) => {

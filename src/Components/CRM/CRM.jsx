@@ -276,13 +276,59 @@ export default function CRM() {
     e.target.value = '';
   };
 
+  // ── Drag & drop CSV: seluruh halaman jadi drop zone ──────────────────────
+  // Drop target kecil di sekitar tombol susah dikenai. Di sini listener
+  // dipasang di window (khusus tab Kampanye) supaya file bisa dilepas di mana
+  // saja, sekaligus mencegah browser membuka file-nya sendiri.
   const [csvDragOver, setCsvDragOver] = useState(false);
-  const handleCSVDrop = (e) => {
-    e.preventDefault();
-    setCsvDragOver(false);
-    const file = e.dataTransfer.files && e.dataTransfer.files[0];
-    parseCSVFile(file);
-  };
+  const dragDepth = useRef(0); // dragenter/leave ikut ter-fire dari elemen anak
+
+  // Cek drag benar-benar membawa file (bukan seleksi teks / elemen halaman)
+  const dragHasFile = (e) =>
+    Array.from(e.dataTransfer?.types || []).includes('Files');
+
+  // Ambil .csv pertama dari daftar file yang dilepas
+  const firstCSV = (files) =>
+    Array.from(files || []).find(f => /\.csv$/i.test(f.name)) || (files && files[0]);
+
+  useEffect(() => {
+    if (activeTab !== 'campaigns') { dragDepth.current = 0; setCsvDragOver(false); return; }
+
+    const onDragEnter = (e) => {
+      if (!dragHasFile(e)) return;
+      e.preventDefault();
+      dragDepth.current += 1;
+      setCsvDragOver(true);
+    };
+    const onDragOver = (e) => {
+      if (!dragHasFile(e)) return;
+      e.preventDefault(); // wajib, kalau tidak event drop tidak pernah jalan
+      e.dataTransfer.dropEffect = 'copy';
+    };
+    const onDragLeave = (e) => {
+      if (!dragHasFile(e)) return;
+      dragDepth.current = Math.max(0, dragDepth.current - 1);
+      if (dragDepth.current === 0) setCsvDragOver(false);
+    };
+    const onDrop = (e) => {
+      if (!dragHasFile(e)) return;
+      e.preventDefault(); // cegah browser membuka file di tab baru
+      dragDepth.current = 0;
+      setCsvDragOver(false);
+      parseCSVFile(firstCSV(e.dataTransfer.files));
+    };
+
+    window.addEventListener('dragenter', onDragEnter);
+    window.addEventListener('dragover', onDragOver);
+    window.addEventListener('dragleave', onDragLeave);
+    window.addEventListener('drop', onDrop);
+    return () => {
+      window.removeEventListener('dragenter', onDragEnter);
+      window.removeEventListener('dragover', onDragOver);
+      window.removeEventListener('dragleave', onDragLeave);
+      window.removeEventListener('drop', onDrop);
+    };
+  }, [activeTab]);
 
   const handleImportConfirm = async () => {
     setImportLoading(true);
@@ -390,27 +436,48 @@ export default function CRM() {
 
   return (
     <Container fluid className="py-3 px-3">
+      {/* Overlay drop zone — muncul saat file diseret ke mana saja (tab Kampanye) */}
+      {csvDragOver && (
+        <div style={{
+          position:'fixed', inset:0, zIndex:2000,
+          background: dark ? 'rgba(0,0,0,0.72)' : 'rgba(255,255,255,0.85)',
+          backdropFilter:'blur(2px)',
+          display:'flex', alignItems:'center', justifyContent:'center',
+          pointerEvents:'none', // biar event drop tetap sampai ke window
+        }}>
+          <div style={{
+            border:'3px dashed #198754', borderRadius:16,
+            padding:'48px 64px', textAlign:'center',
+            background: dark ? 'rgba(25,135,84,0.12)' : 'rgba(25,135,84,0.06)',
+          }}>
+            <MdFileUpload size={56} color="#198754"/>
+            <div style={{fontSize:20,fontWeight:700,color:'#198754',marginTop:12}}>Lepaskan file di sini</div>
+            <div style={{fontSize:13,color:muted,marginTop:4}}>File .csv hasil export Meta Ads</div>
+          </div>
+        </div>
+      )}
+
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
-        <div><h4 style={{color:text,fontWeight:700,margin:0}}>CRM</h4><small style={{color:muted}}>Customer Relationship Management</small></div>
+        <div>
+          <h4 style={{color:text,fontWeight:700,margin:0}}>CRM</h4>
+          <small style={{color:muted}}>Customer Relationship Management</small>
+          {activeTab==='campaigns' && (
+            <div style={{color:muted,fontSize:12,marginTop:2}}>
+              <MdFileUpload style={{marginRight:4,verticalAlign:-2}}/>
+              Drag &amp; drop file .csv Meta Ads ke mana saja di halaman ini untuk import
+            </div>
+          )}
+        </div>
         <div style={{display:'flex',gap:8}}>
           {activeTab==='pipeline'&&<Button size="sm" variant="primary" onClick={()=>{setEditingLead(null);setLeadForm({nama:'',wa:'',campaign_id:'',notes:'',stage:'leads'});setShowLeadModal(true);}}><MdAdd/> Tambah Lead</Button>}
           {activeTab==='campaigns'&&<>
             <input ref={fileInputRef} type="file" accept=".csv" style={{display:'none'}} onChange={handleCSVFile}/>
-            <div
-              onDragOver={(e)=>{e.preventDefault(); setCsvDragOver(true);}}
-              onDragLeave={()=>setCsvDragOver(false)}
-              onDrop={handleCSVDrop}
-              title="Klik atau drag & drop file .csv export Meta Ads di sini"
-              style={{
-                border: csvDragOver ? '2px dashed #198754' : '2px dashed transparent',
-                borderRadius: 8,
-                padding: 2,
-                background: csvDragOver ? 'rgba(25,135,84,0.08)' : 'transparent',
-                transition: 'all 0.15s ease',
-              }}
-            >
-              <Button size="sm" variant="outline-success" onClick={()=>fileInputRef.current?.click()}><MdFileUpload/> Import Meta Ads</Button>
-            </div>
+            <Button
+              size="sm"
+              variant="outline-success"
+              title="Klik untuk pilih file, atau drag & drop file .csv export Meta Ads ke mana saja di halaman ini"
+              onClick={()=>fileInputRef.current?.click()}
+            ><MdFileUpload/> Import Meta Ads</Button>
             <Button size="sm" variant="primary" onClick={()=>{setEditingCampaign(null);setCampForm({nama:'',platform:'instagram',bulan:'',spend:'',status:'active'});setShowCampaignModal(true);}}><MdAdd/> Tambah Campaign</Button>
           </>}
         </div>

@@ -85,14 +85,28 @@ const ModalGuard = () => {
     // overlay-nya, jadi viewer cuma TERLIHAT tertutup — state antd tetap
     // terbuka, itulah kenapa gambar tidak bisa dibuka lagi sampai reload.
     // Sekarang kita tutup betulan lewat tombol close antd supaya state ikut bersih.
+    // Ekstensi tadi juga memanggil stopPropagation pada klik di area gelap,
+    // sehingga klik tidak pernah sampai ke React — akibatnya klik di luar tidak
+    // lagi menutup dialog apa pun. Kita teruskan sendiri ke tombol close-nya.
     const onKlikDokumen = (e) => {
       const target = e.target;
       if (!target || !target.classList) return;
-      // Hanya klik pada area kosongnya sendiri — bukan gambar atau toolbar.
-      if (!target.classList.contains('ant-image-preview-wrap')) return;
 
-      const tombolClose = document.querySelector('.ant-image-preview-close');
-      if (tombolClose) tombolClose.click();
+      // Viewer gambar antd — klik area kosongnya (bukan gambar / toolbar).
+      if (target.classList.contains('ant-image-preview-wrap')) {
+        document.querySelector('.ant-image-preview-close')?.click();
+        return;
+      }
+
+      // Dialog react-bootstrap — klik area gelap di luar kotak dialog.
+      if (target.classList.contains('modal') || target.classList.contains('modal-backdrop')) {
+        const dialog = document.querySelector('.modal.show');
+        if (!dialog) return;
+        // Form yang sengaja tidak boleh ditutup dari luar (mis. Tambah Label)
+        // menandai dirinya lewat data-tutup-luar="off".
+        if (dialog.dataset.tutupLuar === 'off') return;
+        dialog.querySelector('.btn-close')?.click();
+      }
     };
 
     document.addEventListener('click', onKlikDokumen, true);

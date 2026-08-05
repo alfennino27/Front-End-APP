@@ -1175,6 +1175,7 @@ const ListPekerjaan = () => {
         onHide={() => setShowAddLabel(false)}
         backdrop="static"
         keyboard={false}
+        data-tutup-luar="off"
       >
         <Modal.Header closeButton >
           <Modal.Title>Tambah Label</Modal.Title>

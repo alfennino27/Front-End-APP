@@ -103,8 +103,9 @@ const ModalGuard = () => {
         const dialog = document.querySelector('.modal.show');
         if (!dialog) return;
         // Form yang sengaja tidak boleh ditutup dari luar (mis. Tambah Label)
-        // menandai dirinya lewat data-tutup-luar="off".
-        if (dialog.dataset.tutupLuar === 'off') return;
+        // menandai dirinya lewat data-tutup-luar="off". React-Bootstrap menaruh
+        // prop sisa di .modal-dialog, bukan di .modal, jadi dicari ke dalam.
+        if (dialog.querySelector('[data-tutup-luar="off"]')) return;
         dialog.querySelector('.btn-close')?.click();
       }
     };

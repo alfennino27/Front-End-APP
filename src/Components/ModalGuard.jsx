@@ -65,7 +65,27 @@ const ModalGuard = () => {
       attributeFilter: ['style'],
     });
 
-    return () => obs.disconnect();
+    // Klik ruang kosong di viewer gambar harus menutup viewer-nya. Dulu ini
+    // "jalan" hanya sebagai efek samping: ekstensi tadi menyembunyikan
+    // overlay-nya, jadi viewer cuma TERLIHAT tertutup — state antd tetap
+    // terbuka, itulah kenapa gambar tidak bisa dibuka lagi sampai reload.
+    // Sekarang kita tutup betulan lewat tombol close antd supaya state ikut bersih.
+    const onKlikDokumen = (e) => {
+      const target = e.target;
+      if (!target || !target.classList) return;
+      // Hanya klik pada area kosongnya sendiri — bukan gambar atau toolbar.
+      if (!target.classList.contains('ant-image-preview-wrap')) return;
+
+      const tombolClose = document.querySelector('.ant-image-preview-close');
+      if (tombolClose) tombolClose.click();
+    };
+
+    document.addEventListener('click', onKlikDokumen, true);
+
+    return () => {
+      obs.disconnect();
+      document.removeEventListener('click', onKlikDokumen, true);
+    };
   }, []);
 
   return null;

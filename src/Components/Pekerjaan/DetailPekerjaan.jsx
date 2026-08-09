@@ -1758,7 +1758,17 @@ const DetailPekerjaan = () => {
 
 
   const HighlightMentions = ({ text }) => {
-    const mentionNames = ["@Alfen", "@Azwad", "@Lina", "@Mad", "@P. Dhe", "@Rakev", "@Resti", "@Udin", "@Xena"];
+    // Daftar nama diambil dari Users (bukan hardcode) supaya user baru ikut
+    // ter-highlight — dan supaya nama kanonik di ERP satu sumber dengan yang
+    // dipakai Hermes saat menulis tag dari WhatsApp (utils/tagNotify.js).
+    // Nama terpanjang didahulukan: "@P. Dhe" jangan keburu match "@P".
+    const escapeRx = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const mentionNames = dataUserFromDB
+      .map((u) => u.name)
+      .filter(Boolean)
+      .sort((a, b) => b.length - a.length)
+      .map((n) => `@${escapeRx(n)}`);
+    if (!mentionNames.length) mentionNames.push("@(?!)"); // tak pernah match, hindari regex kosong
     const regex = new RegExp(`(${mentionNames.join("|")})`, "g");
 
     // Ganti teks mention dengan span berwarna biru

@@ -86,7 +86,9 @@ const UserManagement = () => {
         name: "",
         email: "",
         password: "",
-        profilePicture: ""
+        profilePicture: "",
+        nomorWa: "",   // tujuan notifikasi tag lewat Hermes/WhatsApp
+        waAlias: ""    // alias panggilan, dipisah koma
     });
 
     const [formRegister, setFormRegister] = useState({ name: "", email: "", password: "", profilePicture: "" });
@@ -147,6 +149,8 @@ const UserManagement = () => {
             formDataToSend.append('name', formData.name);
             formDataToSend.append('email', formData.email);
             formDataToSend.append('password', formData.password);
+            formDataToSend.append('nomorWa', formData.nomorWa || '');
+            formDataToSend.append('waAlias', formData.waAlias || '');
 
             if (formData.profilePicture) {
                 formDataToSend.append('profilePicture', formData.profilePicture);
@@ -331,6 +335,8 @@ const UserManagement = () => {
                                                             password: '', // kosongkan biar gak autofill password lama
                                                             profilePicture: null, // kosongkan input file (gak bisa pre-fill file input)
                                                             id: item.id || item._id || '', // kalau kamu pakai ID
+                                                            nomorWa: item.nomorWa || '',
+                                                            waAlias: Array.isArray(item.waAlias) ? item.waAlias.join(', ') : (item.waAlias || ''),
                                                         });
                                                         setShowEditUsersModal(true);
                                                     }}
@@ -587,6 +593,34 @@ const UserManagement = () => {
                             value={formData.password}
                             onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                         />
+                    </div>
+                    <div className='mb-4'>
+                        <label className="mb-1">Nomor WA</label>
+                        <Input
+                            type="text"
+                            name="nomorWa"
+                            placeholder="08123456789"
+                            value={formData.nomorWa}
+                            onChange={(e) => setFormData({ ...formData, nomorWa: e.target.value })}
+                        />
+                        <small style={{ color: '#888' }}>
+                            Dipakai Hermes untuk mengirim notifikasi saat user ini di-tag di komentar.
+                            Kosong = hanya dapat notifikasi di ERP.
+                        </small>
+                    </div>
+                    <div className='mb-4'>
+                        <label className="mb-1">Alias Panggilan</label>
+                        <Input
+                            type="text"
+                            name="waAlias"
+                            placeholder="pakde, tatung"
+                            value={formData.waAlias}
+                            onChange={(e) => setFormData({ ...formData, waAlias: e.target.value })}
+                        />
+                        <small style={{ color: '#888' }}>
+                            Pisahkan dengan koma. Supaya tag dari WhatsApp ("@pakde") dikenali
+                            sebagai user ini tanpa menebak.
+                        </small>
                     </div>
                     <div className='mb-4'>
                         <label className="mb-1">Foto Profil</label>

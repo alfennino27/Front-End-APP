@@ -31,6 +31,7 @@ import NotesPage from './Pages/NotesPage';
 import StoragePage from './Pages/StoragePage';
 import CrmPage from './Pages/CrmPage';
 import QuotePage from './Pages/QuotePage';
+import AbsensiPage from './Pages/AbsensiPage';
 import KnowledgePage from './Pages/KnowledgePage';
 import StockPage from './Pages/StockPage';
 import AssetsPage from './Pages/AssetsPage';
@@ -96,6 +97,7 @@ function App() {
         <Route path="/crm" element={<CrmPage />} />
         <Route path="/quote" element={<QuotePage />} />
         <Route path="/quote/:id" element={<QuotePage />} />
+        <Route path="/absensi" element={<AbsensiPage />} />
         <Route path="/knowledge" element={<KnowledgePage />} />
         <Route path="/stock" element={<StockPage />} />
         <Route path="/assets" element={<AssetsPage />} />

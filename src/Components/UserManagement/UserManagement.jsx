@@ -406,6 +406,10 @@ const UserManagement = () => {
                                                                 onChange={(e) => handleCheckboxChange(item.uid, "CRM", e.target.checked)}
                                                             >CRM</Checkbox><br />
                                                             <Checkbox
+                                                                checked={getCheckboxState(item.uid, "Absensi")}
+                                                                onChange={(e) => handleCheckboxChange(item.uid, "Absensi", e.target.checked)}
+                                                            >Absensi</Checkbox><br />
+                                                            <Checkbox
                                                                 checked={getCheckboxState(item.uid, "Knowledge")}
                                                                 onChange={(e) => handleCheckboxChange(item.uid, "Knowledge", e.target.checked)}
                                                             >Knowledge Base</Checkbox><br />

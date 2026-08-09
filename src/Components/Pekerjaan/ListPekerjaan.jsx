@@ -7,7 +7,7 @@ import dataPekerjaan from '../../assets/data/datapekerjaan';
 import { FaSearch } from "react-icons/fa";
 import { FaRegFilePdf } from "react-icons/fa6";
 import { FaFilePdf } from "react-icons/fa6";
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { MdFormatListBulletedAdd } from "react-icons/md";
 import { getApiBaseUrl } from '../../Config/APIurl';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -145,39 +145,48 @@ const ListPekerjaan = () => {
 
 
 
+  // filteredData tidak diset di sini — ada useEffect turunan di bawah yang
+  // menghitungnya dari masterData* + tab yang sedang aktif. Kalau di-set di sini,
+  // refetch saat tab Completed aktif akan melempar user balik ke daftar Ongoing.
+  const fetchAllProjects = useCallback(async () => {
+    try {
+      // fetch showCompleted = false
+      const resFalse = await fetch(`${baseUrl}/projects/list`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ showCompleted: false })
+      });
+      const dataFalse = await resFalse.json();
+      console.log("barang ongoing :", dataFalse);
+      setMasterDataFalse(dataFalse);
+
+      // fetch showCompleted = true
+      const resTrue = await fetch(`${baseUrl}/projects/list`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ showCompleted: true })
+      });
+      const dataTrue = await resTrue.json();
+      setMasterDataTrue(dataTrue);
+
+      setProjects(dataFalse);
+    } catch (err) {
+      console.error('Error fetching projects:', err);
+    }
+  }, [baseUrl]);
+
   useEffect(() => {
-    const fetchAllProjects = async () => {
-      try {
-        // fetch showCompleted = false
-        const resFalse = await fetch(`${baseUrl}/projects/list`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ showCompleted: false })
-        });
-        const dataFalse = await resFalse.json();
-        console.log("barang ongoing :", dataFalse);
-        setMasterDataFalse(dataFalse);
-
-        // fetch showCompleted = true
-        const resTrue = await fetch(`${baseUrl}/projects/list`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ showCompleted: true })
-        });
-        const dataTrue = await resTrue.json();
-        setMasterDataTrue(dataTrue);
-
-        setProjects(dataFalse);
-
-        // default filteredData sesuai showCompleted saat ini
-        setFilteredData(dataFalse);
-      } catch (err) {
-        console.error('Error fetching projects:', err);
-      }
-    };
-
     fetchAllProjects();
-  }, []);
+  }, [fetchAllProjects]);
+
+  // Status project diubah dari modal Information di panel detail (Ongoing <-> Completed).
+  // Item harus pindah daftar, dan field lain (nama, deadline, percentage) bisa ikut
+  // berubah di modal yang sama — jadi ambil ulang kedua daftar, bukan tambal manual.
+  useEffect(() => {
+    const onProjectUpdated = () => { fetchAllProjects(); };
+    window.addEventListener('projectStatusChanged', onProjectUpdated);
+    return () => window.removeEventListener('projectStatusChanged', onProjectUpdated);
+  }, [fetchAllProjects]);
 
   // Status kategori diubah dari panel detail → tambal data di sini juga supaya
   // badge di kartu langsung berubah tanpa reload. masterData* yang ditambal

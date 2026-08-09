@@ -757,6 +757,12 @@ const DetailPekerjaan = () => {
       }
 
       await refreshData(); // fungsi untuk ambil ulang data dari API
+
+      // Kabari ListPekerjaan supaya kartu langsung pindah antara tab Ongoing dan
+      // Completed tanpa perlu reload halaman.
+      window.dispatchEvent(new CustomEvent('projectStatusChanged', {
+        detail: { projectId: slug, status: statusInformation },
+      }));
     } catch (e) {
       console.error('Error update project:', e);
     }

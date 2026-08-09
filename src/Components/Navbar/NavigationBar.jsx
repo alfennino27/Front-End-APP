@@ -153,12 +153,25 @@ const NavigationBar = () => {
 
       setDataNotifFromDB(data);
 
-      // Cek notifikasi pertama dan simpan status
+      // Nyalakan bel hanya kalau ada notif BARU dari ORANG LAIN.
+      // Aksi sendiri (komentar/balasan kita, termasuk yang ditulis lewat
+      // WhatsApp via Hermes) tidak perlu memberi tahu diri sendiri — dulu
+      // membalas berarti bel ERP ikut menyala dan harus diklik untuk padam.
+      // Dicek dari seluruh notif yang lebih baru dari yang terakhir dilihat,
+      // bukan cuma yang paling atas, supaya notif orang lain tidak terlewat
+      // kalau notif kita kebetulan datang belakangan.
       if (data.length > 0 && localStorage.getItem('firstNotif') !== data[0]?.id) {
+        const lastSeenId = localStorage.getItem('firstNotif');
+        const lastSeenIdx = data.findIndex((n) => n.id === lastSeenId);
+        const baru = lastSeenIdx === -1 ? data : data.slice(0, lastSeenIdx);
+        const adaDariOrangLain = baru.some((n) => n.user !== user?.uid);
+
         localStorage.setItem('firstNotif', data[0]?.id);
-        localStorage.setItem('notifStatus', 'on');
-        setNotifStatus('on');
-        showNotification();
+        if (adaDariOrangLain) {
+          localStorage.setItem('notifStatus', 'on');
+          setNotifStatus('on');
+          showNotification();
+        }
       }
     } catch (error) {
       console.error('Gagal mengambil notifikasi:', error);

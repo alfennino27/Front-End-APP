@@ -213,6 +213,16 @@ const AIChatBubble = ({ seedContext = '', greeting = '', onActivity = null } = {
           }),
         });
         updateProposal(msgId, idx, { _status: res.ok ? 'saved' : 'error' });
+      } else if (prop.type === 'invoice_pengeluaran') {
+        const res = await fetch(`${baseUrl}/ai/chat/pengeluaran/confirm`, {
+          method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
+          body: JSON.stringify({
+            invoice_id: prop.invoice_id,
+            items: prop.items || [],
+            created_by_uid: getUid(),
+          }),
+        });
+        updateProposal(msgId, idx, { _status: res.ok ? 'saved' : 'error' });
       } else if (prop.type === 'invoice_payment' || prop.type === 'spk_payment') {
         const res = await fetch(`${baseUrl}/ai/chat/payment/confirm`, {
           method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
@@ -496,12 +506,53 @@ const AIChatBubble = ({ seedContext = '', greeting = '', onActivity = null } = {
                       const isTarget = p.type === 'target_kirim';
                       const isBulk = p.type === 'bulk_comment' || p.type === 'bulk_category_description';
                       const isSpkEdit = p.type === 'spk_item_edit';
+                      const isPengeluaran = p.type === 'invoice_pengeluaran';
                       const formatRp = (n) => 'Rp ' + Number(n || 0).toLocaleString('id-ID');
                       return (
                         <div key={i} style={{ fontSize: 13, padding: '8px 10px', marginBottom: 6, borderRadius: 8,
-                          background: isSpkEdit ? (isLight ? '#fff3cd' : '#2a2108') : isTarget || isBulk ? (isLight ? '#e8f5e9' : '#0f2417') : isPotong ? (isLight ? '#e7f1ff' : '#0d1b2a') : isPayment ? (isLight ? '#fff3cd' : '#2a2108') : (isLight ? '#fff8e1' : '#2a2620'),
-                          border: isSpkEdit ? '2px solid #ffc107' : isTarget || isBulk ? '2px solid #2e9e5b' : isPotong ? '2px solid #0d6efd' : isPayment ? '2px solid #ffc107' : '1px solid #f0c000' }}>
-                          {isBulk ? (
+                          background: isPengeluaran ? (isLight ? '#fdecea' : '#2a1414') : isSpkEdit ? (isLight ? '#fff3cd' : '#2a2108') : isTarget || isBulk ? (isLight ? '#e8f5e9' : '#0f2417') : isPotong ? (isLight ? '#e7f1ff' : '#0d1b2a') : isPayment ? (isLight ? '#fff3cd' : '#2a2108') : (isLight ? '#fff8e1' : '#2a2620'),
+                          border: isPengeluaran ? '2px solid #dc3545' : isSpkEdit ? '2px solid #ffc107' : isTarget || isBulk ? '2px solid #2e9e5b' : isPotong ? '2px solid #0d6efd' : isPayment ? '2px solid #ffc107' : '1px solid #f0c000' }}>
+                          {isPengeluaran ? (
+                            <>
+                              <div style={{ fontWeight: 700, marginBottom: 4 }}>
+                                🧾 Catat Pengeluaran Order — {p.count} baris
+                              </div>
+                              <div style={{ marginBottom: 4 }}>
+                                <b>{p.kode_invoice}</b>{' '}
+                                <span style={{ opacity: 0.7 }}>({p.customer || '-'})</span>
+                              </div>
+                              <div style={{ overflowX: 'auto' }}>
+                                <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
+                                  <thead>
+                                    <tr style={{ textAlign: 'left', opacity: 0.7 }}>
+                                      <th style={{ padding: '2px 4px' }}>Tanggal</th>
+                                      <th style={{ padding: '2px 4px' }}>Kategori</th>
+                                      <th style={{ padding: '2px 4px' }}>Keterangan</th>
+                                      <th style={{ padding: '2px 4px', textAlign: 'right' }}>Nominal</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {(p.items || []).map((it, k) => (
+                                      <tr key={k}>
+                                        <td style={{ padding: '2px 4px', whiteSpace: 'nowrap' }}>{it.tanggal}</td>
+                                        <td style={{ padding: '2px 4px' }}>{it.kategori || '-'}</td>
+                                        <td style={{ padding: '2px 4px' }}>{it.keterangan || '-'}</td>
+                                        <td style={{ padding: '2px 4px', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatRp(it.nominal)}</td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                              <div style={{ marginTop: 4, padding: '4px 8px', borderRadius: 6, background: isLight ? '#fff5f5' : '#1a0d0d' }}>
+                                Total: <b>{formatRp(p.total)}</b> — memotong profit order ini.
+                              </div>
+                              {p.ditolak && p.ditolak.length > 0 && (
+                                <div style={{ marginTop: 4, fontSize: 11.5, color: '#dc3545' }}>
+                                  {p.ditolak.length} baris dilewati karena tidak terbaca — periksa lagi sebelum menyetujui.
+                                </div>
+                              )}
+                            </>
+                          ) : isBulk ? (
                             <>
                               <div style={{ fontWeight: 700, marginBottom: 4 }}>
                                 {p.type === 'bulk_comment' ? `📝 Komentar → ${p.category}` : `📝 Tambah deskripsi → ${p.category}`} ({(p.items || []).length} item)

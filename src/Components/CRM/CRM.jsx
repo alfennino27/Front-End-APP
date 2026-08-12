@@ -45,6 +45,8 @@ export default function CRM() {
   const [qualityNote, setQualityNote] = useState('');
   const [editingCampaign, setEditingCampaign] = useState(null);
   const [campForm, setCampForm] = useState({ nama:'', platform:'instagram', bulan:'', spend:'', status:'active' });
+  const [showUploadModal, setShowUploadModal] = useState(false); // dialog drag & drop file (sebelum preview)
+  const [uploadDragOver, setUploadDragOver] = useState(false);   // highlight dropzone di dalam dialog
   const [showImportModal, setShowImportModal] = useState(false);
   const [importPreview, setImportPreview] = useState([]);
   const [importLoading, setImportLoading] = useState(false);
@@ -266,6 +268,8 @@ export default function CRM() {
         };
       });
       setImportPreview(parsed);
+      setShowUploadModal(false); // tutup dialog drop, lanjut ke preview
+      setUploadDragOver(false);
       setShowImportModal(true);
     };
     reader.readAsText(file);
@@ -437,7 +441,8 @@ export default function CRM() {
   return (
     <Container fluid className="py-3 px-3">
       {/* Overlay drop zone — muncul saat file diseret ke mana saja (tab Kampanye) */}
-      {csvDragOver && (
+      {/* saat dialog import terbuka, dropzone di dalam dialog yang dipakai — overlay disembunyikan */}
+      {csvDragOver && !showUploadModal && (
         <div style={{
           position:'fixed', inset:0, zIndex:2000,
           background: dark ? 'rgba(0,0,0,0.72)' : 'rgba(255,255,255,0.85)',
@@ -471,12 +476,11 @@ export default function CRM() {
         <div style={{display:'flex',gap:8}}>
           {activeTab==='pipeline'&&<Button size="sm" variant="primary" onClick={()=>{setEditingLead(null);setLeadForm({nama:'',wa:'',campaign_id:'',notes:'',stage:'leads'});setShowLeadModal(true);}}><MdAdd/> Tambah Lead</Button>}
           {activeTab==='campaigns'&&<>
-            <input ref={fileInputRef} type="file" accept=".csv" style={{display:'none'}} onChange={handleCSVFile}/>
             <Button
               size="sm"
               variant="outline-success"
-              title="Klik untuk pilih file, atau drag & drop file .csv export Meta Ads ke mana saja di halaman ini"
-              onClick={()=>fileInputRef.current?.click()}
+              title="Buka dialog import: drag & drop file .csv export Meta Ads, atau klik Pilih File"
+              onClick={()=>{setUploadDragOver(false);setShowUploadModal(true);}}
             ><MdFileUpload/> Import Meta Ads</Button>
             <Button size="sm" variant="primary" onClick={()=>{setEditingCampaign(null);setCampForm({nama:'',platform:'instagram',bulan:'',spend:'',status:'active'});setShowCampaignModal(true);}}><MdAdd/> Tambah Campaign</Button>
           </>}
@@ -1034,6 +1038,44 @@ export default function CRM() {
           <Form.Group className="mb-2"><Form.Label style={{color:dark?'white':'black'}}>Evaluasi *</Form.Label><Form.Control as="textarea" rows={7} value={evalForm.body} onChange={e=>setEvalForm(f=>({...f,body:e.target.value}))} placeholder={"Ceritakan hasil iklan bulan ini...\n- Ada lead bagus / hampir deal?\n- Respon mayoritas qualified atau tidak?\n- Apa yang perlu diperbaiki?"}/></Form.Group>
         </Modal.Body>
         <Modal.Footer><Button variant="secondary" onClick={()=>setShowEvalModal(false)}>Batal</Button><Button variant="primary" onClick={submitEval} disabled={savingEval||!evalForm.body.trim()}>{savingEval?<Spinner size="sm"/>:'Simpan'}</Button></Modal.Footer>
+      </Modal>
+
+      {/* UPLOAD CSV — dialog drag & drop, dibuka dari tombol "Import Meta Ads".
+          File explorer HANYA terbuka kalau user klik tombol "Pilih File" di dalam dialog ini. */}
+      <Modal show={showUploadModal} onHide={()=>{setShowUploadModal(false);setUploadDragOver(false);}} centered className={mc}>
+        <Modal.Header closeButton><Modal.Title style={{color:dark?'white':'black'}}>Import Meta Ads</Modal.Title></Modal.Header>
+        <Modal.Body>
+          <div
+            onDragEnter={(e)=>{ if(!dragHasFile(e)) return; e.preventDefault(); e.stopPropagation(); setUploadDragOver(true); }}
+            onDragOver={(e)=>{ if(!dragHasFile(e)) return; e.preventDefault(); e.stopPropagation(); e.dataTransfer.dropEffect='copy'; setUploadDragOver(true); }}
+            onDragLeave={(e)=>{ e.stopPropagation(); setUploadDragOver(false); }}
+            onDrop={(e)=>{
+              if(!dragHasFile(e)) return;
+              e.preventDefault();
+              e.stopPropagation(); // jangan diteruskan ke listener window (biar tidak diproses 2x)
+              setUploadDragOver(false);
+              dragDepth.current = 0; setCsvDragOver(false); // window drop tidak jalan, reset manual
+              parseCSVFile(firstCSV(e.dataTransfer.files));
+            }}
+            style={{
+              border:'2px dashed '+(uploadDragOver?'#198754':(dark?'#444':'#ccc')),
+              background: uploadDragOver ? (dark?'rgba(25,135,84,0.14)':'rgba(25,135,84,0.07)') : 'transparent',
+              borderRadius:12, padding:'36px 20px', textAlign:'center', transition:'all .15s',
+            }}
+          >
+            <MdFileUpload size={48} color={uploadDragOver?'#198754':muted}/>
+            <div style={{fontSize:16,fontWeight:600,color:uploadDragOver?'#198754':text,marginTop:10}}>
+              {uploadDragOver ? 'Lepaskan file di sini' : 'Drag & drop file .csv di sini'}
+            </div>
+            <div style={{fontSize:12,color:muted,marginTop:4}}>File .csv hasil export Meta Ads</div>
+            <div style={{fontSize:12,color:muted,margin:'14px 0 10px'}}>atau</div>
+            <input ref={fileInputRef} type="file" accept=".csv" style={{display:'none'}} onChange={handleCSVFile}/>
+            <Button size="sm" variant="outline-success" onClick={()=>fileInputRef.current?.click()}>
+              Pilih File
+            </Button>
+          </div>
+        </Modal.Body>
+        <Modal.Footer><Button variant="secondary" onClick={()=>{setShowUploadModal(false);setUploadDragOver(false);}}>Batal</Button></Modal.Footer>
       </Modal>
 
       {/* IMPORT META ADS */}

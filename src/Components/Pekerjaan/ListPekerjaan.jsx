@@ -16,6 +16,7 @@ import { IoSearch } from 'react-icons/io5';
 import { useTheme } from '../../ThemeContext';
 import { getImageUrl } from '../../Utils/image';
 import { TbTruckDelivery } from 'react-icons/tb';
+import dayjs from 'dayjs';
 
 //tes
 
@@ -33,13 +34,29 @@ const BOLEH_LIHAT_STATUS_SPK = [
   'MjOCxfNdGtf0q12BPzj0EYAcVJD3', 'knydS6fIBdOwHS37dDm3ZDNQXKQ2', 'Q3LWLX4D7Ye8hMnQVF9fa7SZb953',
 ];
 
+// Filter daftar project disimpan supaya tidak hilang saat user buka detail lalu back.
+// Di mobile ListPekerjaan di-unmount total waktu buka detail (lihat Pekerjaan.jsx),
+// jadi tanpa ini semua filter balik ke awal dan user harus memfilter ulang.
+const FILTER_STORAGE_KEY = 'projectListFilters';
+
+const loadSavedFilters = () => {
+  try {
+    const raw = localStorage.getItem(FILTER_STORAGE_KEY);
+    return raw ? (JSON.parse(raw) || {}) : {};
+  } catch {
+    return {};
+  }
+};
+
 const ListPekerjaan = () => {
   const baseUrl = getApiBaseUrl();
   const { slug } = useParams();
-  const [showCompleted, setShowCompleted] = useState(false);
-  const [showSearch, setShowSearch] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [isIconBlue, setIsIconBlue] = useState(false);
+  const [savedFilters] = useState(loadSavedFilters); // dibaca sekali saat mount
+  const [showCompleted, setShowCompleted] = useState(!!savedFilters.showCompleted);
+  const [searchTerm, setSearchTerm] = useState(savedFilters.searchTerm || '');
+  // kolom search dibuka kembali kalau kata kuncinya masih aktif — biar kelihatan & mudah dihapus
+  const [showSearch, setShowSearch] = useState(!!savedFilters.searchTerm);
+  const [isIconBlue, setIsIconBlue] = useState(!!savedFilters.searchTerm);
   const [showModal, setShowModal] = useState(false);
   const [Projects, setProjects] = useState([]);
   const [ProjectsCopy, setProjectsCopy] = useState([]);
@@ -47,11 +64,17 @@ const ListPekerjaan = () => {
   const [showSupplier, setShowSupplier] = useState(false);
   const [showLabel, setShowLabel] = useState(false);
   const [showAddLabel, setShowAddLabel] = useState(false);
-  const [searchSupplier, setSearchSupplier] = useState('');
+  // fallback ke key lama supaya sesi yang sudah punya filter tersimpan tetap kebaca
+  const [searchSupplier, setSearchSupplier] = useState(
+    savedFilters.searchSupplier ?? (localStorage.getItem('searchSupplierLocalStorage') || '')
+  );
+  const [searchSupplierCategory, setSearchSupplierCategory] = useState(
+    savedFilters.searchSupplierCategory ?? (localStorage.getItem('searchSupplierCategoryLocalStorage') || '')
+  );
 
   const [masterDataFalse, setMasterDataFalse] = useState([]);
   const [masterDataTrue, setMasterDataTrue] = useState([]);
-  const [filteredData, setFilteredData] = useState([]);
+  const [dataLoaded, setDataLoaded] = useState(false); // beda "masih loading" vs "hasil filter kosong"
 
 
   const isMobile = window.innerWidth <= 768;
@@ -72,11 +95,11 @@ const ListPekerjaan = () => {
   const [jumlahPrint, setJumlahPrint] = useState(''); // berapa lembar label mau dicetak (bebas)
   const [labelProducts, setLabelProducts] = useState([]); // produk dari invoice yg BELUM LUNAS (sumber dropdown label)
 
-  const [sortOrder, setSortOrder] = useState('oldest');
-  const [selectedMonth, setSelectedMonth] = useState(null);
+  const [sortOrder, setSortOrder] = useState(savedFilters.sortOrder || 'oldest');
+  const [selectedMonth, setSelectedMonth] = useState(savedFilters.selectedMonth || null);
 
   // Delivery Tracker
-  const [deliveryView, setDeliveryView] = useState('all'); // 'all' | 'thisWeek' | 'nextWeek' | 'weekAfterNext' | 'overdue'
+  const [deliveryView, setDeliveryView] = useState(savedFilters.deliveryView || 'all'); // 'all' | 'thisWeek' | 'nextWeek' | 'weekAfterNext' | 'overdue'
   const [deliveryData, setDeliveryData] = useState(null);
   const [deliveryLoading, setDeliveryLoading] = useState(false);
   const [showPelunasanModal, setShowPelunasanModal] = useState(false);
@@ -90,6 +113,8 @@ const ListPekerjaan = () => {
   const [pdfFilterBasis, setPdfFilterBasis] = useState('customer'); // 'customer' (TargetKirim) | 'supplier' (DeadlineSupplier<cat>)
 
   const handleSearchClick = () => {
+    // menutup kolom search = hapus kata kuncinya, biar tidak ada filter tersembunyi
+    if (showSearch) setSearchTerm('');
     setShowSearch(!showSearch);
     setIsIconBlue(!isIconBlue);
   };
@@ -97,18 +122,48 @@ const ListPekerjaan = () => {
 
 
   const handleSearchSupplier = (supplierName, category) => {
-    localStorage.setItem('searchSupplierLocalStorage', supplierName);
-    localStorage.setItem('searchSupplierCategoryLocalStorage', category);
     setShowSupplier(false);
     setSearchSupplier(supplierName);
+    setSearchSupplierCategory(category);
   };
 
   const handleStopSearchSupplier = () => {
     setShowSupplier(false);
-    localStorage.removeItem('searchSupplierLocalStorage');
-    localStorage.removeItem('searchSupplierCategoryLocalStorage');
     setSearchSupplier('');
+    setSearchSupplierCategory('');
   };
+
+  // Reset semua filter sekaligus (tombol "Reset" di baris chip)
+  const handleResetAllFilters = () => {
+    setSearchSupplier('');
+    setSearchSupplierCategory('');
+    setSearchTerm('');
+    setShowSearch(false);
+    setIsIconBlue(false);
+    setSelectedMonth(null);
+    setDeliveryView('all');
+    setSortOrder('oldest');
+    setShowCompleted(false);
+  };
+
+  // Simpan filter tiap kali berubah. Key lama tetap ditulis karena masih dipakai
+  // checkSPKProduct() dan dibersihkan saat login.
+  useEffect(() => {
+    try {
+      localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify({
+        showCompleted, searchTerm, searchSupplier, searchSupplierCategory,
+        sortOrder, selectedMonth, deliveryView,
+      }));
+    } catch { /* storage penuh / private mode — filter cukup jalan di sesi ini */ }
+
+    if (searchSupplier) {
+      localStorage.setItem('searchSupplierLocalStorage', searchSupplier);
+      localStorage.setItem('searchSupplierCategoryLocalStorage', searchSupplierCategory);
+    } else {
+      localStorage.removeItem('searchSupplierLocalStorage');
+      localStorage.removeItem('searchSupplierCategoryLocalStorage');
+    }
+  }, [showCompleted, searchTerm, searchSupplier, searchSupplierCategory, sortOrder, selectedMonth, deliveryView]);
 
   // useEffect(() => {
   //   const fetchProjectsFromServer = async () => {
@@ -145,9 +200,9 @@ const ListPekerjaan = () => {
 
 
 
-  // filteredData tidak diset di sini — ada useEffect turunan di bawah yang
-  // menghitungnya dari masterData* + tab yang sedang aktif. Kalau di-set di sini,
-  // refetch saat tab Completed aktif akan melempar user balik ke daftar Ongoing.
+  // filteredData tidak diset di sini — dia diturunkan (useMemo) dari masterData* +
+  // tab yang sedang aktif. Kalau di-set di sini, refetch saat tab Completed aktif
+  // akan melempar user balik ke daftar Ongoing.
   const fetchAllProjects = useCallback(async () => {
     try {
       // fetch showCompleted = false
@@ -170,6 +225,7 @@ const ListPekerjaan = () => {
       setMasterDataTrue(dataTrue);
 
       setProjects(dataFalse);
+      setDataLoaded(true);
     } catch (err) {
       console.error('Error fetching projects:', err);
     }
@@ -213,10 +269,11 @@ const ListPekerjaan = () => {
     return () => window.removeEventListener('categoryStatusChanged', onStatusChanged);
   }, []);
 
-  useEffect(() => {
-    const searchSupplier = localStorage.getItem('searchSupplierLocalStorage') || '';
-    const searchSupplierCategory = localStorage.getItem('searchSupplierCategoryLocalStorage') || '';
-
+  // SATU sumber kebenaran untuk daftar yang tampil. Dulu ada dua useEffect yang
+  // sama-sama menulis filteredData (satu untuk supplier, satu untuk search term),
+  // dan yang belakangan menimpa filter supplier tiap data selesai di-fetch —
+  // itu sebabnya filter "hilang" begitu halaman di-mount ulang (back dari detail).
+  const filteredData = React.useMemo(() => {
     let data = showCompleted ? masterDataTrue : masterDataFalse;
 
     if (searchSupplier) {
@@ -236,8 +293,16 @@ const ListPekerjaan = () => {
       });
     }
 
-    setFilteredData(data);
-  }, [showCompleted, masterDataFalse, masterDataTrue, searchSupplier]);
+    const keyword = searchTerm.trim().toLowerCase();
+    if (keyword) {
+      data = data.filter(item =>
+        (item.NamaBarang?.toLowerCase() || '').includes(keyword) ||
+        (item.Buyer?.toLowerCase() || '').includes(keyword)
+      );
+    }
+
+    return data;
+  }, [showCompleted, masterDataFalse, masterDataTrue, searchSupplier, searchSupplierCategory, searchTerm]);
 
 
 
@@ -306,16 +371,7 @@ const ListPekerjaan = () => {
   //   );
   // }, [searchTerm]);
 
-  useEffect(() => {
-    const currentMasterData = showCompleted ? masterDataTrue : masterDataFalse;
-
-    const filtered = currentMasterData.filter(item =>
-      (item.NamaBarang?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
-      (item.Buyer?.toLowerCase() || "").includes(searchTerm.toLowerCase())
-    );
-
-    setFilteredData(filtered);
-  }, [searchTerm, showCompleted, masterDataFalse, masterDataTrue]);
+  // (filter search term sudah ikut dihitung di useMemo filteredData di atas)
 
 
 
@@ -623,13 +679,51 @@ const ListPekerjaan = () => {
   };
 
 
+  // Daftar filter yang sedang aktif → dipakai untuk baris chip di atas daftar.
+  const deliveryViewLabel = {
+    thisWeek: 'Kirim: Minggu Ini', nextWeek: 'Kirim: Minggu Depan',
+    weekAfterNext: 'Kirim: 2 Minggu Lagi', overdue: 'Kirim: Overdue',
+  };
+
+  const activeFilters = [];
+  if (searchSupplier) {
+    activeFilters.push({
+      key: 'supplier',
+      label: searchSupplier === searchSupplierCategory ? searchSupplier : `${searchSupplier} (${searchSupplierCategory})`,
+      onRemove: handleStopSearchSupplier,
+    });
+  }
+  if (searchTerm.trim()) {
+    activeFilters.push({
+      key: 'search',
+      label: `"${searchTerm.trim()}"`,
+      onRemove: () => { setSearchTerm(''); setShowSearch(false); setIsIconBlue(false); },
+    });
+  }
+  if (showCompleted) {
+    activeFilters.push({ key: 'completed', label: 'Completed', onRemove: () => setShowCompleted(false) });
+  }
+  if (selectedMonth) {
+    activeFilters.push({ key: 'month', label: selectedMonth, onRemove: () => setSelectedMonth(null) });
+  }
+  if (deliveryView !== 'all') {
+    activeFilters.push({
+      key: 'delivery',
+      label: deliveryViewLabel[deliveryView] || deliveryView,
+      onRemove: () => setDeliveryView('all'),
+    });
+  }
+  if (sortOrder !== 'oldest') {
+    activeFilters.push({ key: 'sort', label: 'Urut: Terbaru', onRemove: () => setSortOrder('oldest') });
+  }
+
   const content = (
     <div style={{ minWidth: '220px' }}>
       <div style={{ marginBottom: '10px' }}>
         <p style={{ fontWeight: 'bold', marginBottom: '8px' }}>Sort By Date</p>
         <Radio.Group
           onChange={(e) => handleSortChange(e.target.value)}
-          defaultValue="oldest"
+          value={sortOrder}
         >
           <Space direction="vertical">
             <Radio value="oldest">Terlama</Radio>
@@ -647,6 +741,7 @@ const ListPekerjaan = () => {
           picker="month"
           style={{ width: '100%' }}
           placeholder="Pilih bulan"
+          value={selectedMonth ? dayjs(selectedMonth, 'YYYY-MM') : null}
         />
       </div>
 
@@ -741,12 +836,66 @@ const ListPekerjaan = () => {
 
       </h4>
 
+      {/* Baris filter aktif — filter bertahan saat back dari detail, jadi harus
+          kelihatan jelas dan bisa dihapus satu-satu (✕) atau sekaligus (Reset). */}
+      {activeFilters.length > 0 && (
+        <div
+          style={{
+            position: 'sticky', top: '48px', zIndex: 2,
+            display: 'flex', alignItems: 'center', gap: '6px',
+            margin: '0 8px 8px 8px', padding: '6px 8px',
+            borderRadius: '10px',
+            overflowX: 'auto', whiteSpace: 'nowrap',
+            background: globalTheme === 'light' ? '#f3f3f3' : '#1c1c1c',
+            border: `1px solid ${globalTheme === 'light' ? '#d9d9d9' : '#3a3a3a'}`,
+          }}
+        >
+          {activeFilters.map((f) => (
+            <span
+              key={f.key}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: '6px', flexShrink: 0,
+                padding: '4px 6px 4px 10px', borderRadius: '999px', fontSize: '12px', fontWeight: 600,
+                background: globalTheme === 'light' ? '#e3edff' : '#1a2744',
+                color: globalTheme === 'light' ? '#013175' : '#6fa8ff',
+                border: `1px solid ${globalTheme === 'light' ? '#b8d4fe' : '#2d4a7a'}`,
+              }}
+            >
+              {f.label}
+              <span
+                onClick={f.onRemove}
+                role="button"
+                aria-label={`Hapus filter ${f.label}`}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                  width: '20px', height: '20px', borderRadius: '50%', cursor: 'pointer',
+                  fontSize: '13px', lineHeight: 1,
+                  background: globalTheme === 'light' ? '#ffffff' : '#0f1a2e',
+                }}
+              >×</span>
+            </span>
+          ))}
+          <span
+            onClick={handleResetAllFilters}
+            role="button"
+            style={{
+              flexShrink: 0, marginLeft: 'auto', padding: '5px 12px', borderRadius: '999px',
+              fontSize: '12px', fontWeight: 700, cursor: 'pointer',
+              color: '#c0392b',
+              background: globalTheme === 'light' ? '#ffffff' : '#2a1414',
+              border: '1px solid #e6b0aa',
+            }}
+          >Reset</span>
+        </div>
+      )}
+
       {/* Delivery Tracker Banner — only for users with Delivery Tracker access */}
       {deliveryView !== 'all' && hasAccess('Delivery Tracker') && deliveryData && (
         <div
           onClick={() => setShowPelunasanModal(true)}
           style={{
-            position: 'sticky', top: '48px', zIndex: 2,
+            // baris chip pasti tampil kalau banner ini tampil (deliveryView ≠ all) → geser ke bawahnya
+            position: 'sticky', top: '96px', zIndex: 2,
             margin: '0 8px 8px 8px', padding: '8px 12px',
             borderRadius: '10px', cursor: 'pointer',
             background: globalTheme === 'light' ? '#eef4ff' : '#1a2744',
@@ -1091,7 +1240,13 @@ const ListPekerjaan = () => {
 
         </Modal.Body>
         <Modal.Footer >
-          <Button variant="primary" onClick={handleStopSearchSupplier}>Refresh</Button>
+          {searchSupplier && (
+            <span style={{ marginRight: 'auto', fontSize: 13, fontWeight: 600 }}>
+              Filter aktif: {searchSupplier}
+            </span>
+          )}
+          <Button variant="outline-danger" onClick={handleStopSearchSupplier} disabled={!searchSupplier}>Hapus Filter</Button>
+          <Button variant="secondary" onClick={() => setShowSupplier(false)}>Tutup</Button>
         </Modal.Footer>
       </Modal>
       {/* End Modal */}
@@ -1253,7 +1408,20 @@ const ListPekerjaan = () => {
       {/* End Modal */}
 
 
-      {filteredData.length === 0 ? (
+      {/* Data sudah masuk tapi hasil filter kosong → jangan tampilkan skeleton
+          (dulu kelihatan seperti loading yang tidak selesai). */}
+      {dataLoaded && filteredData.length === 0 && (
+        <div style={{ textAlign: 'center', padding: '40px 16px', color: globalTheme === 'light' ? '#666' : '#aaa' }}>
+          <div style={{ fontSize: '14px', fontWeight: 600 }}>Tidak ada project yang cocok</div>
+          {activeFilters.length > 0 && (
+            <Button variant="outline-danger" size="sm" style={{ marginTop: 12 }} onClick={handleResetAllFilters}>
+              Reset Filter
+            </Button>
+          )}
+        </div>
+      )}
+
+      {!dataLoaded && filteredData.length === 0 ? (
         // Show skeletons while loading
         [...Array(5)].map((_, index) => (
           <Row key={index}>

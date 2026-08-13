@@ -22,6 +22,7 @@ const Login = () => {
     localStorage.removeItem('lastSlug');
     localStorage.removeItem('searchSupplierLocalStorage');
     localStorage.removeItem('searchSupplierCategoryLocalStorage');
+    localStorage.removeItem('projectListFilters'); // filter daftar project ikut direset saat login
     const cekLogin = () => {
       if (user !== null) {
         window.location.replace('/project');

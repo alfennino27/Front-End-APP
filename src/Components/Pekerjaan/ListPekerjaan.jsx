@@ -103,6 +103,8 @@ const ListPekerjaan = () => {
   const [deliveryData, setDeliveryData] = useState(null);
   const [deliveryLoading, setDeliveryLoading] = useState(false);
   const [showPelunasanModal, setShowPelunasanModal] = useState(false);
+  const [showFilterSheet, setShowFilterSheet] = useState(false); // panel filter versi mobile
+  const [showAllMonths, setShowAllMonths] = useState(false);     // data lama punya puluhan bulan
   const [userAccess, setUserAccess] = useState([]);
 
   const [cetakLabel, setCetakLabel] = useState([]);
@@ -435,6 +437,26 @@ const ListPekerjaan = () => {
     return new Set((items || []).map(i => i.id));
   }, [deliveryView, deliveryData]);
 
+  // Daftar yang benar-benar tampil: filteredData + filter target kirim + filter
+  // bulan + urutan. Dipakai juga untuk hitungan di panel filter mobile.
+  const displayedData = React.useMemo(() => {
+    return filteredData
+      .filter(p => (deliveryProjectIds ? deliveryProjectIds.has(p.id) : true))
+      .filter(p => {
+        if (!selectedMonth) return true;
+        const sec = p.submitDate?.value?._seconds;
+        if (!sec) return false;
+        const date = new Date(sec * 1000);
+        const yearMonth = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        return yearMonth === selectedMonth;
+      })
+      .sort((a, b) => {
+        const secA = a.submitDate?.value?._seconds || 0;
+        const secB = b.submitDate?.value?._seconds || 0;
+        return sortOrder === 'newest' ? secB - secA : secA - secB;
+      });
+  }, [filteredData, deliveryProjectIds, selectedMonth, sortOrder]);
+
   const [dataAllSPKproductFromDB, setDataAllSPKproductFromDB] = useState([]);
   const [dataAllSPKFromDB, setDataAllSPKFromDB] = useState([]);
 
@@ -657,13 +679,13 @@ const ListPekerjaan = () => {
     const handleScroll = () => {
       // cek apakah user sudah scroll mendekati bawah div
       if (scrollableEl.scrollTop + scrollableEl.clientHeight >= scrollableEl.scrollHeight - 100) {
-        setVisibleCount(prev => Math.min(prev + 50, filteredData.length));
+        setVisibleCount(prev => Math.min(prev + 50, displayedData.length));
       }
     };
 
     scrollableEl.addEventListener("scroll", handleScroll);
     return () => scrollableEl.removeEventListener("scroll", handleScroll);
-  }, [filteredData.length]);
+  }, [displayedData.length]);
 
 
 
@@ -717,6 +739,37 @@ const ListPekerjaan = () => {
     activeFilters.push({ key: 'sort', label: 'Urut: Terbaru', onRemove: () => setSortOrder('oldest') });
   }
 
+  // Opsi target kirim (dipakai popover desktop & panel filter mobile)
+  const deliveryOptions = [
+    { value: 'all', label: 'Semua', count: null },
+    { value: 'thisWeek', label: 'Minggu Ini', count: deliveryData?.thisWeek?.length || 0 },
+    { value: 'nextWeek', label: 'Minggu Depan', count: deliveryData?.nextWeek?.length || 0 },
+    { value: 'weekAfterNext', label: '2 Minggu Lagi', count: deliveryData?.weekAfterNext?.length || 0 },
+    { value: 'overdue', label: 'Overdue', count: deliveryData?.overdue?.length || 0, danger: true },
+  ];
+
+  // filter yang diatur lewat panel ini (untuk mewarnai ikon filter di header)
+  const sheetFilterActive = deliveryView !== 'all' || !!selectedMonth || sortOrder !== 'oldest';
+
+  // Bulan yang benar-benar ada datanya → dipakai sebagai chip di panel mobile
+  // (lebih enak ditekan di HP daripada kalender popup yang menutupi panel).
+  const NAMA_BULAN = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+  const labelBulan = (ym) => {
+    const [y, m] = (ym || '').split('-');
+    return `${NAMA_BULAN[Number(m) - 1] || m} ${y}`;
+  };
+  const monthOptions = React.useMemo(() => {
+    const set = new Set();
+    [...masterDataFalse, ...masterDataTrue].forEach((p) => {
+      const sec = p.submitDate?.value?._seconds;
+      if (!sec) return;
+      const d = new Date(sec * 1000);
+      set.add(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+    });
+    if (selectedMonth) set.add(selectedMonth); // jangan hilang kalau data belum termuat
+    return Array.from(set).sort().reverse();
+  }, [masterDataFalse, masterDataTrue, selectedMonth]);
+
   const content = (
     <div style={{ minWidth: '220px' }}>
       <div style={{ marginBottom: '10px' }}>
@@ -756,19 +809,14 @@ const ListPekerjaan = () => {
           value={deliveryView}
         >
           <Space direction="vertical">
-            <Radio value="all">Semua</Radio>
-            <Radio value="thisWeek">
-              Minggu Ini {deliveryData ? <span style={{ color: '#888', fontSize: 11 }}>({deliveryData.thisWeek?.length || 0})</span> : null}
-            </Radio>
-            <Radio value="nextWeek">
-              Minggu Depan {deliveryData ? <span style={{ color: '#888', fontSize: 11 }}>({deliveryData.nextWeek?.length || 0})</span> : null}
-            </Radio>
-            <Radio value="weekAfterNext">
-              2 Minggu Lagi {deliveryData ? <span style={{ color: '#888', fontSize: 11 }}>({deliveryData.weekAfterNext?.length || 0})</span> : null}
-            </Radio>
-            <Radio value="overdue">
-              Overdue {deliveryData?.overdue?.length > 0 ? <span style={{ color: '#e74c3c', fontSize: 11, fontWeight: 600 }}>({deliveryData.overdue.length})</span> : <span style={{ color: '#888', fontSize: 11 }}>(0)</span>}
-            </Radio>
+            {deliveryOptions.map((o) => (
+              <Radio key={o.value} value={o.value}>
+                {o.label}{' '}
+                {o.count !== null && deliveryData && (
+                  <span style={{ fontSize: 11, fontWeight: o.danger && o.count > 0 ? 600 : 400, color: o.danger && o.count > 0 ? '#e74c3c' : '#888' }}>({o.count})</span>
+                )}
+              </Radio>
+            ))}
           </Space>
         </Radio.Group>
       </div>
@@ -807,6 +855,11 @@ const ListPekerjaan = () => {
             <div>
               <span style={{ fontSize: "25px", color: isIconBlue ? 'blue' : 'inherit' }} onClick={handleSearchClick}><IoSearch size={18} /></span>
               <span style={{ fontSize: "25px", marginLeft: "15px", color: searchSupplier != '' ? 'blue' : 'inherit' }} onClick={handleShowSupplier}><MdOutlineAssignment size={18} /></span>
+              {/* Filter (target kirim, bulan, urutan) — di mobile dibuka sebagai panel bawah */}
+              <span
+                style={{ fontSize: "25px", marginLeft: "15px", color: sheetFilterActive ? 'blue' : 'inherit' }}
+                onClick={() => setShowFilterSheet(true)}
+              ><MdFilterList size={18} /></span>
               {/* <span style={{ fontSize: "25px", marginLeft: "15px" }} onClick={handleShowModal}><MdFormatListBulletedAdd size={18} /></span> */}
             </div>
           </>
@@ -914,6 +967,124 @@ const ListPekerjaan = () => {
           </div>
         </div>
       )}
+
+      {/* Panel Filter (mobile) — bottom sheet. Popover desktop terlalu sempit &
+          tap target-nya kecil di HP, jadi di mobile pakai panel bawah dengan
+          baris yang lebar dan hitungan hasil langsung di tombolnya. */}
+      {isMobile && showFilterSheet && (() => {
+        const panelBg = globalTheme === 'light' ? '#ffffff' : '#1c1c1c';
+        const panelText = globalTheme === 'light' ? '#1a1a1a' : '#f0f0f0';
+        const panelBorder = globalTheme === 'light' ? '#e2e2e2' : '#3a3a3a';
+        const panelMuted = globalTheme === 'light' ? '#666' : '#aaa';
+        const rowStyle = (active, danger) => ({
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          gap: 10, width: '100%', minHeight: 48, padding: '12px 14px',
+          borderRadius: 12, marginBottom: 8, cursor: 'pointer', textAlign: 'left',
+          fontSize: 15, fontWeight: active ? 700 : 500,
+          color: active ? (globalTheme === 'light' ? '#013175' : '#6fa8ff') : (danger ? '#e74c3c' : panelText),
+          background: active ? (globalTheme === 'light' ? '#e3edff' : '#1a2744') : (globalTheme === 'light' ? '#f6f7f9' : '#262626'),
+          border: `1px solid ${active ? (globalTheme === 'light' ? '#b8d4fe' : '#2d4a7a') : panelBorder}`,
+        });
+        const sectionTitle = { fontSize: 13, fontWeight: 700, color: panelMuted, margin: '4px 0 10px' };
+        // default 12 bulan terakhir; bulan yang sedang dipilih selalu ikut tampil
+        const visibleMonths = showAllMonths
+          ? monthOptions
+          : monthOptions.slice(0, 12).concat(
+            selectedMonth && !monthOptions.slice(0, 12).includes(selectedMonth) ? [selectedMonth] : []);
+
+        return (
+          <>
+            <div
+              onClick={() => setShowFilterSheet(false)}
+              style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1200 }}
+            />
+            <div style={{
+              position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 1201,
+              background: panelBg, color: panelText,
+              borderRadius: '18px 18px 0 0', boxShadow: '0 -6px 24px rgba(0,0,0,0.3)',
+              maxHeight: '85vh', display: 'flex', flexDirection: 'column',
+            }}>
+              <div style={{ width: 42, height: 5, borderRadius: 3, background: panelBorder, margin: '10px auto 4px' }} />
+
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 16px 10px', borderBottom: `1px solid ${panelBorder}` }}>
+                <span style={{ fontSize: 17, fontWeight: 700 }}>Filter</span>
+                <span
+                  onClick={() => { setSortOrder('oldest'); setSelectedMonth(null); setDeliveryView('all'); }}
+                  style={{ fontSize: 14, fontWeight: 700, color: sheetFilterActive ? '#c0392b' : panelMuted, cursor: 'pointer', padding: '4px 8px' }}
+                >Reset</span>
+              </div>
+
+              <div style={{ padding: '14px 16px', overflowY: 'auto', flex: 1 }}>
+                <div style={sectionTitle}>
+                  <TbTruckDelivery style={{ marginRight: 5, verticalAlign: -2, fontSize: 15 }} />
+                  TARGET KIRIM
+                </div>
+                {deliveryOptions.map((o) => {
+                  const active = deliveryView === o.value;
+                  return (
+                    <div key={o.value} style={rowStyle(active, o.danger && o.count > 0)}
+                      onClick={() => { setDeliveryView(o.value); if (o.value !== 'all') setShowCompleted(false); }}>
+                      <span>{o.label}</span>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        {o.count !== null && (
+                          <span style={{ fontSize: 13, fontWeight: 600, color: o.danger && o.count > 0 ? '#e74c3c' : panelMuted }}>{o.count}</span>
+                        )}
+                        {active && <span style={{ fontSize: 16 }}>✓</span>}
+                      </span>
+                    </div>
+                  );
+                })}
+
+                <div style={{ ...sectionTitle, marginTop: 18 }}>BULAN MASUK</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  {[null, ...visibleMonths].map((m) => {
+                    const active = (selectedMonth || null) === m;
+                    return (
+                      <div key={m || 'all'}
+                        onClick={() => setSelectedMonth(m)}
+                        style={{
+                          padding: '10px 14px', minHeight: 42, display: 'flex', alignItems: 'center',
+                          borderRadius: 999, fontSize: 14, cursor: 'pointer',
+                          fontWeight: active ? 700 : 500,
+                          color: active ? (globalTheme === 'light' ? '#013175' : '#6fa8ff') : panelText,
+                          background: active ? (globalTheme === 'light' ? '#e3edff' : '#1a2744') : (globalTheme === 'light' ? '#f6f7f9' : '#262626'),
+                          border: `1px solid ${active ? (globalTheme === 'light' ? '#b8d4fe' : '#2d4a7a') : panelBorder}`,
+                        }}>
+                        {m ? labelBulan(m) : 'Semua'}
+                      </div>
+                    );
+                  })}
+                  {monthOptions.length > visibleMonths.length && (
+                    <div onClick={() => setShowAllMonths(true)}
+                      style={{
+                        padding: '10px 14px', minHeight: 42, display: 'flex', alignItems: 'center',
+                        borderRadius: 999, fontSize: 14, fontWeight: 600, cursor: 'pointer',
+                        color: panelMuted, background: 'transparent', border: `1px dashed ${panelBorder}`,
+                      }}>
+                      + {monthOptions.length - visibleMonths.length} bulan lain
+                    </div>
+                  )}
+                </div>
+
+                <div style={{ ...sectionTitle, marginTop: 18 }}>URUTKAN</div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {[['oldest', 'Terlama'], ['newest', 'Terbaru']].map(([v, l]) => (
+                    <div key={v} style={{ ...rowStyle(sortOrder === v), flex: 1, justifyContent: 'center', marginBottom: 0 }}
+                      onClick={() => setSortOrder(v)}>{l}</div>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{ padding: '12px 16px calc(12px + env(safe-area-inset-bottom))', borderTop: `1px solid ${panelBorder}` }}>
+                <Button variant="primary" style={{ width: '100%', height: 46, fontWeight: 700, borderRadius: 12 }}
+                  onClick={() => setShowFilterSheet(false)}>
+                  Lihat {displayedData.length} Project
+                </Button>
+              </div>
+            </div>
+          </>
+        );
+      })()}
 
       {/* Pelunasan Detail Modal */}
       <AntModal
@@ -1410,7 +1581,7 @@ const ListPekerjaan = () => {
 
       {/* Data sudah masuk tapi hasil filter kosong → jangan tampilkan skeleton
           (dulu kelihatan seperti loading yang tidak selesai). */}
-      {dataLoaded && filteredData.length === 0 && (
+      {dataLoaded && displayedData.length === 0 && (
         <div style={{ textAlign: 'center', padding: '40px 16px', color: globalTheme === 'light' ? '#666' : '#aaa' }}>
           <div style={{ fontSize: '14px', fontWeight: 600 }}>Tidak ada project yang cocok</div>
           {activeFilters.length > 0 && (
@@ -1441,30 +1612,8 @@ const ListPekerjaan = () => {
 
 
 
-      {filteredData
-        // 0. Filter Delivery View (if active)
-        .filter(p => {
-          if (!deliveryProjectIds) return true;
-          return deliveryProjectIds.has(p.id);
-        })
-
-        // 1. Filter Bulan (berdasarkan submitDate)
-        .filter(p => {
-          if (!selectedMonth) return true;
-          // Ubah seconds ke format YYYY-MM untuk dicocokkan
-          const date = new Date(p.submitDate.value._seconds * 1000);
-          const yearMonth = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-          return yearMonth === selectedMonth;
-        })
-
-        // 2. Sortir (berdasarkan submitDate._seconds)
-        .sort((a, b) => {
-          const secA = a.submitDate?.value?._seconds || 0;
-          const secB = b.submitDate?.value?._seconds || 0;
-          return sortOrder === 'newest' ? secB - secA : secA - secB;
-        })
-
-        // 3. Slice Logic
+      {/* filter target kirim + bulan + urutan sudah dihitung di displayedData */}
+      {displayedData
         .slice(0, showCompleted ? visibleCount : undefined)
 
         // 4. Map ke UI

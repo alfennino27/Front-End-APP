@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { getApiBaseUrl } from '../../Config/APIurl';
 import { useTheme } from '../../ThemeContext';
 import { isHeic, heicToJpegAll } from '../../Utils/heic';
+import { labelBulan, toMonth, campaignsForMonth, monthChoices } from '../../Utils/campaignMonth';
 
 // Dropdown dengan search bar (dipakai untuk pilih customer & template).
 const SearchableSelect = ({ options, value, onChange, placeholder, ui }) => {
@@ -221,6 +222,7 @@ const Quote = () => {
     termsTemplateId: '',
     ongkirNote: 'gratis_jawa_bali',
     campaignId: 'organic',
+    leadMonth: toMonth(new Date()),   // 'YYYY-MM' bulan lead masuk (atribusi ROI)
     isRepeatOrder: false,
     repeatRefCampaignId: '',
     paymentRows: [{ label: 'DP 1', amount: '', paid: false }],
@@ -377,6 +379,8 @@ const Quote = () => {
             costingOpen: false,
           })),
           campaignId: q.campaignId || 'organic',
+          // quote lama belum punya leadMonth → pakai bulan quote, bisa dikoreksi di form
+          leadMonth: q.leadMonth || toMonth(q.tanggal) || toMonth(new Date()),
           termsTemplateId: q.termsTemplateId || (terms[0] ? terms[0].id : ''),
         });
         setView('form');
@@ -492,6 +496,7 @@ const Quote = () => {
     fd.append('termsTemplateId', form.termsTemplateId || '');
     fd.append('ongkirNote', form.ongkirNote);
     fd.append('campaignId', form.campaignId);
+    fd.append('leadMonth', form.leadMonth || '');
     fd.append('isRepeatOrder', form.isRepeatOrder);
     fd.append('repeatRefCampaignId', form.repeatRefCampaignId || '');
     return fd;
@@ -781,6 +786,9 @@ const Quote = () => {
     );
   };
 
+  // campaign yang boleh dipilih = yang benar-benar aktif di bulan lead terpilih
+  const campaignsBulanLead = campaignsForMonth(campaigns, form.leadMonth);
+
   const renderForm = () => (
     <div>
       <button style={{ ...btnGhost, marginBottom: 14 }} onClick={() => { setView('folders'); fetchFolders(); }}>← Kembali</button>
@@ -1008,11 +1016,35 @@ const Quote = () => {
             <select style={inputStyle} value={form.ongkirNote} onChange={(e) => setF({ ongkirNote: e.target.value })}>
               {ONGKIR_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select></label>
+          {/* Atribusi CRM: pilih BULAN LEAD MASUK dulu, campaign menyesuaikan bulan itu.
+              ROI campaign dihitung per bulan lead, bukan bulan closing. */}
+          <label className="klf-fld"><span style={{ color: sub }}>Bulan lead masuk</span>
+            <select style={inputStyle} value={form.leadMonth}
+              onChange={(e) => setF({ leadMonth: e.target.value })}>
+              {monthChoices([form.leadMonth, toMonth(form.tanggal)]).map((m) => (
+                <option key={m} value={m}>{labelBulan(m)}</option>
+              ))}
+            </select>
+            <small style={{ color: sub, fontSize: 12 }}>Kapan lead masuk, bukan kapan closing</small>
+          </label>
           <label className="klf-fld"><span style={{ color: sub }}>Campaign (CRM)</span>
             <select style={inputStyle} value={form.campaignId} onChange={(e) => setF({ campaignId: e.target.value })} disabled={form.isRepeatOrder}>
               <option value="organic">Organic / tanpa campaign</option>
-              {campaigns.map((c) => <option key={c.id} value={c.id}>{c.nama}</option>)}
-            </select></label>
+              {campaignsBulanLead.map((c) => <option key={c.id} value={c.id}>{c.nama}</option>)}
+            </select>
+            {campaignsBulanLead.length === 0 ? (
+              <small style={{ color: '#c0392b', fontSize: 12 }}>
+                Belum ada campaign aktif di {labelBulan(form.leadMonth)} — import CSV Meta Ads bulan tsb di menu CRM.
+              </small>
+            ) : (
+              <small style={{ color: sub, fontSize: 12 }}>Campaign yang aktif di {labelBulan(form.leadMonth)}</small>
+            )}
+            {form.campaignId && form.campaignId !== 'organic' && !campaignsBulanLead.some((c) => c.id === form.campaignId) && (
+              <small style={{ color: '#c0392b', fontSize: 12 }}>
+                Campaign tersimpan tidak aktif di bulan ini — pilih ulang campaign atau ganti bulan lead.
+              </small>
+            )}
+          </label>
         </div>
         <div style={{ display: 'flex', gap: 18, marginTop: 12, flexWrap: 'wrap' }}>
           <label style={{ display: 'flex', gap: 8, alignItems: 'center', color: text, cursor: 'pointer' }}>

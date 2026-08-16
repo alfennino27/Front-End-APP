@@ -19,6 +19,7 @@ import { debounce } from 'lodash';
 import { IoSearch } from 'react-icons/io5';
 import { useTheme } from '../../ThemeContext';
 import { getImageUrl } from '../../Utils/image';
+import { labelBulan, toMonth, campaignsForMonth, monthChoices } from '../../Utils/campaignMonth';
 import { RiFileExcel2Line } from "react-icons/ri";
 import OrderAssistant from '../AI/OrderAssistant';
 
@@ -45,6 +46,9 @@ const Invoice = () => {
   const [crmCampaigns, setCrmCampaigns] = useState([]);
   const [isRepeatOrder, setIsRepeatOrder] = useState(false);
   const [repeatRefCampaignId, setRepeatRefCampaignId] = useState('');
+  // Bulan lead masuk ('YYYY-MM') — dasar atribusi ROI campaign (bukan bulan closing)
+  const [leadMonth, setLeadMonth] = useState(toMonth(new Date()));
+  const [leadMonthTouched, setLeadMonthTouched] = useState(false);
   const [tanggalMulaiInvoice, setTanggalMulaiInvoice] = useState('');
   const [deadlineInvoice, setDeadlineInvoice] = useState('');
   const [ongkirPackingInvoice, setOngkirPackingInvoice] = useState(0);
@@ -216,6 +220,7 @@ const Invoice = () => {
           crmCampaignId: isRepeatOrder ? null : crmCampaignId,
           is_repeat_order: isRepeatOrder,
           repeat_ref_campaign_id: isRepeatOrder ? repeatRefCampaignId : null,
+          leadMonth,   // bulan lead masuk → dasar atribusi ROI campaign
         }),
       });
 
@@ -251,6 +256,14 @@ const Invoice = () => {
     setFilteredData(invoice.filter((item) => item.customer.toLowerCase().includes(searchTerm.toLowerCase()) || item.kodeInvoice.toLowerCase().includes(searchTerm.toLowerCase())));
   }, [searchTerm, invoice]);
 
+  // Form invoice BARU: bulan lead default mengikuti tanggal invoice, sampai owner
+  // memilih bulan lain sendiri (kasus lead bulan lalu, closing bulan ini).
+  useEffect(() => {
+    if (!showAddInvoiceModal || leadMonthTouched) return;
+    const m = toMonth(tanggalMulaiInvoice);
+    if (m) setLeadMonth(m);
+  }, [tanggalMulaiInvoice, showAddInvoiceModal, leadMonthTouched]);
+
   useEffect(() => {
     const selectedInvoice = backUpDataInvoice.find(item => item.id === slug);
 
@@ -267,6 +280,9 @@ const Invoice = () => {
       setCrmCampaignId(selectedInvoice.crmCampaignId || 'organic');
       setIsRepeatOrder(selectedInvoice.is_repeat_order || false);
       setRepeatRefCampaignId(selectedInvoice.repeat_ref_campaign_id || '');
+      // invoice lama belum punya leadMonth → tampilkan bulan invoice (perilaku lama),
+      // dan owner bisa mengoreksinya lewat form Update.
+      setLeadMonth(selectedInvoice.leadMonth || toMonth(selectedInvoice.tanggalMulaiInvoice) || toMonth(new Date()));
       setDataInvoiceFromDB([selectedInvoice]);
     }
   }, [slug, backUpDataInvoice, showUpdateInvoiceModal]);
@@ -376,6 +392,7 @@ const Invoice = () => {
           crmCampaignId: isRepeatOrder ? null : crmCampaignId,
           is_repeat_order: isRepeatOrder,
           repeat_ref_campaign_id: isRepeatOrder ? repeatRefCampaignId : null,
+          leadMonth,   // bulan lead masuk → dasar atribusi ROI campaign
         }),
       });
 
@@ -1528,6 +1545,69 @@ const Invoice = () => {
 
   const debouncedNamaBarangExcelChange = useDebouncedNamaBarangExcelChange();
 
+  /**
+   * Blok atribusi CRM (dipakai modal Tambah & Update Invoice).
+   * Urutannya sengaja: pilih BULAN LEAD MASUK dulu → daftar campaign menyesuaikan
+   * bulan itu. ROI dihitung per bulan lead, jadi campaign yang tidak jalan di
+   * bulan tsb memang tidak boleh dipilih.
+   */
+  const renderCampaignPicker = () => {
+    const bulanOptions = monthChoices([leadMonth, toMonth(tanggalMulaiInvoice)]);
+    const campaignsBulanIni = campaignsForMonth(crmCampaigns, leadMonth);
+    return (
+      <>
+        <label className='mt-2'>Bulan Lead Masuk :</label>
+        <small style={{ display: 'block', color: '#888', marginBottom: 4 }}>
+          Kapan lead ini <b>masuk</b>, bukan kapan closing. ROI campaign dihitung di bulan ini.
+        </small>
+        <select
+          className="form-control"
+          value={leadMonth}
+          onChange={(e) => { setLeadMonth(e.target.value); setLeadMonthTouched(true); }}
+        >
+          {bulanOptions.map((m) => (<option key={m} value={m}>{labelBulan(m)}</option>))}
+        </select>
+
+        {!isRepeatOrder && <>
+          <label className='mt-2'>Sumber / Campaign CRM :</label>
+          <small style={{ display: 'block', color: '#888', marginBottom: 4 }}>
+            Campaign yang menarik customer ini (masuk ROAS) — hanya campaign yang aktif di {labelBulan(leadMonth)}
+          </small>
+          <select
+            className="form-control"
+            value={crmCampaignId}
+            onChange={(e) => setCrmCampaignId(e.target.value)}
+          >
+            <option value="organic">Organic / Tidak ada campaign</option>
+            {campaignsBulanIni.map(c => (<option key={c.id} value={c.id}>{c.nama}</option>))}
+          </select>
+          {campaignsBulanIni.length === 0 && (
+            <small style={{ display: 'block', color: '#c0392b', marginTop: 4 }}>
+              Belum ada campaign yang tercatat aktif di {labelBulan(leadMonth)}. Import CSV Meta Ads
+              bulan tsb di menu CRM dulu, atau pilih bulan lead yang lain.
+            </small>
+          )}
+          {crmCampaignId !== 'organic' && !campaignsBulanIni.some(c => c.id === crmCampaignId) && (
+            <small style={{ display: 'block', color: '#c0392b', marginTop: 4 }}>
+              Campaign yang tersimpan sebelumnya tidak aktif di {labelBulan(leadMonth)} — pilih ulang campaign
+              atau ganti bulan lead, lalu simpan.
+            </small>
+          )}
+        </>}
+
+        {isRepeatOrder && <>
+          <label className='mt-2'>Campaign Asal Customer <span style={{ color: 'red' }}>*</span> :</label>
+          {/* tidak difilter bulan: campaign asal customer repeat biasanya dari bulan lampau */}
+          <small style={{ display: 'block', color: '#888', marginBottom: 4 }}>Campaign dari mana customer ini pertama kali beli (masuk CLV, bukan ROAS)</small>
+          <select className="form-control" value={repeatRefCampaignId} onChange={(e) => setRepeatRefCampaignId(e.target.value)}>
+            <option value="">— Pilih Campaign Asal —</option>
+            {crmCampaigns.map(c => (<option key={c.id} value={c.id}>{c.nama}</option>))}
+          </select>
+        </>}
+      </>
+    );
+  };
+
 
   return (
     <>
@@ -2308,22 +2388,7 @@ const Invoice = () => {
                 <input type="radio" name="orderType" checked={isRepeatOrder} onChange={() => setIsRepeatOrder(true)} /> ↩ Repeat Order
               </label>
             </div>
-            {!isRepeatOrder && <>
-              <label className='mt-1'>Sumber / Campaign :</label>
-              <small style={{ display: 'block', color: '#888', marginBottom: 4 }}>Campaign yang menarik customer ini (masuk ROAS)</small>
-              <select className="form-control" value={crmCampaignId} onChange={(e) => setCrmCampaignId(e.target.value)}>
-                <option value="organic">Organic / Tidak ada campaign</option>
-                {crmCampaigns.map(c => (<option key={c.id} value={c.id}>{c.nama}</option>))}
-              </select>
-            </>}
-            {isRepeatOrder && <>
-              <label className='mt-1'>Campaign Asal Customer <span style={{color:'red'}}>*</span> :</label>
-              <small style={{ display: 'block', color: '#888', marginBottom: 4 }}>Campaign dari mana customer ini pertama kali beli (masuk CLV, bukan ROAS)</small>
-              <select className="form-control" value={repeatRefCampaignId} onChange={(e) => setRepeatRefCampaignId(e.target.value)}>
-                <option value="">— Pilih Campaign Asal —</option>
-                {crmCampaigns.map(c => (<option key={c.id} value={c.id}>{c.nama}</option>))}
-              </select>
-            </>}
+            {renderCampaignPicker()}
           </Modal.Body>
           <Modal.Footer>
             <Button variant="primary" onClick={handleSubmitInvoice}>Submit</Button>
@@ -2386,23 +2451,7 @@ const Invoice = () => {
                 <input type="radio" name="orderTypeUpdate" checked={isRepeatOrder} onChange={() => setIsRepeatOrder(true)} /> ↩ Repeat Order
               </label>
             </div>
-            {!isRepeatOrder && <>
-              <label className='mt-1'>Sumber / Campaign CRM :</label>
-              <small style={{ display: 'block', color: '#888', marginBottom: 4 }}>Campaign yang menarik customer ini (masuk ROAS)</small>
-              <select className="form-control" value={crmCampaignId} onChange={(e) => setCrmCampaignId(e.target.value)}>
-                <option value="organic">Organic / Tidak ada campaign</option>
-                {crmCampaigns.map(c => (<option key={c.id} value={c.id}>{c.nama}</option>))}
-              </select>
-            </>}
-            {isRepeatOrder && <>
-              <label className='mt-1'>Campaign Asal Customer <span style={{color:'red'}}>*</span> :</label>
-              <small style={{ display: 'block', color: '#888', marginBottom: 4 }}>Campaign dari mana customer ini pertama kali beli (masuk CLV, bukan ROAS)</small>
-              <select className="form-control" value={repeatRefCampaignId} onChange={(e) => setRepeatRefCampaignId(e.target.value)}>
-                <option value="">— Pilih Campaign Asal —</option>
-                {crmCampaigns.map(c => (<option key={c.id} value={c.id}>{c.nama}</option>))}
-              </select>
-            </>}
-
+            {renderCampaignPicker()}
           </Modal.Body>
           <Modal.Footer>
             <div className="d-flex justify-content-between w-100">

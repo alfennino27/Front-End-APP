@@ -330,8 +330,11 @@ const Quote = () => {
     const sale = harga * qty;
     const marginPerUnit = harga - hppUnit;
     const marginTotal = marginPerUnit * qty;
+    // Patokan cepat: harga jual per unit supaya margin 30% dari harga jual
+    // (harga − HPP = 30% × harga  →  harga = HPP / 0,7). Tidak ikut disimpan.
+    const rekomendasi30 = hppUnit > 0 ? hppUnit / 0.7 : 0;
     const marginPct = sale > 0 ? (marginTotal / sale) * 100 : 0;
-    return { hppUnit, hppTotal, sale, marginPerUnit, marginTotal, marginPct };
+    return { hppUnit, hppTotal, sale, marginPerUnit, marginTotal, marginPct, rekomendasi30 };
   }), [form.items]);
   const totalHPP = useMemo(() => itemFin.reduce((a, f) => a + f.hppTotal, 0), [itemFin]);
   const totalMarginRaw = useMemo(() => itemFin.reduce((a, f) => a + f.marginTotal, 0), [itemFin]);
@@ -931,6 +934,14 @@ const Quote = () => {
                     <span style={{ color: sub, fontSize: 12 }}>Margin per piece</span>
                     <strong style={{ color: marginColor, fontSize: 14 }}>{rupiah(fin.marginPerUnit)}</strong>
                   </div>
+                  {/* patokan harga jual, bukan nilai yang dipakai/disimpan */}
+                  <div className="klf-itemfin-cell">
+                    <span style={{ color: sub, fontSize: 12 }}>Harga rekomendasi 30%</span>
+                    <strong style={{ color: fin.rekomendasi30 ? '#013175' : sub, fontSize: 14 }}>
+                      {fin.rekomendasi30 ? rupiah(fin.rekomendasi30) : '—'}
+                    </strong>
+                    <span style={{ color: sub, fontSize: 11 }}>HPP/unit ÷ 0,7</span>
+                  </div>
                   {fin.hppTotal === 0 && (
                     <div style={{ color: '#b7791f', fontSize: 11, alignSelf: 'center' }}>⚠ Costing belum diisi — margin belum akurat</div>
                   )}
@@ -1080,7 +1091,9 @@ const Quote = () => {
         .klf-quote-grid { display: grid; grid-template-columns: 1fr; gap: 12px; }
         .klf-quote-form-grid { display: grid; grid-template-columns: 1fr; gap: 12px; }
         .klf-quote-costing { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-        .klf-quote-itemfin { display: flex; flex-wrap: wrap; gap: 10px 24px; align-items: center; }
+        /* flex-start: label 2 baris (mis. "Harga rekomendasi 30%" di HP) tidak
+           bikin kolom sebelahnya ikut turun */
+        .klf-quote-itemfin { display: flex; flex-wrap: wrap; gap: 10px 24px; align-items: flex-start; }
         .klf-itemfin-cell { display: flex; flex-direction: column; gap: 1px; flex: 1 1 120px; }
         .klf-quote-margin-grid { display: grid; grid-template-columns: 1fr; gap: 10px; }
         .klf-margin-cell { display: flex; flex-direction: column; gap: 1px; padding: 8px 10px; background: rgba(127,127,127,.06); border-radius: 8px; }

@@ -7,6 +7,16 @@ import {
   hitungPeriode, hitungRate, gabungBaris, awalMinggu, akhirMinggu,
   fmtJam, fmtRp, fmtTanggalPeriode, JAM_NORMAL,
 } from '../../Utils/absensiCalc';
+import AbsensiAzwad from './AbsensiAzwad';
+import AbsensiPakde from './AbsensiPakde';
+
+// Label & warna badge per tipe karyawan.
+const TIPE_META = {
+  harian: { label: 'HARIAN', bg: '#EAF3FB', color: '#378ADD' },
+  bulanan_mingguan: { label: 'BULANAN/MINGGU', bg: '#FFF4E5', color: '#D98A1F' },
+  bulanan: { label: 'BULANAN', bg: '#EEEDFE', color: '#7F77DD' },
+};
+const tipeMeta = (t) => TIPE_META[t] || TIPE_META.harian;
 
 const KOLOM_JAM = [
   { key: 'inPagi', label: 'IN PAGI', color: '#c2410c' },
@@ -17,7 +27,7 @@ const KOLOM_JAM = [
   { key: 'outLembur', label: 'OUT LEMBUR', color: '#7c3aed' },
 ];
 
-const emptyKaryawanForm = { nama: '', tipe: 'harian', jabatan: '', gajiHarian: '', lemburPerJam: '', status: 'aktif' };
+const emptyKaryawanForm = { nama: '', tipe: 'harian', jabatan: '', gajiHarian: '', gajiPerMinggu: '', gajiBulanan: '', lemburPerJam: '', potongAbsenPerHari: '', status: 'aktif' };
 
 export default function Absensi() {
   const baseUrl = getApiBaseUrl();
@@ -54,7 +64,12 @@ export default function Absensi() {
     () => karyawan.find((k) => k.id === selectedKaryawanId) || null,
     [karyawan, selectedKaryawanId]
   );
-  const karyawanHarian = useMemo(() => karyawan.filter((k) => k.tipe !== 'bulanan'), [karyawan]);
+  // Semua karyawan bisa dipilih di tab Absensi; tampilannya menyesuaikan tipe.
+  const karyawanAktif = useMemo(() => karyawan.filter((k) => k.status !== 'nonaktif'), [karyawan]);
+  const mode = selectedKaryawan?.tipe || 'harian';       // 'harian' | 'bulanan_mingguan' | 'bulanan'
+  const isAzwad = mode === 'bulanan';                     // bulanan biasa → komponen sendiri
+  const isPakde = mode === 'bulanan_mingguan';            // bulanan mingguan → komponen sendiri
+  const isHarian = !isAzwad && !isPakde;
 
   const gajiHarian = Number(selectedKaryawan?.gajiHarian) || 0;
   const lemburPerJam = Number(selectedKaryawan?.lemburPerJam) || 0;
@@ -80,11 +95,13 @@ export default function Absensi() {
 
   // Pilih karyawan pertama secara otomatis
   useEffect(() => {
-    if (!selectedKaryawanId && karyawanHarian.length) setSelectedKaryawanId(karyawanHarian[0].id);
-  }, [karyawanHarian, selectedKaryawanId]);
+    if (!selectedKaryawanId && karyawanAktif.length) setSelectedKaryawanId(karyawanAktif[0].id);
+  }, [karyawanAktif, selectedKaryawanId]);
 
-  // Load absensi tiap ganti karyawan / periode
+  // Load absensi tiap ganti karyawan / periode — HANYA untuk harian. Pakde &
+  // bulanan (Azwad) punya komponen sendiri yang memuat & menyimpan datanya.
   useEffect(() => {
+    if (!isHarian) return;
     if (!selectedKaryawanId || !periodeStart) return;
     let batal = false;
     (async () => {
@@ -104,7 +121,7 @@ export default function Absensi() {
       }
     })();
     return () => { batal = true; };
-  }, [baseUrl, selectedKaryawanId, periodeStart]);
+  }, [baseUrl, selectedKaryawanId, periodeStart, isHarian]);
 
   // ─── Aksi ───────────────────────────────────────────────────────────────────
 
@@ -159,7 +176,10 @@ export default function Absensi() {
       const body = {
         ...karyawanForm,
         gajiHarian: Number(karyawanForm.gajiHarian) || 0,
+        gajiPerMinggu: Number(karyawanForm.gajiPerMinggu) || 0,
+        gajiBulanan: Number(karyawanForm.gajiBulanan) || 0,
         lemburPerJam: Number(karyawanForm.lemburPerJam) || 0,
+        potongAbsenPerHari: Number(karyawanForm.potongAbsenPerHari) || 0,
       };
       const url = editingKaryawan
         ? `${baseUrl}/karyawan/update/${editingKaryawan.id}`
@@ -227,7 +247,7 @@ export default function Absensi() {
               <MdAdd /> Tambah Karyawan
             </Button>
           )}
-          {activeTab === 'absensi' && selectedKaryawan && (
+          {activeTab === 'absensi' && selectedKaryawan && isHarian && (
             <Button size="sm" variant={dirty ? 'primary' : 'outline-secondary'} disabled={saving} onClick={simpanAbsensi}>
               {saving ? <Spinner size="sm" /> : <><MdSave /> {dirty ? 'Simpan Perubahan' : 'Tersimpan'}</>}
             </Button>
@@ -250,22 +270,31 @@ export default function Absensi() {
 
         {/* ─── TAB ABSENSI ───────────────────────────────────────────────── */}
         {activeTab === 'absensi' && (
-          karyawanHarian.length === 0 ? (
+          karyawanAktif.length === 0 ? (
             <div style={{ textAlign: 'center', color: muted, padding: 60 }}>
-              Belum ada karyawan harian. Tambahkan dulu di tab <b>Karyawan</b>.
+              Belum ada karyawan aktif. Tambahkan dulu di tab <b>Karyawan</b>.
             </div>
           ) : (
             <>
-              {/* Toolbar pilih karyawan & periode */}
+              {/* Pilih karyawan (semua tipe) — periode/nav menyesuaikan tipe */}
               <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center', marginBottom: 16 }}>
                 <select
                   value={selectedKaryawanId}
                   onChange={(e) => setSelectedKaryawanId(e.target.value)}
                   style={{ fontSize: 13, padding: '6px 12px', borderRadius: 6, border: dark ? '1px solid #444' : '1px solid #ddd', background: cardBg, color: text, fontWeight: 600, cursor: 'pointer' }}
                 >
-                  {karyawanHarian.map((k) => <option key={k.id} value={k.id}>{k.nama}</option>)}
+                  {karyawanAktif.map((k) => <option key={k.id} value={k.id}>{k.nama} — {tipeMeta(k.tipe).label}</option>)}
                 </select>
+              </div>
 
+              {/* Karyawan bulanan mingguan (Pakde) & bulanan biasa (Azwad) pakai
+                  komponen sendiri; harian tetap pakai tampilan di bawah. */}
+              {isPakde && <AbsensiPakde baseUrl={baseUrl} karyawan={selectedKaryawan} dark={dark} />}
+              {isAzwad && <AbsensiAzwad baseUrl={baseUrl} karyawan={selectedKaryawan} dark={dark} />}
+
+              {isHarian && <>
+              {/* Toolbar periode (harian) */}
+              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center', marginBottom: 16 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <Button size="sm" variant="outline-secondary" onClick={() => geserPeriode(-1)}><MdChevronLeft /></Button>
                   <input
@@ -399,6 +428,7 @@ export default function Absensi() {
                   style={{ background: cardBg, color: text, border, fontSize: 13 }}
                 />
               </div>
+              </>}
             </>
           )
         )}
@@ -415,25 +445,30 @@ export default function Absensi() {
                     <th style={th({ textAlign: 'left' })}>NAMA</th>
                     <th style={th({ textAlign: 'left' })}>JABATAN</th>
                     <th style={th()}>TIPE</th>
-                    <th style={th({ textAlign: 'right' })}>GAJI HARIAN</th>
-                    <th style={th({ textAlign: 'right' })}>GAJI / JAM</th>
+                    <th style={th({ textAlign: 'right' })}>GAJI POKOK</th>
                     <th style={th({ textAlign: 'right' })}>LEMBUR / JAM</th>
                     <th style={th()}>STATUS</th>
                     <th style={th()}>AKSI</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {karyawan.map((k) => (
+                  {karyawan.map((k) => {
+                    const meta = tipeMeta(k.tipe);
+                    // Gaji pokok & satuannya menyesuaikan tipe.
+                    const gajiPokok = k.tipe === 'bulanan' ? k.gajiBulanan
+                      : k.tipe === 'bulanan_mingguan' ? k.gajiPerMinggu
+                      : k.gajiHarian;
+                    const satuan = k.tipe === 'bulanan' ? '/bln' : k.tipe === 'bulanan_mingguan' ? '/mgg' : '/hari';
+                    return (
                     <tr key={k.id}>
                       <td style={td({ textAlign: 'left', fontWeight: 600 })}>{k.nama}</td>
                       <td style={td({ textAlign: 'left', color: muted })}>{k.jabatan || '-'}</td>
                       <td style={td()}>
-                        <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 4, background: k.tipe === 'bulanan' ? '#EEEDFE' : '#EAF3FB', color: k.tipe === 'bulanan' ? '#7F77DD' : '#378ADD' }}>
-                          {k.tipe === 'bulanan' ? 'BULANAN' : 'HARIAN'}
+                        <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 4, background: meta.bg, color: meta.color, whiteSpace: 'nowrap' }}>
+                          {meta.label}
                         </span>
                       </td>
-                      <td style={td({ textAlign: 'right' })}>{fmtRp(k.gajiHarian)}</td>
-                      <td style={td({ textAlign: 'right', color: muted })}>{fmtRp(hitungRate(k.gajiHarian, k.lemburPerJam).perJamSiang)}</td>
+                      <td style={td({ textAlign: 'right' })}>{fmtRp(gajiPokok)} <span style={{ color: muted, fontSize: 10 }}>{satuan}</span></td>
                       <td style={td({ textAlign: 'right' })}>{fmtRp(k.lemburPerJam)}</td>
                       <td style={td({ color: k.status === 'aktif' ? '#15803d' : muted, fontWeight: 600 })}>{k.status === 'aktif' ? 'Aktif' : 'Nonaktif'}</td>
                       <td style={td()}>
@@ -442,7 +477,9 @@ export default function Absensi() {
                             setEditingKaryawan(k);
                             setKaryawanForm({
                               nama: k.nama || '', tipe: k.tipe || 'harian', jabatan: k.jabatan || '',
-                              gajiHarian: k.gajiHarian ?? '', lemburPerJam: k.lemburPerJam ?? '', status: k.status || 'aktif',
+                              gajiHarian: k.gajiHarian ?? '', gajiPerMinggu: k.gajiPerMinggu ?? '',
+                              gajiBulanan: k.gajiBulanan ?? '', lemburPerJam: k.lemburPerJam ?? '',
+                              potongAbsenPerHari: k.potongAbsenPerHari ?? '', status: k.status || 'aktif',
                             });
                             setShowKaryawanModal(true);
                           }}><MdEdit /></Button>
@@ -450,7 +487,8 @@ export default function Absensi() {
                         </div>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -476,22 +514,53 @@ export default function Absensi() {
             <Form.Label style={{ fontSize: 13 }}>Tipe</Form.Label>
             <Form.Select value={karyawanForm.tipe} onChange={(e) => setKaryawanForm({ ...karyawanForm, tipe: e.target.value })}>
               <option value="harian">Harian</option>
-              <option value="bulanan">Bulanan (belum didukung)</option>
+              <option value="bulanan_mingguan">Bulanan — diambil per minggu (mis. Pakde)</option>
+              <option value="bulanan">Bulanan — biasa (mis. Azwad)</option>
             </Form.Select>
           </Form.Group>
-          <Form.Group className="mb-3">
-            <Form.Label style={{ fontSize: 13 }}>Gaji Harian (Rp)</Form.Label>
-            <Form.Control type="number" min={0} value={karyawanForm.gajiHarian}
-              onChange={(e) => setKaryawanForm({ ...karyawanForm, gajiHarian: e.target.value })} />
-            <Form.Text style={{ fontSize: 11 }}>
-              Gaji / jam siang = {fmtRp(hitungRate(karyawanForm.gajiHarian, 0).perJamSiang)} (dibagi {JAM_NORMAL} jam)
-            </Form.Text>
-          </Form.Group>
+
+          {/* Field gaji menyesuaikan tipe */}
+          {karyawanForm.tipe === 'harian' && (
+            <Form.Group className="mb-3">
+              <Form.Label style={{ fontSize: 13 }}>Gaji Harian (Rp)</Form.Label>
+              <Form.Control type="number" min={0} value={karyawanForm.gajiHarian}
+                onChange={(e) => setKaryawanForm({ ...karyawanForm, gajiHarian: e.target.value })} />
+              <Form.Text style={{ fontSize: 11 }}>
+                Gaji / jam siang = {fmtRp(hitungRate(karyawanForm.gajiHarian, 0).perJamSiang)} (dibagi {JAM_NORMAL} jam)
+              </Form.Text>
+            </Form.Group>
+          )}
+          {karyawanForm.tipe === 'bulanan_mingguan' && (
+            <Form.Group className="mb-3">
+              <Form.Label style={{ fontSize: 13 }}>Gaji per Minggu (Rp)</Form.Label>
+              <Form.Control type="number" min={0} value={karyawanForm.gajiPerMinggu}
+                onChange={(e) => setKaryawanForm({ ...karyawanForm, gajiPerMinggu: e.target.value })} />
+              <Form.Text style={{ fontSize: 11 }}>
+                Rate normal = gaji/minggu ÷ 42 jam. Target 42 jam/minggu; kurang → potong, lebih → lembur.
+              </Form.Text>
+            </Form.Group>
+          )}
+          {karyawanForm.tipe === 'bulanan' && (
+            <>
+              <Form.Group className="mb-3">
+                <Form.Label style={{ fontSize: 13 }}>Gaji Pokok per Bulan (Rp)</Form.Label>
+                <Form.Control type="number" min={0} value={karyawanForm.gajiBulanan}
+                  onChange={(e) => setKaryawanForm({ ...karyawanForm, gajiBulanan: e.target.value })} />
+              </Form.Group>
+              <Form.Group className="mb-3">
+                <Form.Label style={{ fontSize: 13 }}>Potong Absen per Hari (Rp)</Form.Label>
+                <Form.Control type="number" min={0} value={karyawanForm.potongAbsenPerHari}
+                  onChange={(e) => setKaryawanForm({ ...karyawanForm, potongAbsenPerHari: e.target.value })} />
+                <Form.Text style={{ fontSize: 11 }}>Dipotong per hari absen non-paid (SH = ½, AL/Alpha = 1).</Form.Text>
+              </Form.Group>
+            </>
+          )}
+
           <Form.Group className="mb-3">
             <Form.Label style={{ fontSize: 13 }}>Lembur per Jam (Rp)</Form.Label>
             <Form.Control type="number" min={0} value={karyawanForm.lemburPerJam}
               onChange={(e) => setKaryawanForm({ ...karyawanForm, lemburPerJam: e.target.value })} />
-            <Form.Text style={{ fontSize: 11 }}>Dihitung per menit saat kerja melebihi {JAM_NORMAL} jam sehari.</Form.Text>
+            <Form.Text style={{ fontSize: 11 }}>Tarif lembur, dihitung per menit.</Form.Text>
           </Form.Group>
           <Form.Group>
             <Form.Label style={{ fontSize: 13 }}>Status</Form.Label>

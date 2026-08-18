@@ -45,8 +45,24 @@ export const hitungRate = (gajiHarian, lemburPerJam) => {
 export const hitungHari = (row, gajiHarian, lemburPerJam) => {
   const rate = hitungRate(gajiHarian, lemburPerJam);
 
-  const menitPagi = durasiBlok(row?.inPagi, row?.outSiang);
-  const menitSiang = durasiBlok(row?.inSiang, row?.outSore);
+  // Blok kerja siang. Normalnya dua blok: pagi (inPagi→outSiang) + siang
+  // (inSiang→outSore), dipisah jam istirahat. TAPI ada hari karyawan tidak
+  // istirahat sehingga out siang & in siang tidak diisi — dulu kedua blok jadi
+  // 0 dan hari itu tidak terbayar sama sekali. Kalau keduanya kosong, hitung
+  // langsung satu blok utuh inPagi→outSore (mis. 08:00–16:00 = 8 jam → 1 jam
+  // lembur). Kalau salah satu terisi (mis. setengah hari), tetap pakai dua blok.
+  const outSiangKosong = toMenit(row?.outSiang) === null;
+  const inSiangKosong = toMenit(row?.inSiang) === null;
+
+  let menitPagi;
+  let menitSiang;
+  if (outSiangKosong && inSiangKosong) {
+    menitPagi = durasiBlok(row?.inPagi, row?.outSore);
+    menitSiang = 0;
+  } else {
+    menitPagi = durasiBlok(row?.inPagi, row?.outSiang);
+    menitSiang = durasiBlok(row?.inSiang, row?.outSore);
+  }
   const menitLemburBlok = durasiBlok(row?.inLembur, row?.outLembur);
 
   const totalMenit = menitPagi + menitSiang + menitLemburBlok;

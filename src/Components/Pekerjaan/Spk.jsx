@@ -954,12 +954,21 @@ useEffect(() => {
   }, [searchProduct, dataProjectFromDB]);
 
   useEffect(() => {
+    // Dropdown "pindah SPK" di Edit Product hanya menampilkan SPK milik supplier
+    // yang sama dengan SPK yang sedang dibuka (dataSPKFromDB[0].pengrajin).
+    // Dulu semua SPK muncul, jadi harus ketik dulu untuk mempersempit. Produk
+    // memang cuma dipindah antar SPK supplier yang sama, jadi difilter di sini.
+    const currentSupplier = (dataSPKFromDB[0]?.pengrajin || '').trim().toLowerCase();
     setFilteredSPKData(
-      SPK.filter((item) =>
-        (item.code && item.code.toLowerCase().includes(searchSPK.toLowerCase()))
-      )
+      SPK.filter((item) => {
+        const cocokSupplier = !currentSupplier
+          ? true
+          : (item.pengrajin || '').trim().toLowerCase() === currentSupplier;
+        const cocokCari = item.code && item.code.toLowerCase().includes(searchSPK.toLowerCase());
+        return cocokSupplier && cocokCari;
+      })
     );
-  }, [searchSPK, SPK]);
+  }, [searchSPK, SPK, dataSPKFromDB]);
 
   // OPTIMASI: dulu fetch /spkproduct/all/get (SEMUA item SPK) saat mount & tiap
   // create/update produk — hasilnya (dataAllSPKproductFromDB) TIDAK dipakai di

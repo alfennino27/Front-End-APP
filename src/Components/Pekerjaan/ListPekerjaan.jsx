@@ -20,7 +20,8 @@ import dayjs from 'dayjs';
 
 //tes
 
-// Deadline sering kosong/tidak valid di data lama → jangan tampilkan "Invalid Date".
+// Tanggal (target kirim/deadline) sering kosong atau tidak valid di data lama →
+// jangan tampilkan "Invalid Date", cukup "-".
 const formatDeadline = (v) => {
   if (!v) return '-';
   const d = new Date(v);
@@ -1637,8 +1638,11 @@ const ListPekerjaan = () => {
                       (width 100%) ikut melar mengikuti judul panjang sehingga
                       jebol keluar kartu di lebar window tertentu. */}
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <h5 style={{ color: globalTheme == "light" ? "black" : "white" }}>{project.NamaBarang}</h5>
-                    <h6 style={{ color: globalTheme == "light" ? "#292929" : "#c0c0c0" }}>{project.Buyer}</h6>
+                    <h5 style={{ color: globalTheme == "light" ? "black" : "#ffffff" }}>{project.NamaBarang}</h5>
+                    {/* Buyer dulu #c0c0c0: di HP low-end (panel TN/gamma jelek)
+                        abu-abu setipis itu nyaris lenyap di atas latar gelap.
+                        Dinaikkan ke #e3e3e3 + weight 500 supaya tetap terbaca. */}
+                    <h6 style={{ color: globalTheme == "light" ? "#292929" : "#e3e3e3", fontWeight: globalTheme == "light" ? 400 : 500 }}>{project.Buyer}</h6>
                     <small>
                       <div className="progress" role="progressbar" style={{ backgroundColor: '#4c4c4c', height: "15px", width: '100%' }}>
                         <div className="progress-bar" style={{ width: `${Math.min(100, Math.max(0, Number(project.Percentage) || 0))}%`, background: globalTheme == "light" ? `linear-gradient(to left, #007EFF, #14C2F6)` : `linear-gradient(to left, #003797, #00c6ff)` }}>{project.Percentage}%</div>
@@ -1652,17 +1656,27 @@ const ListPekerjaan = () => {
                     start-0) sehingga saling menimpa, dan status SPK digeser paksa
                     dengan marginLeft 100px yang meleset di lebar lain. Sekarang
                     satu baris flex — tidak mungkin tumpang tindih lagi. */}
-                <div className="d-flex align-items-center flex-wrap" style={{ gap: '2px 12px', fontSize: '0.75rem', lineHeight: 1.4 }}>
+                <div className="d-flex align-items-center flex-wrap" style={{ gap: '2px 12px', fontSize: '0.8rem', lineHeight: 1.4 }}>
                   {searchSupplier && (
                     <span style={{
-                      color: {
+                      color: (globalTheme === "light" ? {
                         'Belum Proses': 'rgba(255, 0, 0, 0.6)',
                         'Proses': 'rgba(196, 199, 0, 0.8)',
                         'QC Pass': 'rgba(0, 0, 255, 0.6)',
                         'Servis': 'rgba(255, 165, 0, 0.6)',
                         'Selesai': 'rgba(0, 255, 0, 0.6)',
                         'Ready Stock': 'rgba(128, 128, 128, 0.6)',
-                      }[project[`CategoryStatus${localStorage.getItem('searchSupplierCategoryLocalStorage')}`]] || 'rgba(0, 0, 0, 0.6)',
+                      } : {
+                        // Versi tema gelap: solid & lebih terang. rgba 0.6 di atas
+                        // latar hampir hitam menghasilkan warna tua yang tidak
+                        // terbaca di HP low-end (biru 0.6 paling parah).
+                        'Belum Proses': '#ff6b6b',
+                        'Proses': '#ffe066',
+                        'QC Pass': '#74c0fc',
+                        'Servis': '#ffb457',
+                        'Selesai': '#69db7c',
+                        'Ready Stock': '#c1c1c1',
+                      })[project[`CategoryStatus${localStorage.getItem('searchSupplierCategoryLocalStorage')}`]] || (globalTheme === "light" ? 'rgba(0, 0, 0, 0.6)' : '#e0e0e0'),
                     }} className='fw-semibold'>
                       {project[`CategoryStatus${localStorage.getItem('searchSupplierCategoryLocalStorage')}`]}
                     </span>
@@ -1670,8 +1684,8 @@ const ListPekerjaan = () => {
 
                   {searchSupplier && BOLEH_LIHAT_STATUS_SPK.includes(user.uid) && renderStatus(project.id)}
 
-                  <span style={{ marginLeft: 'auto', color: globalTheme == "light" ? "black" : "white", whiteSpace: 'nowrap' }}>
-                    Deadline : {formatDeadline(project.Deadline)}
+                  <span style={{ marginLeft: 'auto', color: globalTheme == "light" ? "black" : "#ffffff", fontWeight: 500, whiteSpace: 'nowrap' }}>
+                    Target Kirim : {formatDeadline(project.TargetKirim)}
                   </span>
                 </div>
                 </div>

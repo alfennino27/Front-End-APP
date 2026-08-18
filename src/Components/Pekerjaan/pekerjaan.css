@@ -527,3 +527,28 @@ html {
   box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
   text-decoration: none;
 }
+
+/* --- Kontras tema gelap pada kartu daftar project -------------------------
+   Warna bawaan Bootstrap (text-primary #0d6efd, text-success #198754,
+   text-danger #dc3545) dipakai untuk status SPK di kartu. Di atas latar
+   hampir hitam warna-warna itu cuma ~3:1 — masih terbaca di layar bagus,
+   tapi hilang di HP low-end. Di tema gelap dipakai varian yang lebih terang. */
+.listPekerjaan.tema-dark .text-primary {
+  color: #74c0fc !important;
+}
+
+.listPekerjaan.tema-dark .text-success {
+  color: #69db7c !important;
+}
+
+.listPekerjaan.tema-dark .text-danger {
+  color: #ff8787 !important;
+}
+
+/* Persen di progress bar: putih di atas bar biru tua/abu — tambah bayangan
+   tipis supaya angkanya tidak lebur waktu bar masih pendek. */
+.listPekerjaan.tema-dark .progress-bar {
+  color: #ffffff;
+  font-weight: 600;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+}

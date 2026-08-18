@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Col, Container, Modal, Button, Dropdown, Toast } from 'react-bootstrap';
 import '../Pekerjaan/pekerjaan.css';
 import { MdDelete, MdOutlineLocationOn } from 'react-icons/md';
@@ -1763,6 +1763,23 @@ const DetailPekerjaan = () => {
 
 
 
+  // Daftar orang yang bisa di-tag — diambil dari koleksi Users, BUKAN hardcode.
+  // Dulu daftarnya ditulis manual di tiga <Mentions/> sehingga setiap user baru
+  // tidak pernah muncul di dropdown "@" (dan otomatis tidak pernah dapat notif
+  // WA, karena tagNotify.js mencocokkan ejaan nama kanonik dari Users).
+  const mentionOptions = useMemo(() => {
+    const seen = new Set();
+    return dataUserFromDB
+      .map((u) => (u?.name || '').trim())
+      .filter((n) => {
+        if (!n || seen.has(n.toLowerCase())) return false;
+        seen.add(n.toLowerCase());
+        return true;
+      })
+      .sort((a, b) => a.localeCompare(b, 'id'))
+      .map((n) => ({ value: n, label: n }));
+  }, [dataUserFromDB]);
+
   const HighlightMentions = ({ text }) => {
     // Daftar nama diambil dari Users (bukan hardcode) supaya user baru ikut
     // ter-highlight — dan supaya nama kanonik di ERP satu sumber dengan yang
@@ -3414,17 +3431,7 @@ const DetailPekerjaan = () => {
               setTextComment(value);
             }}
             placeholder="Text"
-            options={[
-              { value: 'Alfen', label: 'Alfen' },
-              { value: 'Azwad', label: 'Azwad' },
-              { value: 'Lina', label: 'Lina' },
-              { value: 'Mad', label: 'Mad' },
-              { value: 'P. Dhe', label: 'P. Dhe' },
-              { value: 'Rakev', label: 'Rakev' },
-              { value: 'Resti', label: 'Resti' },
-              { value: 'Udin', label: 'Udin' },
-              { value: 'Xena', label: 'Xena' },
-            ]}
+            options={mentionOptions}
           />
 
 
@@ -3643,17 +3650,7 @@ const DetailPekerjaan = () => {
               setTextReply(value);
             }}
             placeholder="Text"
-            options={[
-              { value: 'Alfen', label: 'Alfen' },
-              { value: 'Azwad', label: 'Azwad' },
-              { value: 'Lina', label: 'Lina' },
-              { value: 'Mad', label: 'Mad' },
-              { value: 'P. Dhe', label: 'P. Dhe' },
-              { value: 'Rakev', label: 'Rakev' },
-              { value: 'Resti', label: 'Resti' },
-              { value: 'Udin', label: 'Udin' },
-              { value: 'Xena', label: 'Xena' },
-            ]}
+            options={mentionOptions}
           />
 
         </Modal.Body>
@@ -3839,17 +3836,7 @@ const DetailPekerjaan = () => {
               setEditCommentText(value);
             }}
             placeholder="Text"
-            options={[
-              { value: 'Alfen', label: 'Alfen' },
-              { value: 'Azwad', label: 'Azwad' },
-              { value: 'Lina', label: 'Lina' },
-              { value: 'Mad', label: 'Mad' },
-              { value: 'P. Dhe', label: 'P. Dhe' },
-              { value: 'Rakev', label: 'Rakev' },
-              { value: 'Resti', label: 'Resti' },
-              { value: 'Udin', label: 'Udin' },
-              { value: 'Xena', label: 'Xena' },
-            ]}
+            options={mentionOptions}
           />
 
         </Modal.Body>

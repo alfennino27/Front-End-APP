@@ -446,6 +446,9 @@ const BalanceSheet = () => {
                   <Dropdown.Item as={Link} to="/accounting/laba-rugi-profit" className="dropdown-link">
                     Laba - Rugi Profit
                   </Dropdown.Item>
+                  <Dropdown.Item as={Link} to="/accounting/evaluasi-estimasi" className="dropdown-link">
+                    Evaluasi Estimasi
+                  </Dropdown.Item>
                   <Dropdown.Item as={Link} to="/accounting/jurnal" className="dropdown-link">
                     Jurnal
                   </Dropdown.Item>

@@ -6,6 +6,7 @@ import { getApiBaseUrl } from '../../Config/APIurl';
 import { useNavigate } from 'react-router-dom';
 import { FaPaste } from 'react-icons/fa';
 import { DatePicker, Space } from 'antd';
+import { hitungFinansialInvoice } from '../../Utils/invoiceFinancial';
 
 const Jurnal = () => {
   const baseUrl = getApiBaseUrl();
@@ -305,34 +306,13 @@ const Jurnal = () => {
                     // Filter dataSPKProduct yang idProduct-nya ada di relatedProjectIds
                     const relatedSPKProducts = dataSPKProduct.filter(spk => relatedProjectIds.includes(spk.idProduct));
 
-                    // Hitung total biaya dari dataSPKProduct
-                    const totalSPKProductCost = relatedSPKProducts.reduce((sum, spk) => {
-                      return sum + (Number(spk.harga) * Number(spk.qty));
-                    }, 0);
-
-                    // Hitung total harga dari dataProject
-                    const totalHargaProject = relatedProjects.reduce((sum, project) => {
-                      return sum + (Number(project.Harga) * Number(project.Qty));
-                    }, 0);
-
                     // Filter dataInvoicePengeluaran sesuai idInvoice
                     const relatedPengeluaran = dataInvoicePengeluaran.filter(pengeluaran => pengeluaran.idInvoice === item.id);
 
-                    // Hitung total pengeluaran
-                    const totalPengeluaranLain = relatedPengeluaran.reduce((sum, pengeluaran) => {
-                      return sum + Number(pengeluaran.nominalPengeluaran);
-                    }, 0);
-
-                    // Hitung total penjualan
-                    const totalPenjualan = totalHargaProject + Number(item.ongkirCustInvoice) - Number(item.discountInvoice);
-
-                    // Hitung total gross profit
-                    const totalGrossProfit =
-                      totalPenjualan -
-                      totalPengeluaranLain -
-                      Number(item.ongkirPackingInvoice) -
-                      Number(item.adminInvoice) -
-                      totalSPKProductCost;
+                    // Hitung nilai penjualan & gross profit (HPP = SPK per kategori, fallback estimasi)
+                    const { totalPenjualan, totalGrossProfit } = hitungFinansialInvoice(
+                      item, relatedProjects, relatedSPKProducts, relatedPengeluaran
+                    );
 
                     item.totalPenjualan = totalPenjualan;
                     item.totalGrossProfit = totalGrossProfit;

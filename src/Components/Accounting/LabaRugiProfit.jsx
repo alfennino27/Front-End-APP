@@ -6,6 +6,7 @@ import { getApiBaseUrl } from '../../Config/APIurl';
 import { useNavigate } from 'react-router-dom';
 import { FaPaste } from 'react-icons/fa';
 import { DatePicker, Space } from 'antd';
+import { hitungFinansialInvoice } from '../../Utils/invoiceFinancial';
 
 const Jurnal = () => {
   const baseUrl = getApiBaseUrl();
@@ -231,34 +232,13 @@ const Jurnal = () => {
     // Filter dataSPKProduct yang idProduct-nya ada di relatedProjectIds
     const relatedSPKProducts = dataSPKProduct.filter(spk => relatedProjectIds.includes(spk.idProduct));
 
-    // Hitung total biaya dari dataSPKProduct
-    const totalSPKProductCost = relatedSPKProducts.reduce((sum, spk) => {
-      return sum + (Number(spk.harga) * Number(spk.qty));
-    }, 0);
-
-    // Hitung total harga dari dataProject
-    const totalHargaProject = relatedProjects.reduce((sum, project) => {
-      return sum + (Number(project.Harga) * Number(project.Qty));
-    }, 0);
-
     // Filter dataInvoicePengeluaran sesuai idInvoice
     const relatedPengeluaran = dataInvoicePengeluaran.filter(pengeluaran => pengeluaran.idInvoice === item.id);
 
-    // Hitung total pengeluaran
-    const totalPengeluaranLain = relatedPengeluaran.reduce((sum, pengeluaran) => {
-      return sum + Number(pengeluaran.nominalPengeluaran);
-    }, 0);
-
-    // Hitung total penjualan
-    const totalPenjualan = totalHargaProject + Number(item.ongkirCustInvoice) - Number(item.discountInvoice);
-
-    // Hitung total gross profit
-    const totalGrossProfit =
-      totalPenjualan -
-      totalPengeluaranLain -
-      Number(item.ongkirPackingInvoice) -
-      Number(item.adminInvoice) -
-      totalSPKProductCost;
+    // Hitung nilai penjualan & gross profit (HPP = SPK per kategori, fallback estimasi)
+    const { totalPenjualan, totalGrossProfit } = hitungFinansialInvoice(
+      item, relatedProjects, relatedSPKProducts, relatedPengeluaran
+    );
 
     // Tambahkan nilai yang dihitung ke dalam item
     return {
@@ -400,53 +380,16 @@ const Jurnal = () => {
                     // Filter dataSPKProduct yang idProduct-nya ada di relatedProjectIds
                     const relatedSPKProducts = dataSPKProduct.filter(spk => relatedProjectIds.includes(spk.idProduct));
 
-                    // Hitung total biaya dari dataSPKProduct
-                    const totalSPKProductCost = relatedSPKProducts.reduce((sum, spk) => {
-                      return sum + (Number(spk.harga) * Number(spk.qty));
-                    }, 0);
-
-                    // Hitung total harga dari dataProject
-                    const totalHargaProject = relatedProjects.reduce((sum, project) => {
-                      return sum + (Number(project.Harga) * Number(project.Qty));
-                    }, 0);
-
                     // Filter dataInvoicePengeluaran sesuai idInvoice
                     const relatedPengeluaran = dataInvoicePengeluaran.filter(pengeluaran => pengeluaran.idInvoice === item.id);
 
-                    // Hitung total pengeluaran
-                    const totalPengeluaranLain = relatedPengeluaran.reduce((sum, pengeluaran) => {
-                      return sum + Number(pengeluaran.nominalPengeluaran);
-                    }, 0);
+                    // Hitung nilai penjualan & gross profit (HPP = SPK per kategori, fallback estimasi)
+                    const { totalPenjualan, totalGrossProfit } = hitungFinansialInvoice(
+                      item, relatedProjects, relatedSPKProducts, relatedPengeluaran
+                    );
 
-                    // Hitung total penjualan
-                    const totalPenjualan = totalHargaProject + Number(item.ongkirCustInvoice) - Number(item.discountInvoice);
-
-                    // Hitung total gross profit
-                    const totalGrossProfit =
-                      totalPenjualan -
-                      totalPengeluaranLain -
-                      Number(item.ongkirPackingInvoice) -
-                      Number(item.adminInvoice) -
-                      totalSPKProductCost;
-
-                    // Filter dataInvoicePayment sesuai idInvoice
-                    const relatedPayments = dataInvoicePayment.filter(payment => payment.idInvoice === item.id);
-
-                    // Hitung total pembayaran
-                    const totalPayment = relatedPayments.reduce((sum, payment) => {
-                      return sum + Number(payment.jumlah);
-                    }, 0);
-
-                    // Tentukan status berdasarkan total pembayaran
-                    // const status = totalPayment >= totalPenjualan ? "Lunas" : "Belum";
-
-                    // Cari tanggal paling akhir dari relatedPayments
-                    const latestPaymentDate = relatedPayments.reduce((latest, payment) => {
-                      const paymentDate = new Date(payment.tanggal);
-                      const latestDate = new Date(latest);
-                      return paymentDate > latestDate ? payment.tanggal : latest;
-                    }, relatedPayments.length > 0 ? relatedPayments[0].tanggal : "");
-
+                    // Tanggal pelunasan — pakai yang sama dengan dasar filter bulan (sudah handle Withdraw/Hold)
+                    const latestPaymentDate = item.latestPaymentDate;
 
                     item.totalPenjualan = totalPenjualan;
                     item.totalGrossProfit = totalGrossProfit;

@@ -149,6 +149,30 @@ const Supplier = () => {
   };
 
 
+  // Tipe kerja: 'penuh' = borongan termasuk bahan, 'tenaga' = jasa saja (bahan dari KLF).
+  // Dipakai halaman Evaluasi Estimasi untuk memisahkan mana pekerjaan yang bahannya kita tanggung.
+  const [menyimpanTipe, setMenyimpanTipe] = useState(null);
+
+  const ubahTipeKerja = async (item, tipeKerja) => {
+    const id = item.id || item._id;
+    setMenyimpanTipe(id);
+    try {
+      const res = await fetch(`${baseUrl}/supplier/update-tipe-kerja`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, tipeKerja }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message || 'Gagal menyimpan');
+      setDataSupplier((prev) => prev.map((s) => ((s.id || s._id) === id ? { ...s, tipeKerja } : s)));
+    } catch (err) {
+      console.error('Gagal mengubah tipe kerja supplier:', err);
+      alert(`Gagal menyimpan tipe kerja: ${err.message}`);
+    } finally {
+      setMenyimpanTipe(null);
+    }
+  };
+
   // Fungsi untuk menghitung sisa hutang per supplier
   const calculateSaldo = (supplierName) => {
     const spkIds = spkMap[supplierName] || [];
@@ -206,6 +230,9 @@ const Supplier = () => {
                   <Dropdown.Item as={Link} to="/accounting/laba-rugi-profit" className="dropdown-link">
                     Laba - Rugi Profit
                   </Dropdown.Item>
+                  <Dropdown.Item as={Link} to="/accounting/evaluasi-estimasi" className="dropdown-link">
+                    Evaluasi Estimasi
+                  </Dropdown.Item>
                   <Dropdown.Item as={Link} to="/accounting/jurnal" className="dropdown-link">
                     Jurnal
                   </Dropdown.Item>
@@ -239,6 +266,7 @@ const Supplier = () => {
                 <th style={thStyle}>No</th>
                 <th style={thStyle}>Kategori</th>
                 <th style={thStyle}>Nama Supplier</th>
+                <th style={thStyle}>Tipe Kerja</th>
                 <th style={thStyle}>Saldo</th>
               </tr>
             </thead>
@@ -250,12 +278,27 @@ const Supplier = () => {
                     <td style={{ border: '1px solid #c2c2c2', textAlign: 'center', padding: '8px', fontSize: '12px' }}>{index + 1}</td>
                     <td style={{ border: '1px solid #c2c2c2', padding: '8px', fontSize: '12px' }}>{item.category}</td>
                     <td style={{ border: '1px solid #c2c2c2', padding: '8px', fontSize: '12px' }}>{item.supplierName}</td>
+                    <td style={{ border: '1px solid #c2c2c2', padding: '8px', fontSize: '12px' }}>
+                      <select
+                        value={item.tipeKerja === 'tenaga' ? 'tenaga' : 'penuh'}
+                        disabled={menyimpanTipe === (item.id || item._id)}
+                        onChange={(e) => ubahTipeKerja(item, e.target.value)}
+                        style={{
+                          fontSize: '12px', padding: '2px 6px', borderRadius: '4px',
+                          border: '1px solid #c2c2c2',
+                          color: item.tipeKerja === 'tenaga' ? '#c0392b' : '#0b5ed7',
+                        }}
+                      >
+                        <option value="penuh">Borong penuh (termasuk bahan)</option>
+                        <option value="tenaga">Borong tenaga (bahan dari KLF)</option>
+                      </select>
+                    </td>
                     <td style={{ border: '1px solid #c2c2c2', padding: '8px', fontSize: '12px' }}>Rp. {Number(saldo).toLocaleString('id-ID')}</td>
                   </tr>
                 );
               })}
               <tr style={{ backgroundColor: '#E7E7E8' }} className='fw-semibold'>
-                <td style={thTdStyle} colSpan={3}>Total :</td>
+                <td style={thTdStyle} colSpan={4}>Total :</td>
                 <td style={thTdStyle}>Rp. {Number(totalSaldo).toLocaleString('id-ID')}</td>
               </tr>
 

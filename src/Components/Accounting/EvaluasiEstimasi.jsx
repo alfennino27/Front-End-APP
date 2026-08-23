@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Container, Dropdown, Spinner } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
 import { DatePicker } from 'antd';
+import dayjs from 'dayjs';
 import { getApiBaseUrl } from '../../Config/APIurl';
 
 // Evaluasi Estimasi — menilai apakah nilai estimasi per kategori (yang dipakai
@@ -32,9 +33,7 @@ const EvaluasiEstimasi = () => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [sampai, setSampai] = useState(new Date().toISOString().slice(0, 7));
-  const [jumlahBulan, setJumlahBulan] = useState(12);
-  const [detailDibuka, setDetailDibuka] = useState({});
+  const bulanIni = new Date().toISOString().slice(0, 7);
 
   const mundurBulan = (bulan, n) => {
     const [y, m] = bulan.split('-').map(Number);
@@ -42,12 +41,17 @@ const EvaluasiEstimasi = () => {
     return `${Math.floor(total / 12)}-${String((total % 12) + 1).padStart(2, '0')}`;
   };
 
+  // Default: 12 bulan terakhir. Bisa diubah bebas lewat pemilih rentang.
+  const [dari, setDari] = useState(mundurBulan(bulanIni, 11));
+  const [sampai, setSampai] = useState(bulanIni);
+  const [window_, setWindow] = useState(3);
+  const [detailDibuka, setDetailDibuka] = useState({});
+
   const fetchData = async () => {
     setLoading(true);
     setError('');
     try {
-      const dari = mundurBulan(sampai, jumlahBulan - 1);
-      const res = await fetch(`${baseUrl}/accounting/variance-estimasi/get?dari=${dari}&sampai=${sampai}&window=3`);
+      const res = await fetch(`${baseUrl}/accounting/variance-estimasi/get?dari=${dari}&sampai=${sampai}&window=${window_}`);
       const json = await res.json();
       if (!res.ok) throw new Error(json.message || 'Gagal mengambil data');
       setData(json);
@@ -59,7 +63,7 @@ const EvaluasiEstimasi = () => {
     }
   };
 
-  useEffect(() => { fetchData(); }, [sampai, jumlahBulan]);
+  useEffect(() => { fetchData(); }, [dari, sampai, window_]);
 
   const rp = (v) => `Rp. ${Number(v || 0).toLocaleString('id-ID')}`;
 
@@ -85,10 +89,31 @@ const EvaluasiEstimasi = () => {
     return 'estimasi sudah wajar (dalam \u00b110%)';
   };
 
-  // Rasio real/estimasi hanya sahih kalau sebagian besar pekerjaan sudah punya angka estimasi.
+  // Rasio real/estimasi hanya sahih kalau DUA syarat terpenuhi:
+  //  1. sebagian besar pekerjaan di rentang itu sudah punya angka estimasi (cakupan), DAN
+  //  2. rentangnya cukup panjang.
+  // Syarat kedua penting: sisi estimasi hanya menghitung pekerjaan yang SPK-nya terbit di
+  // rentang ini, sedangkan sisi realisasi menghitung semua uang keluar di rentang ini —
+  // termasuk pelunasan SPK lama dan pembelian bahan untuk stok. Di rentang pendek, beda
+  // waktu itu tidak sempat saling menghapus dan rasionya jadi omong kosong.
   const CAKUPAN_MINIMUM = 0.8;
-  const cakupanCukup = (c) => c != null && c >= CAKUPAN_MINIMUM;
+  const RENTANG_MINIMUM_BULAN = 12;
   const persen = (v) => (v == null ? '—' : `${Math.round(v * 100)}%`);
+
+  const jumlahBulan = (d, sp) => {
+    if (!d || !sp) return 0;
+    const [y1, m1] = d.split('-').map(Number);
+    const [y2, m2] = sp.split('-').map(Number);
+    return (y2 * 12 + m2) - (y1 * 12 + m1) + 1;
+  };
+  const rentangBulan = data ? jumlahBulan(data.dari, data.sampai) : 0;
+  const rentangCukup = rentangBulan >= RENTANG_MINIMUM_BULAN;
+  const cakupanCukup = (c) => c != null && c >= CAKUPAN_MINIMUM;
+  const rasioSahih = (c) => cakupanCukup(c) && rentangCukup;
+  const alasanTidakSahih = (c) => {
+    if (!cakupanCukup(c)) return `belum bisa dinilai (cakupan ${persen(c)})`;
+    return `belum bisa dinilai (rentang baru ${rentangBulan} bulan, minimal ${RENTANG_MINIMUM_BULAN})`;
+  };
 
   return (
     <Container>
@@ -153,19 +178,23 @@ const EvaluasiEstimasi = () => {
 
             <div className='d-flex align-items-center gap-2'>
               <select
-                value={jumlahBulan}
-                onChange={(e) => setJumlahBulan(Number(e.target.value))}
+                value={window_}
+                onChange={(e) => setWindow(Number(e.target.value))}
+                title="Berapa bulan digabung jadi satu baris periode"
                 style={{ fontSize: '13px', padding: '4px 8px', borderRadius: '5px', border: '1px solid blue', color: 'blue' }}
               >
-                <option value={6}>6 bulan terakhir</option>
-                <option value={12}>12 bulan terakhir</option>
-                <option value={24}>24 bulan terakhir</option>
+                <option value={1}>per 1 bulan</option>
+                <option value={3}>per 3 bulan</option>
+                <option value={6}>per 6 bulan</option>
               </select>
-              <DatePicker
+              <DatePicker.RangePicker
                 picker="month"
-                style={{ borderColor: 'blue', color: 'blue' }}
-                onChange={(d, s) => s && setSampai(s)}
-                placeholder={sampai}
+                allowClear={false}
+                value={[dayjs(dari, 'YYYY-MM'), dayjs(sampai, 'YYYY-MM')]}
+                style={{ borderColor: 'blue' }}
+                onChange={(_, teks) => {
+                  if (teks && teks[0] && teks[1]) { setDari(teks[0]); setSampai(teks[1]); }
+                }}
               />
             </div>
           </div>
@@ -194,9 +223,9 @@ const EvaluasiEstimasi = () => {
                     <span style={{ color: '#666' }}>
                       {'  |  '}Estimasi vs realisasi:{' '}
                     </span>
-                    <span style={{ color: cakupanCukup(k.kumulatif.cakupan) ? warnaRasio(k.kumulatif.rasio) : '#6c757d', fontWeight: 600 }}>
-                      {!cakupanCukup(k.kumulatif.cakupan)
-                        ? `belum bisa dinilai (cakupan ${persen(k.kumulatif.cakupan)})`
+                    <span style={{ color: rasioSahih(k.kumulatif.cakupan) ? warnaRasio(k.kumulatif.rasio) : '#6c757d', fontWeight: 600 }}>
+                      {!rasioSahih(k.kumulatif.cakupan)
+                        ? alasanTidakSahih(k.kumulatif.cakupan)
                         : `${k.kumulatif.rasio.toFixed(2)}× — ${artiRasio(k.kumulatif.rasio)}`}
                     </span>
                   </p>
@@ -228,7 +257,7 @@ const EvaluasiEstimasi = () => {
                           <td style={{ ...thTdStyle, color: cakupanCukup(p.cakupan) ? '#1e7e34' : '#c0392b' }}>
                             {persen(p.cakupan)} <span style={{ color: '#888' }}>({p.item_ada_estimasi}/{p.item_ada_estimasi + p.item_tanpa_estimasi})</span>
                           </td>
-                          <td style={{ ...thTdStyle, color: cakupanCukup(p.cakupan) ? warnaRasio(p.rasio) : '#adb5bd', fontWeight: 600 }}>
+                          <td style={{ ...thTdStyle, color: '#adb5bd', fontWeight: 600 }}>
                             {p.rasio == null ? '—' : `${p.rasio.toFixed(2)}×`}
                           </td>
                         </tr>
@@ -243,7 +272,7 @@ const EvaluasiEstimasi = () => {
                         <td style={{ ...thTdStyle, color: cakupanCukup(k.kumulatif.cakupan) ? '#1e7e34' : '#c0392b' }}>
                           {persen(k.kumulatif.cakupan)} <span style={{ color: '#888' }}>({k.kumulatif.item_ada_estimasi}/{k.kumulatif.item_ada_estimasi + k.kumulatif.item_tanpa_estimasi})</span>
                         </td>
-                        <td style={{ ...thTdStyle, color: cakupanCukup(k.kumulatif.cakupan) ? warnaRasio(k.kumulatif.rasio) : '#adb5bd' }}>
+                        <td style={{ ...thTdStyle, color: rasioSahih(k.kumulatif.cakupan) ? warnaRasio(k.kumulatif.rasio) : '#adb5bd' }}>
                           {k.kumulatif.rasio == null ? '—' : `${k.kumulatif.rasio.toFixed(2)}×`}
                         </td>
                       </tr>
@@ -252,11 +281,14 @@ const EvaluasiEstimasi = () => {
                 </div>
 
                 <div className='px-4 mt-2' style={{ fontSize: '12px' }}>
-                  {!cakupanCukup(k.kumulatif.cakupan) && (
+                  {!rasioSahih(k.kumulatif.cakupan) && (
                     <p className='mb-1 text-danger'>
-                      ⚠ Cakupan estimasi baru {persen(k.kumulatif.cakupan)} — {k.estimasi_kosong} item dikerjakan borong tenaga
-                      tapi <b>estimasi{k.kategori} masih kosong</b>. Sisi realisasi menghitung <i>semua</i> pekerjaan,
-                      sisi estimasi hanya yang terisi, jadi kolom “Rasio Real / Est” <b>belum bisa dipakai</b>.
+                      ⚠ Kolom “Rasio Real / Est” <b>belum bisa dipakai</b>
+                      {!cakupanCukup(k.kumulatif.cakupan)
+                        ? ` — cakupan estimasi baru ${persen(k.kumulatif.cakupan)}, ${k.estimasi_kosong} item dikerjakan borong tenaga tapi estimasi${k.kategori} masih kosong.`
+                        : ` — rentang yang dipilih baru ${rentangBulan} bulan, minimal ${RENTANG_MINIMUM_BULAN} bulan.`}
+                      {' '}Sisi realisasi menghitung <i>semua</i> uang keluar di rentang ini (termasuk pelunasan SPK lama
+                      dan belanja bahan untuk stok), sisi estimasi hanya pekerjaan yang SPK-nya terbit di rentang ini.
                       Yang sudah sahih sekarang adalah kolom <b>Bahan : Tenaga</b>.
                     </p>
                   )}
@@ -316,7 +348,9 @@ const EvaluasiEstimasi = () => {
               </p>
               <p className='mb-1'>
                 <b>Cakupan</b> = berapa banyak pekerjaan borong tenaga di periode itu yang angka estimasinya
-                sudah diisi. Kolom “Rasio Real / Est” baru sahih kalau cakupan minimal 80%.
+                sudah diisi. Kolom “Rasio Real / Est” baru sahih kalau cakupan minimal 80% <b>dan</b> rentang
+                yang dipilih minimal {RENTANG_MINIMUM_BULAN} bulan — di rentang pendek, beda waktu antara
+                pekerjaan dan pembayaran belum sempat saling menghapus.
               </p>
               <p className='mb-0'>
                 Bahan dibeli untuk stok, bukan per order — jadi angka per periode <b>pasti</b> meleset.

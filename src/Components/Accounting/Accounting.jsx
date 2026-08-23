@@ -45,6 +45,8 @@ const Accounting = () => {
     { label: 'Piutang', to: '/accounting/piutang' },
     { label: 'Laba - Rugi Profit', to: '/accounting/laba-rugi-profit' },
     { label: 'Hutang', to: '/accounting/hutang' },
+
+    { label: 'Evaluasi Estimasi', to: '/accounting/evaluasi-estimasi' },
   ];
 
 

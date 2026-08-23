@@ -1,4 +1,5 @@
 import { Col, Row, Modal, Button, Container, Tab, Nav } from 'react-bootstrap';
+import { hitungHPPProduct, hitungHPPKategori, ambilSpkTenagaIds } from '../../Utils/invoiceFinancial';
 import '../Pekerjaan/pekerjaan.css';
 import '../Pekerjaan/table.css';
 import { MdOutlineAssignment, MdOutlineLocationOn } from 'react-icons/md';
@@ -333,6 +334,12 @@ const Invoice = () => {
 
 
   const [dataSPKproductFromDB, setDataSPKproductFromDB] = useState([]);
+  // idSPK milik pengrajin borong tenaga — HPP kategorinya dikunci ke estimasi.
+  const [spkTenagaIds, setSpkTenagaIds] = useState(new Set());
+
+  useEffect(() => {
+    ambilSpkTenagaIds(baseUrl).then(setSpkTenagaIds);
+  }, []);
 
   useEffect(() => {
     const getDataSPKproduct = async () => {
@@ -966,81 +973,55 @@ const Invoice = () => {
 
   useEffect(() => {
     calculateGrossProfit();
-  }, [dataProductFromDB, dataSPKproductFromDB, dataPengeluaranFromDB]);
+  }, [dataProductFromDB, dataSPKproductFromDB, dataPengeluaranFromDB, spkTenagaIds]);
 
   const calculateGrossProfit = () => {
     const totalProfit = dataProductFromDB.reduce((sum, product) => {
-      const spkStainless = dataSPKproductFromDB.filter(item => item.idProduct === product.id && item.category === "Stainless").reduce((s, i) => s + Number(i.harga), 0);
-      const spkBesi = dataSPKproductFromDB.filter(item => item.idProduct === product.id && item.category === "Besi").reduce((s, i) => s + Number(i.harga), 0);
-      const spkKayu = dataSPKproductFromDB.filter(item => item.idProduct === product.id && item.category === "Kayu").reduce((s, i) => s + Number(i.harga), 0);
-      const spkJok = dataSPKproductFromDB.filter(item => item.idProduct === product.id && item.category === "Jok").reduce((s, i) => s + Number(i.harga), 0);
-      const spkRotan = dataSPKproductFromDB.filter(item => item.idProduct === product.id && item.category === "Rotan").reduce((s, i) => s + Number(i.harga), 0);
-      const spkFinishing = dataSPKproductFromDB.filter(item => item.idProduct === product.id && item.category === "Finishing").reduce((s, i) => s + Number(i.harga), 0);
-      const spkMarmer = dataSPKproductFromDB.filter(item => item.idProduct === product.id && item.category === "Marmer").reduce((s, i) => s + Number(i.harga), 0);
-      const spkFiber = dataSPKproductFromDB.filter(item => item.idProduct === product.id && item.category === "Fiber").reduce((s, i) => s + Number(i.harga), 0);
-      const spkVeneer = dataSPKproductFromDB.filter(item => item.idProduct === product.id && item.category === "Veneer").reduce((s, i) => s + Number(i.harga), 0);
-
-      const hpp =
-        (spkStainless || Number(product.estimasiStainless || 0)) +
-        (spkBesi || Number(product.estimasiBesi || 0)) +
-        (spkKayu || Number(product.estimasiKayu || 0)) +
-        (spkJok || Number(product.estimasiJok || 0)) +
-        (spkRotan || Number(product.estimasiRotan || 0)) +
-        (spkFinishing || Number(product.estimasiFinishing || 0)) +
-        (spkMarmer || Number(product.estimasiMarmer || 0)) +
-        (spkFiber || Number(product.estimasiFiber || 0)) +
-        (spkVeneer || Number(product.estimasiVeneer || 0));
-
-      const profit = (product.Harga - hpp) * product.Qty;
-      return sum + profit;
+      const hpp = hitungHPPProduct(product, dataSPKproductFromDB, spkTenagaIds);
+      return sum + (product.Harga - hpp) * product.Qty;
     }, 0);
 
     setTotalProfit(totalProfit - pengeluaranLain);
   };
 
-  const getSpkTotal = (productId, category) =>
-    dataSPKproductFromDB.filter(item => item.idProduct === productId && item.category === category).reduce((s, i) => s + Number(i.harga), 0);
-
-  const getEffectiveTotal = (product, category) => {
-    const spk = getSpkTotal(product.id, category);
-    return spk || Number(product[`estimasi${category}`] || 0);
-  };
+  const getEffectiveTotal = (product, category) =>
+    hitungHPPKategori(product, dataSPKproductFromDB, category, spkTenagaIds);
 
   useEffect(() => {
     setTotalStainless(dataProductFromDB.reduce((sum, p) => sum + getEffectiveTotal(p, 'Stainless') * p.Qty, 0));
-  }, [dataProductFromDB, dataSPKproductFromDB]);
+  }, [dataProductFromDB, dataSPKproductFromDB, spkTenagaIds]);
 
   useEffect(() => {
     setTotalBesi(dataProductFromDB.reduce((sum, p) => sum + getEffectiveTotal(p, 'Besi') * p.Qty, 0));
-  }, [dataProductFromDB, dataSPKproductFromDB]);
+  }, [dataProductFromDB, dataSPKproductFromDB, spkTenagaIds]);
 
   useEffect(() => {
     setTotalKayu(dataProductFromDB.reduce((sum, p) => sum + getEffectiveTotal(p, 'Kayu') * p.Qty, 0));
-  }, [dataProductFromDB, dataSPKproductFromDB]);
+  }, [dataProductFromDB, dataSPKproductFromDB, spkTenagaIds]);
 
   useEffect(() => {
     setTotalJok(dataProductFromDB.reduce((sum, p) => sum + getEffectiveTotal(p, 'Jok') * p.Qty, 0));
-  }, [dataProductFromDB, dataSPKproductFromDB]);
+  }, [dataProductFromDB, dataSPKproductFromDB, spkTenagaIds]);
 
   useEffect(() => {
     setTotalRotan(dataProductFromDB.reduce((sum, p) => sum + getEffectiveTotal(p, 'Rotan') * p.Qty, 0));
-  }, [dataProductFromDB, dataSPKproductFromDB]);
+  }, [dataProductFromDB, dataSPKproductFromDB, spkTenagaIds]);
 
   useEffect(() => {
     setTotalFinishing(dataProductFromDB.reduce((sum, p) => sum + getEffectiveTotal(p, 'Finishing') * p.Qty, 0));
-  }, [dataProductFromDB, dataSPKproductFromDB]);
+  }, [dataProductFromDB, dataSPKproductFromDB, spkTenagaIds]);
 
   useEffect(() => {
     setTotalMarmer(dataProductFromDB.reduce((sum, p) => sum + getEffectiveTotal(p, 'Marmer') * p.Qty, 0));
-  }, [dataProductFromDB, dataSPKproductFromDB]);
+  }, [dataProductFromDB, dataSPKproductFromDB, spkTenagaIds]);
 
   useEffect(() => {
     setTotalFiber(dataProductFromDB.reduce((sum, p) => sum + getEffectiveTotal(p, 'Fiber') * p.Qty, 0));
-  }, [dataProductFromDB, dataSPKproductFromDB]);
+  }, [dataProductFromDB, dataSPKproductFromDB, spkTenagaIds]);
 
   useEffect(() => {
     setTotalVeneer(dataProductFromDB.reduce((sum, p) => sum + getEffectiveTotal(p, 'Veneer') * p.Qty, 0));
-  }, [dataProductFromDB, dataSPKproductFromDB]);
+  }, [dataProductFromDB, dataSPKproductFromDB, spkTenagaIds]);
 
   const DpMasuk = dataInvoicePaymentFromDB.reduce((total, payment) => {
     return total + Number(payment.jumlah);
@@ -1101,25 +1082,11 @@ const Invoice = () => {
 
   const calculateGrossProfitSummary = (idInvoice) => {
     const products = dataAllProductFromDB.filter(product => product.idInvoice === idInvoice);
-    let totalProfit = 0;
 
-    products.forEach(product => {
-      const spkItems = indexedSPKProducts[product.id] || [];
-
-      const categoryTotals = spkItems.reduce((totals, item) => {
-        if (!totals[item.category]) totals[item.category] = 0;
-        totals[item.category] += Number(item.harga);
-        return totals;
-      }, {});
-
-      const hpp = ["Stainless", "Besi", "Kayu", "Jok", "Rotan", "Finishing", "Marmer", "Fiber", "Veneer"]
-        .map(cat => categoryTotals[cat] || Number(product[`estimasi${cat}`] || 0))
-        .reduce((sum, price) => sum + price, 0);
-
-      totalProfit += (product.Harga - hpp) * product.Qty;
-    });
-
-    return totalProfit;
+    return products.reduce((total, product) => {
+      const hpp = hitungHPPProduct(product, indexedSPKProducts[product.id] || [], spkTenagaIds);
+      return total + (product.Harga - hpp) * product.Qty;
+    }, 0);
   };
 
   const calculateSummary = (data, idInvoice, field) =>

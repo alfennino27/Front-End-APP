@@ -6,7 +6,7 @@ import { getApiBaseUrl } from '../../Config/APIurl';
 import { useNavigate } from 'react-router-dom';
 import { FaPaste } from 'react-icons/fa';
 import { DatePicker, Space } from 'antd';
-import { hitungFinansialInvoice } from '../../Utils/invoiceFinancial';
+import { hitungFinansialInvoice, ambilSpkTenagaIds } from '../../Utils/invoiceFinancial';
 
 const Jurnal = () => {
   const baseUrl = getApiBaseUrl();
@@ -36,6 +36,8 @@ const Jurnal = () => {
   const [dataInvoicePengeluaran, setDataInvoicePengeluaran] = useState([]);
   const [dataProject, setDataProject] = useState([]);
   const [dataSPKProduct, setDataSPKProduct] = useState([]);
+  // idSPK milik pengrajin borong tenaga — HPP kategorinya dikunci ke estimasi.
+  const [spkTenagaIds, setSpkTenagaIds] = useState(new Set());
   const [dataJurnal, setDataJurnal] = useState([]);
   const [dataAkun, setDataAkun] = useState([]);
 
@@ -159,6 +161,7 @@ const Jurnal = () => {
     fetchDataInvoicePengeluaran();
     fetchDataProject();
     fetchDataSPKProduct();
+    ambilSpkTenagaIds(baseUrl).then(setSpkTenagaIds);
   }, []);
 
   const [filterDate, setFilterDate] = useState(null);
@@ -314,7 +317,7 @@ const Jurnal = () => {
 
                     // Hitung nilai penjualan & gross profit (HPP = SPK per kategori, fallback estimasi)
                     const { totalPenjualan, totalGrossProfit } = hitungFinansialInvoice(
-                      item, relatedProjects, relatedSPKProducts, relatedPengeluaran
+                      item, relatedProjects, relatedSPKProducts, relatedPengeluaran, spkTenagaIds
                     );
 
                     item.totalPenjualan = totalPenjualan;

@@ -604,9 +604,13 @@ const ListPekerjaan = () => {
       };
 
       const supplierKey = `Supplier${pdfSupplierCategory}`;
+      const statusKey = `CategoryStatus${pdfSupplierCategory}`;
+      // Produk yang prosesnya di supplier ini sudah beres (Selesai / QC Pass) tidak
+      // perlu dicetak lagi, walaupun barangnya belum terkirim ke customer.
+      const belumBeres = (p) => !['Selesai', 'QC Pass'].includes(p[statusKey]);
       let filtered = pdfSupplierName === ''
-        ? masterDataFalse.filter(p => p[supplierKey] && p[supplierKey] !== '').sort((a, b) => (a[supplierKey] || '').localeCompare(b[supplierKey] || ''))
-        : masterDataFalse.filter(p => p[supplierKey] === pdfSupplierName);
+        ? masterDataFalse.filter(p => p[supplierKey] && p[supplierKey] !== '' && belumBeres(p)).sort((a, b) => (a[supplierKey] || '').localeCompare(b[supplierKey] || ''))
+        : masterDataFalse.filter(p => p[supplierKey] === pdfSupplierName && belumBeres(p));
 
       if (pdfTargetKirimFilter !== 'semua') {
         // Tiap opsi = 1 minggu penuh (Senin–Minggu): thisWeek offset 0, nextWeek +1, weekAfterNext +2.

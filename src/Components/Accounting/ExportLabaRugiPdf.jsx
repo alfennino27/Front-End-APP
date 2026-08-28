@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Button, Modal } from 'react-bootstrap';
 import { DatePicker } from 'antd';
 import dayjs from 'dayjs';
@@ -16,6 +16,9 @@ import { labelBulan } from '../../Utils/labaRugiReport';
  */
 const ExportLabaRugiPdf = ({ bulanAktif, buatLaporan }) => {
   const [show, setShow] = useState(false);
+  // Panel bulan antd harus dirender DI DALAM modal — kalau menempel ke <body>
+  // posisinya meleset & ketutup backdrop modal bootstrap.
+  const wrapperRef = useRef(null);
   const [bulan, setBulan] = useState(bulanAktif || dayjs().format('YYYY-MM'));
 
   const buka = () => {
@@ -40,18 +43,24 @@ const ExportLabaRugiPdf = ({ bulanAktif, buatLaporan }) => {
         <FaFilePdf /> Export PDF
       </Button>
 
-      <Modal show={show} onHide={() => setShow(false)} centered>
+      <Modal show={show} onHide={() => setShow(false)} centered enforceFocus={false}>
         <Modal.Header closeButton>
           <Modal.Title style={{ fontSize: '16px' }}>Export PDF</Modal.Title>
         </Modal.Header>
         <Modal.Body>
           <p className="mb-2" style={{ fontSize: '13px' }}>Pilih bulan laporan :</p>
-          <DatePicker
-            picker="month"
-            style={{ width: '100%', borderColor: 'blue' }}
-            value={bulan ? dayjs(bulan, 'YYYY-MM') : null}
-            onChange={(_, dateString) => setBulan(dateString)}
-          />
+          <div ref={wrapperRef} style={{ position: 'relative' }}>
+            <DatePicker
+              picker="month"
+              allowClear={false}
+              inputReadOnly
+              style={{ width: '100%', borderColor: 'blue' }}
+              popupStyle={{ zIndex: 2000 }}
+              getPopupContainer={() => wrapperRef.current || document.body}
+              value={bulan ? dayjs(bulan, 'YYYY-MM') : null}
+              onChange={(_, dateString) => setBulan(dateString)}
+            />
+          </div>
           <p className="mt-3 mb-0" style={{ fontSize: '12px', color: '#666' }}>
             Laporan {bulan ? labelBulan(bulan) : '-'} akan dibuka di jendela cetak —
             pilih <b>Save as PDF</b> untuk menyimpan filenya.

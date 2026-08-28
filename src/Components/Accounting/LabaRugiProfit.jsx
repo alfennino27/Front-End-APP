@@ -7,6 +7,8 @@ import { useNavigate } from 'react-router-dom';
 import { FaPaste } from 'react-icons/fa';
 import { DatePicker, Space } from 'antd';
 import { hitungFinansialInvoice, ambilSpkTenagaIds } from '../../Utils/invoiceFinancial';
+import ExportLabaRugiPdf from './ExportLabaRugiPdf';
+import { buatLaporanProfit } from '../../Utils/labaRugiReport';
 
 const Jurnal = () => {
   const baseUrl = getApiBaseUrl();
@@ -289,6 +291,20 @@ const Jurnal = () => {
   const keuntunganPenjualan = totalGrossProfitPenjualan - totalSaldoAkhir;
 
 
+  // Data untuk export PDF — bulan dipilih di modal, jadi laporannya dihitung
+  // ulang dari data mentah yang sudah ter-fetch (bukan dari tabel di layar).
+  const buatLaporanPdf = (bulan) =>
+    buatLaporanProfit(bulan, {
+      dataInvoice,
+      dataInvoicePayment,
+      dataProject,
+      dataSPKProduct,
+      dataInvoicePengeluaran,
+      dataAkun,
+      dataJurnal,
+      spkTenagaIds,
+    });
+
   return (
     <>
       <Container>
@@ -351,7 +367,10 @@ const Jurnal = () => {
                 </Dropdown.Menu>
               </Dropdown>
 
-              <DatePicker picker="month" style={{ borderColor: 'blue', color: 'blue' }} onChange={handleDateChange} />
+              <div className="d-flex align-items-center gap-2">
+                <ExportLabaRugiPdf bulanAktif={filterDate} buatLaporan={buatLaporanPdf} />
+                <DatePicker picker="month" style={{ borderColor: 'blue', color: 'blue' }} onChange={handleDateChange} />
+              </div>
 
             </div>
 

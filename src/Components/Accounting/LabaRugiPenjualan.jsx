@@ -7,6 +7,8 @@ import { useNavigate } from 'react-router-dom';
 import { FaPaste } from 'react-icons/fa';
 import { DatePicker, Space } from 'antd';
 import { hitungFinansialInvoice, ambilSpkTenagaIds } from '../../Utils/invoiceFinancial';
+import ExportLabaRugiPdf from './ExportLabaRugiPdf';
+import { buatLaporanPenjualan, persenGrossProfit } from '../../Utils/labaRugiReport';
 
 const Jurnal = () => {
   const baseUrl = getApiBaseUrl();
@@ -217,6 +219,19 @@ const Jurnal = () => {
 
 
 
+  // Data untuk export PDF — bulan dipilih di modal, jadi laporannya dihitung
+  // ulang dari data mentah yang sudah ter-fetch (bukan dari tabel di layar).
+  const buatLaporanPdf = (bulan) =>
+    buatLaporanPenjualan(bulan, {
+      dataInvoice,
+      dataProject,
+      dataSPKProduct,
+      dataInvoicePengeluaran,
+      dataAkun,
+      dataJurnal,
+      spkTenagaIds,
+    });
+
   return (
     <>
       <Container>
@@ -279,7 +294,10 @@ const Jurnal = () => {
                 </Dropdown.Menu>
               </Dropdown>
 
-              <DatePicker picker="month" style={{ borderColor: 'blue', color: 'blue' }} onChange={handleDateChange} />
+              <div className="d-flex align-items-center gap-2">
+                <ExportLabaRugiPdf bulanAktif={filterDate} buatLaporan={buatLaporanPdf} />
+                <DatePicker picker="month" style={{ borderColor: 'blue', color: 'blue' }} onChange={handleDateChange} />
+              </div>
 
             </div>
 
@@ -298,6 +316,7 @@ const Jurnal = () => {
                   <th style={thStyle}>Kode Invoice</th>
                   <th style={thStyle}>Nominal</th>
                   <th style={thStyle}>Gross Profit</th>
+                  <th style={thStyle}>% Gross Profit</th>
                 </tr>
               </thead>
               <tbody>
@@ -341,6 +360,7 @@ const Jurnal = () => {
                         <td style={thTdStyle}>{item.kodeInvoice}</td>
                         <td style={thTdStyle}>Rp. {totalPenjualan.toLocaleString('id-ID')}</td>
                         <td style={thTdStyle}>Rp. {totalGrossProfit.toLocaleString('id-ID')}</td>
+                        <td style={thTdStyle}>{persenGrossProfit(totalGrossProfit, totalPenjualan)}</td>
                       </tr>
                     );
                   })}
@@ -348,6 +368,10 @@ const Jurnal = () => {
                   <td style={thTdStyle} colSpan={3}>Total : </td>
                   <td style={thTdStyle}>Rp.{" "} {!filterDate ? "0" : filteredInvoices.reduce((sum, item) => sum + item.totalPenjualan, 0).toLocaleString('id-ID')}</td>
                   <td style={thTdStyle}>Rp.{" "} {!filterDate ? "0" : filteredInvoices.reduce((sum, item) => sum + item.totalGrossProfit, 0).toLocaleString('id-ID')}</td>
+                  <td style={thTdStyle}>{!filterDate ? "-" : persenGrossProfit(
+                    filteredInvoices.reduce((sum, item) => sum + item.totalGrossProfit, 0),
+                    filteredInvoices.reduce((sum, item) => sum + item.totalPenjualan, 0)
+                  )}</td>
                 </tr>
 
 

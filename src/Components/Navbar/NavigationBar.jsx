@@ -1,6 +1,6 @@
 import './navbar.css';
 import '../Pekerjaan/table.css';
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 // import { useState } from 'react';
 import { Col, Container, Modal, Dropdown, Toast, Button } from 'react-bootstrap';
 import Nav from 'react-bootstrap/Nav';
@@ -485,20 +485,44 @@ const NavigationBar = () => {
   }, [dataNotifFromDB, dataUserFromDB, dataProductFromDB, userName]);
 
 
-  const [userAccess, setUserAccess] = useState([]);
+  // Hak akses menu di-cache di localStorage: kalau fetch gagal (sinyal jelek /
+  // server lambat) menu tidak ikut hilang seperti sebelumnya.
+  const [userAccess, setUserAccess] = useState(() => {
+    try {
+      const cached = localStorage.getItem('userAccessCache');
+      const parsed = cached ? JSON.parse(cached) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+      return [];
+    }
+  });
 
-  useEffect(() => {
-    const fetchUserAccess = async () => {
+  const fetchUserAccess = useCallback(async () => {
+    try {
       const res = await fetch(`${baseUrl}/useraccess/get`);
       const data = await res.json();
+      if (!Array.isArray(data)) return;
       setUserAccess(data);
-    };
+      try { localStorage.setItem('userAccessCache', JSON.stringify(data)); } catch (e) { /* quota penuh, abaikan */ }
+    } catch (err) {
+      console.error('Gagal ambil user access:', err);
+    }
+  }, [baseUrl]);
 
+  useEffect(() => {
     fetchUserAccess();
-  }, []);
+  }, [fetchUserAccess]);
+
+  // Sinkron ulang tiap sidebar dibuka — menu yang baru diaktifkan di User
+  // Management langsung muncul tanpa perlu reload/hard refresh.
+  useEffect(() => {
+    if (showBoardModal) fetchUserAccess();
+  }, [showBoardModal, fetchUserAccess]);
 
   const hasMenuAccess = (uid, menu) => {
-    return userAccess.some(a => a.uid === uid && a.menu === menu && a.value === true);
+    return userAccess.some(
+      a => a.uid === uid && a.menu === menu && (a.value === true || a.value === 'true')
+    );
   };
 
   const [openGeneral, setOpenGeneral] = useState(false);

@@ -10,7 +10,14 @@ import { isHeic } from '../../Utils/heic';
 // Semua gambar dikompres di HP dulu sebelum masuk daftar → upload jadi ringan
 // & tahan sinyal jelek. `images` = array File, `onChange` = setter (boleh
 // fungsi updater seperti setState). Maksimal `max` gambar.
-const ImageUploadZone = ({ images = [], onChange, max = 10, theme = 'light' }) => {
+// Batas total upload: Nginx produksi memotong request > 50 MB, jadi kita tahan
+// di sisi klien dengan pesan yang jelas daripada gagal misterius saat submit.
+const MAX_TOTAL_BYTES = 45 * 1024 * 1024;
+
+export const isVideoFile = (f) =>
+  !!f && ((f.type && f.type.startsWith('video/')) || /\.(mp4|mov|m4v|webm|ogv|3gp|avi|mkv)$/i.test(f.name || ''));
+
+const ImageUploadZone = ({ images = [], onChange, max = 10, theme = 'light', allowVideo = false }) => {
   const inputRef = useRef(null);
   const cameraRef = useRef(null);
   const [dragOver, setDragOver] = useState(false);
@@ -18,16 +25,34 @@ const ImageUploadZone = ({ images = [], onChange, max = 10, theme = 'light' }) =
   const isLight = theme === 'light';
 
   const addFiles = async (incoming) => {
-    const onlyImages = Array.from(incoming || []).filter(
-      // HEIC dari iPhone kadang punya file.type kosong → kenali via ekstensi juga.
-      (f) => f && ((f.type && f.type.startsWith('image/')) || isHeic(f))
-    );
-    if (onlyImages.length === 0) return;
+    const semua = Array.from(incoming || []);
+    // HEIC dari iPhone kadang punya file.type kosong → kenali via ekstensi juga.
+    const gambar = semua.filter((f) => f && ((f.type && f.type.startsWith('image/')) || isHeic(f)));
+    const video = allowVideo ? semua.filter((f) => isVideoFile(f) && !gambar.includes(f)) : [];
+
+    if (gambar.length === 0 && video.length === 0) {
+      if (!allowVideo && semua.some(isVideoFile)) alert('Video hanya bisa dilampirkan di komentar.');
+      return;
+    }
+
     setProcessing(true);
     try {
-      // Kompres di HP dulu (resize + webp) sebelum masuk daftar upload.
-      const compressed = await compressImageFiles(onlyImages);
-      onChange((prev) => [...(prev || []), ...compressed].slice(0, max));
+      // Gambar dikompres di HP dulu (resize + webp); video dikirim apa adanya
+      // (kompresi video dilakukan server) — cuma dijaga ukurannya.
+      const compressed = gambar.length ? await compressImageFiles(gambar) : [];
+      onChange((prev) => {
+        const lama = prev || [];
+        const gabung = [...lama, ...compressed, ...video].slice(0, max);
+        const total = gabung.reduce((s, f) => s + (f.size || 0), 0);
+        if (total > MAX_TOTAL_BYTES) {
+          alert(
+            `Total lampiran ${(total / 1024 / 1024).toFixed(1)} MB — maksimal 45 MB sekali kirim.\n` +
+            'Kirim videonya terpisah atau rekam lebih pendek.'
+          );
+          return lama;
+        }
+        return gabung;
+      });
     } finally {
       setProcessing(false);
     }
@@ -63,7 +88,7 @@ const ImageUploadZone = ({ images = [], onChange, max = 10, theme = 'light' }) =
     if (!items) return;
     const files = [];
     for (const item of items) {
-      if (item.kind === 'file' && item.type.startsWith('image/')) {
+      if (item.kind === 'file' && (item.type.startsWith('image/') || (allowVideo && item.type.startsWith('video/')))) {
         const f = item.getAsFile();
         if (f) files.push(f);
       }
@@ -138,7 +163,7 @@ const ImageUploadZone = ({ images = [], onChange, max = 10, theme = 'light' }) =
         >
           <FaRegImages style={{ fontSize: '22px', marginBottom: '6px' }} />
           <div style={{ fontSize: '13px', lineHeight: 1.4 }}>
-            Drag &amp; drop gambar di sini
+            Drag &amp; drop {allowVideo ? 'gambar / video' : 'gambar'} di sini
             <br />
             <span style={{ fontSize: '11px' }}>
               (dari Photos / Finder), klik untuk pilih file, atau paste (Cmd+V)
@@ -146,12 +171,12 @@ const ImageUploadZone = ({ images = [], onChange, max = 10, theme = 'light' }) =
           </div>
           {count > 0 && (
             <div style={{ fontSize: '11px', marginTop: '6px' }}>
-              {count}/{max} gambar dipilih
+              {count}/{max} {allowVideo ? 'file' : 'gambar'} dipilih
             </div>
           )}
           {processing && (
             <div style={{ fontSize: '11px', marginTop: '6px', color: '#0d6efd' }}>
-              Memproses gambar…
+              Memproses…
             </div>
           )}
         </div>
@@ -180,7 +205,7 @@ const ImageUploadZone = ({ images = [], onChange, max = 10, theme = 'light' }) =
       <input
         ref={inputRef}
         type="file"
-        accept="image/*,.heic,.heif"
+        accept={allowVideo ? 'image/*,video/*,.heic,.heif' : 'image/*,.heic,.heif'}
         multiple
         style={{ display: 'none' }}
         onChange={(e) => {
@@ -194,7 +219,7 @@ const ImageUploadZone = ({ images = [], onChange, max = 10, theme = 'light' }) =
       <input
         ref={cameraRef}
         type="file"
-        accept="image/*,.heic,.heif"
+        accept={allowVideo ? 'image/*,video/*,.heic,.heif' : 'image/*,.heic,.heif'}
         capture="environment"
         style={{ display: 'none' }}
         onChange={(e) => {
@@ -234,12 +259,30 @@ const Thumb = ({ file, onRemove, isLight }) => {
         border: `1px solid ${isLight ? '#ddd' : '#444'}`,
       }}
     >
-      {url && (
+      {url && (isVideoFile(file) ? (
+        <video
+          src={url}
+          muted
+          playsInline
+          preload="metadata"
+          style={{ width: '100%', height: '100%', objectFit: 'cover', background: '#000' }}
+        />
+      ) : (
         <img
           src={url}
           alt={file.name}
           style={{ width: '100%', height: '100%', objectFit: 'cover' }}
         />
+      ))}
+      {url && isVideoFile(file) && (
+        <span
+          style={{
+            position: 'absolute', bottom: 2, left: 4, fontSize: 9, color: '#fff',
+            background: 'rgba(0,0,0,0.6)', borderRadius: 3, padding: '0 3px',
+          }}
+        >
+          {(file.size / 1024 / 1024).toFixed(1)} MB
+        </span>
       )}
       <button
         type="button"

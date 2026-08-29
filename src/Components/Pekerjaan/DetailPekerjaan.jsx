@@ -3408,7 +3408,7 @@ const DetailPekerjaan = () => {
         </Modal.Header>
         <Modal.Body>
           {/* Your comment form here */}
-          <label>Image :</label><br />
+          <label>Image / Video :</label><br />
 
 
           <div className='py-2'>
@@ -3417,6 +3417,7 @@ const DetailPekerjaan = () => {
               onChange={setCommentImages}
               max={10}
               theme={globalTheme}
+              allowVideo
             />
           </div>
 
@@ -3512,6 +3513,10 @@ const DetailPekerjaan = () => {
 
                     const fullUrl = `${baseUrl}/video/${videoUrl.split("/").pop()}`;
                     // ambil filename dari path, sesuai endpoint backend
+                    // Tipe ikut ekstensi: video bisa .mp4/.mov kalau server tidak
+                    // mengompres ke webm. Tipe yang salah bikin browser skip source.
+                    const ekstensi = (videoUrl.split('.').pop() || '').toLowerCase();
+                    const tipeVideo = { webm: 'video/webm', mp4: 'video/mp4', m4v: 'video/mp4', mov: 'video/quicktime', ogv: 'video/ogg', '3gp': 'video/3gpp' }[ekstensi] || 'video/mp4';
 
                     return (
                       <video
@@ -3524,7 +3529,7 @@ const DetailPekerjaan = () => {
                         controls
                         onClick={(e) => e.stopPropagation()}
                       >
-                        <source src={fullUrl} type="video/webm" />
+                        <source src={fullUrl} type={tipeVideo} />
                         Browser ini tidak mendukung video tag.
                       </video>
                     );

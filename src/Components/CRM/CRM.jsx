@@ -701,6 +701,22 @@ export default function CRM() {
               } catch(e){ alert('Gagal backfill'); }
               setSyncing(false);
             }}>{syncing?<Spinner size="sm"/>:'📅 Backfill Tgl. Invoice'}</Button>
+            {/* Satu deal bisa punya 2 lead (mis. dari Quotation + Invoice manual)
+                → revenue & GP terhitung dobel. Tombol ini menggabungkannya. */}
+            <Button size="sm" variant="outline-danger" disabled={syncing} onClick={async()=>{
+              setSyncing(true);
+              try {
+                const cek=await (await fetch(baseUrl+'/crm/leads/dedupe',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({dryRun:true})})).json();
+                if(!cek.leadDihapus){ alert('Tidak ada lead ganda. Data CRM sudah bersih.'); setSyncing(false); return; }
+                const rincian=(cek.detail||[]).map(d=>`• ${d.key.replace(/^(kode|inv):/,'')} — ${d.hapus.length} lead ganda (Rp ${(d.nilaiGanda||0).toLocaleString('id-ID')})`).join('\n');
+                if(window.confirm(`Ditemukan ${cek.leadDihapus} lead ganda di ${cek.grup} deal.\nRevenue terhitung dobel: Rp ${(cek.nilaiGandaTotal||0).toLocaleString('id-ID')}\n\n${rincian}\n\nGabungkan sekarang?`)){
+                  const hasil=await (await fetch(baseUrl+'/crm/leads/dedupe',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})})).json();
+                  alert(hasil.message||'Selesai');
+                  fetchAll();
+                }
+              } catch(e){ alert('Gagal cek lead ganda'); }
+              setSyncing(false);
+            }}>{syncing?<Spinner size="sm"/>:'🧹 Gabungkan Lead Ganda'}</Button>
             <Button size="sm" variant="dark" onClick={()=>{
               const exportData={period:filterBulan||'Semua',metaLeads:metaLeadsTotal,totalDeals:dealLeads.length,dealsFromAds:adsDealLeads.length,convRate:convRateMeta,totalRevenue:revenueTotal,revenueFromAds,totalGrossProfit:gpTotal,grossProfitFromAds:gpFromAds,totalSpendAds:totalSpend,totalProfitFromAds,campaigns:filteredCampaigns.map(c=>{const m=getCampaignMonthData(c,filterBulan)||{};return {nama:c.nama,spend:m.spend||0,results:m.results||0,leads:filteredLeads.filter(l=>l.campaign_id===c.id).length,deal:filteredLeads.filter(l=>l.campaign_id===c.id&&l.stage==='deal').length};})};
               const blob=new Blob([JSON.stringify(exportData,null,2)],{type:'application/json'});

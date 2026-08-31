@@ -3,11 +3,13 @@ import { Container, Modal, Button, Form, Spinner } from 'react-bootstrap';
 import { getApiBaseUrl } from '../../Config/APIurl';
 import { useTheme } from '../../ThemeContext';
 import { MdAdd, MdEdit, MdDelete, MdSave, MdChevronLeft, MdChevronRight } from 'react-icons/md';
+import { FaFilePdf } from 'react-icons/fa';
 import {
   hitungPeriode, hitungRate, gabungBaris, awalMinggu, akhirMinggu,
   fmtJam, fmtRp, fmtTanggalPeriode, JAM_NORMAL,
 } from '../../Utils/absensiCalc';
 import AbsensiAzwad from './AbsensiAzwad';
+import { cetakAbsensiHarian } from '../../Utils/absensiPdf';
 import AbsensiPakde from './AbsensiPakde';
 
 // Label & warna badge per tipe karyawan.
@@ -306,6 +308,13 @@ export default function Absensi() {
                   <Button size="sm" variant="outline-secondary" onClick={() => geserPeriode(1)}><MdChevronRight /></Button>
                   <Button size="sm" variant="outline-secondary" onClick={() => setPeriodeStart(awalMinggu(new Date()))}>Minggu ini</Button>
                 </div>
+
+                <Button
+                  size="sm" variant="outline-primary" title="Export rekap periode ini ke PDF"
+                  onClick={() => cetakAbsensiHarian({ karyawan: selectedKaryawan, periodeStart, rows, rekap, rate, catatan })}
+                >
+                  <FaFilePdf /> Export PDF
+                </Button>
 
                 {dirty && <span style={{ fontSize: 12, color: '#c2410c', fontWeight: 600 }}>Ada perubahan belum disimpan</span>}
               </div>

@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Button, Form, Spinner } from 'react-bootstrap';
 import { MdSave, MdChevronLeft, MdChevronRight } from 'react-icons/md';
+import { FaFilePdf } from 'react-icons/fa';
+import { cetakAbsensiBulanan } from '../../Utils/absensiPdf';
 import {
   hitungPeriodeBulanan, parseJamMenit, LEAVE_TYPES,
   awalBulan, akhirBulan, gabungBarisBulan, fmtBulan, fmtJam, fmtRp,
@@ -138,6 +140,12 @@ export default function AbsensiAzwad({ baseUrl, karyawan, dark }) {
         </div>
         <Button size="sm" variant={dirty ? 'primary' : 'outline-secondary'} disabled={saving} onClick={simpan}>
           {saving ? <Spinner size="sm" /> : <><MdSave /> {dirty ? 'Simpan Perubahan' : 'Tersimpan'}</>}
+        </Button>
+        <Button
+          size="sm" variant="outline-primary" title="Export slip gaji bulan ini ke PDF"
+          onClick={() => cetakAbsensiBulanan({ karyawan, periodeStart, rows, rekap, catatan })}
+        >
+          <FaFilePdf /> Export PDF
         </Button>
         {dirty && <span style={{ fontSize: 12, color: '#c2410c', fontWeight: 600 }}>Ada perubahan belum disimpan</span>}
       </div>

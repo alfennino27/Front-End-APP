@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Button, Form, Spinner } from 'react-bootstrap';
 import { MdSave, MdChevronLeft, MdChevronRight } from 'react-icons/md';
+import { FaFilePdf } from 'react-icons/fa';
+import { cetakAbsensiPakde } from '../../Utils/absensiPdf';
 import {
   hitungPeriodePakde, hitungRatePakde, gabungBaris, awalMinggu, akhirMinggu,
   fmtJam, fmtRp, fmtTanggalPeriode, JAM_NORMAL_MINGGU,
@@ -144,6 +146,12 @@ export default function AbsensiPakde({ baseUrl, karyawan, dark }) {
         </div>
         <Button size="sm" variant={dirty ? 'primary' : 'outline-secondary'} disabled={saving} onClick={simpan}>
           {saving ? <Spinner size="sm" /> : <><MdSave /> {dirty ? 'Simpan Perubahan' : 'Tersimpan'}</>}
+        </Button>
+        <Button
+          size="sm" variant="outline-primary" title="Export rekap minggu ini ke PDF"
+          onClick={() => cetakAbsensiPakde({ karyawan, periodeStart, rows, rekap, rate, catatan })}
+        >
+          <FaFilePdf /> Export PDF
         </Button>
         {dirty && <span style={{ fontSize: 12, color: '#c2410c', fontWeight: 600 }}>Ada perubahan belum disimpan</span>}
       </div>

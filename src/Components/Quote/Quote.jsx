@@ -340,7 +340,9 @@ const Quote = () => {
   const totalMarginRaw = useMemo(() => itemFin.reduce((a, f) => a + f.marginTotal, 0), [itemFin]);
   // Total margin invoice = Σ margin item − discount (= gross profit; ongkir/admin quote = 0).
   const totalMargin = totalMarginRaw - numParse(form.discount);
-  const totalMarginPct = subtotal > 0 ? (totalMargin / subtotal) * 100 : 0;
+  // Total penjualan bersih = subtotal − discount. Ini basis margin % (bukan subtotal kotor).
+  const totalPenjualanNet = subtotal - numParse(form.discount);
+  const totalMarginPct = totalPenjualanNet > 0 ? (totalMargin / totalPenjualanNet) * 100 : 0;
 
   // ================= form actions =================
   const setF = (patch) => setForm((f) => ({ ...f, ...patch }));
@@ -1000,8 +1002,8 @@ const Quote = () => {
           </div>
           <div className="klf-quote-margin-grid">
             <div className="klf-margin-cell">
-              <span style={{ color: sub, fontSize: 12 }}>Total Penjualan</span>
-              <strong style={{ color: text, fontSize: 15 }}>{rupiah(subtotal)}</strong>
+              <span style={{ color: sub, fontSize: 12 }}>Total Penjualan{numParse(form.discount) > 0 ? ' (stlh diskon)' : ''}</span>
+              <strong style={{ color: text, fontSize: 15 }}>{rupiah(totalPenjualanNet)}</strong>
             </div>
             <div className="klf-margin-cell">
               <span style={{ color: sub, fontSize: 12 }}>Total HPP</span>

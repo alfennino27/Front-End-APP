@@ -20,3 +20,31 @@
   height: 8px; /* Tinggi dot */
   opacity: 1; /* Pastikan dot terlihat penuh */
 }
+
+/* ===== Dashboard Finance — satu halaman, semua grafik tampil sekaligus ===== */
+/* Kartu KPI: sebanyak mungkin per baris, minimal 190px, turun sendiri di HP. */
+.klf-fin-kpi {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+/* Grafik: 2 kolom di layar lebar; kartu ber-atribut `lebar` memakai 1 / -1. */
+.klf-fin-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(440px, 1fr));
+  gap: 16px;
+}
+
+.klf-fin-posisi {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 12px;
+}
+
+/* Di bawah 520px auto-fit masih memaksa 440px → bikin scroll horizontal. */
+@media (max-width: 520px) {
+  .klf-fin-grid { grid-template-columns: 1fr; }
+  .klf-fin-kpi { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+}

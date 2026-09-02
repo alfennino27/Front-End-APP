@@ -650,6 +650,11 @@ const Quote = () => {
                 <span>{c.quoteCount} quote</span>
                 <span style={{ fontWeight: 600, color: text }}>{rupiah(c.totalNilai)}</span>
               </div>
+              {/* Total deal = quote yang sudah jadi Invoice resmi (status 'deal') */}
+              <div style={{ marginTop: 4, display: 'flex', justifyContent: 'space-between', fontSize: 13, color: sub }}>
+                <span>{c.dealCount || 0} deal</span>
+                <span style={{ fontWeight: 600, color: (c.totalDeal || 0) > 0 ? '#1e7b34' : sub }}>{rupiah(c.totalDeal || 0)}</span>
+              </div>
             </div>
           ))}
           {!loading && filtered.length === 0 && <p style={{ color: sub }}>Belum ada customer. Buat quote baru untuk menambah folder.</p>}

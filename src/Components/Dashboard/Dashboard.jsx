@@ -215,7 +215,15 @@ const Dashboard = () => {
                     return (
                       <tr key={i} style={{ fontSize: 13, opacity: it.excluded ? 0.55 : 1, textDecoration: it.excluded ? 'line-through' : 'none', color: it.excluded ? muted : undefined }}>
                         <td>{it.kodeInvoice}</td>
-                        <td>{it.namaBarang} {it.customer ? <span style={{ color: muted }}>— {it.customer}</span> : null}</td>
+                        <td>
+                          {it.namaBarang} {it.customer ? <span style={{ color: muted }}>— {it.customer}</span> : null}
+                          {/* kenapa masih estimasi: belum ada supplier / SPK belum dibuat / harga SPK kosong */}
+                          {it.alasan ? (
+                            <div style={{ fontSize: 11, color: muted }}>
+                              {it.supplier ? `${it.supplier} · ` : ''}{it.alasan}
+                            </div>
+                          ) : null}
+                        </td>
                         <td className="text-end">{rupiah(it.estimasi_unit)} × {it.qty}</td>
                         <td className="text-end">{rupiah(it.subtotal)}</td>
                         <td className="text-end" style={{ textDecoration: 'none', width: 90 }}>

@@ -176,6 +176,55 @@ const TemplateManager = ({ type, baseUrl, ui, templates, onClose, onChanged }) =
   );
 };
 
+
+// Penampil foto ukuran besar untuk thumbnail daftar quote. Klik latar / ✕ /
+// Esc menutup; panah kiri-kanan untuk pindah foto kalau lebih dari satu.
+const Lightbox = ({ images, idx, baseUrl, onIdx, onClose }) => {
+  const total = images.length;
+  const geser = React.useCallback((arah) => onIdx((idx + arah + total) % total), [idx, total, onIdx]);
+
+  useEffect(() => {
+    const h = (e) => {
+      if (e.key === 'Escape') onClose();
+      if (e.key === 'ArrowRight') geser(1);
+      if (e.key === 'ArrowLeft') geser(-1);
+    };
+    document.addEventListener('keydown', h);
+    return () => document.removeEventListener('keydown', h);
+  }, [geser, onClose]);
+
+  const navBtn = {
+    background: 'rgba(0,0,0,.55)', color: '#fff', border: 'none', borderRadius: '50%',
+    width: 42, height: 42, fontSize: 22, cursor: 'pointer', lineHeight: '42px',
+  };
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 2000, background: 'rgba(0,0,0,.82)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, padding: 16,
+      }}
+    >
+      <button onClick={onClose} title="Tutup (Esc)"
+        style={{ ...navBtn, position: 'absolute', top: 14, right: 16 }}>×</button>
+      {total > 1 && <button onClick={(e) => { e.stopPropagation(); geser(-1); }} style={navBtn}>‹</button>}
+      <img
+        src={`${baseUrl}${images[idx]}`}
+        alt=""
+        onClick={(e) => e.stopPropagation()}
+        style={{ maxWidth: '86vw', maxHeight: '86vh', objectFit: 'contain', borderRadius: 8, background: '#111' }}
+      />
+      {total > 1 && <button onClick={(e) => { e.stopPropagation(); geser(1); }} style={navBtn}>›</button>}
+      {total > 1 && (
+        <div style={{ position: 'absolute', bottom: 16, color: '#fff', fontSize: 13, background: 'rgba(0,0,0,.5)', padding: '4px 12px', borderRadius: 12 }}>
+          {idx + 1} / {total}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const Quote = () => {
   const baseUrl = getApiBaseUrl();
   const { globalTheme } = useTheme();
@@ -568,6 +617,8 @@ const Quote = () => {
   // (mis. /03 → /04). Setelah dibuat langsung dibuka di form supaya kodenya
   // masih bisa diubah sebelum dikirim ke customer.
   const [duplicating, setDuplicating] = useState(null); // id quote yang sedang diduplikat
+  // Lightbox thumbnail daftar quote: { images: string[], idx: number }
+  const [lightbox, setLightbox] = useState(null);
   const duplicateQuote = async (q) => {
     if (q.status === 'deal' || q.invoiceId) return;
     setDuplicating(q.id);
@@ -663,6 +714,47 @@ const Quote = () => {
     );
   };
 
+  // Semua foto produk di dalam satu quote (urut item, foto utama tiap item dulu).
+  // Dipakai untuk thumbnail di daftar quote supaya isi quote kelihatan tanpa
+  // harus buka/PDF satu per satu.
+  const quoteThumbs = (q) => (q.items || []).flatMap((it) => (it.images || []).filter(Boolean));
+
+  const ThumbStrip = ({ q, size = 62, maxShown = 6 }) => {
+    const all = quoteThumbs(q);
+    if (all.length === 0) return null;
+    const shown = all.slice(0, maxShown);
+    const sisa = all.length - shown.length;
+    return (
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 10 }}>
+        {shown.map((u, i) => (
+          <img
+            key={i}
+            src={`${baseUrl}${u}`}
+            alt=""
+            loading="lazy"
+            title="Klik untuk perbesar"
+            onClick={() => setLightbox({ images: all, idx: i })}
+            style={{
+              width: size, height: size, objectFit: 'cover', borderRadius: 8,
+              border: `1px solid ${border}`, cursor: 'zoom-in', background: dark ? '#222' : '#f2f2f2',
+            }}
+          />
+        ))}
+        {sisa > 0 && (
+          <div
+            onClick={() => setLightbox({ images: all, idx: maxShown })}
+            title={`Lihat ${sisa} foto lainnya`}
+            style={{
+              width: size, height: size, borderRadius: 8, border: `1px dashed ${border}`,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: sub, fontSize: 13, fontWeight: 600, cursor: 'zoom-in',
+            }}
+          >+{sisa}</div>
+        )}
+      </div>
+    );
+  };
+
   const renderCustomerDetail = () => {
     if (!customerDetail) return null;
     const c = customerDetail.customer || {};
@@ -722,6 +814,7 @@ const Quote = () => {
                   {q.invoiceId && <span style={{ fontSize: 12, color: '#1e7b34' }}>✔ Invoice</span>}
                 </div>
               </div>
+              <ThumbStrip q={q} />
               <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap' }}>
                 <a href={pdfUrl(baseUrl, q)} target="_blank" rel="noreferrer" style={{ ...btnGhost, textDecoration: 'none' }}>⬇ PDF</a>
                 <a href={pdfUrl(baseUrl, q, 'pricelist')} target="_blank" rel="noreferrer" style={{ ...btnGhost, textDecoration: 'none' }}>Pricelist</a>
@@ -757,7 +850,7 @@ const Quote = () => {
           <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 640, color: text }}>
             <thead>
               <tr style={{ background: dark ? '#2b3038' : '#f0f2f5' }}>
-                {['No', 'Kode', 'Customer', 'Nilai', 'Rev', 'Status', 'Aksi'].map((h) => (
+                {['No', 'Foto', 'Kode', 'Customer', 'Nilai', 'Rev', 'Status', 'Aksi'].map((h) => (
                   <th key={h} style={{ textAlign: 'left', padding: '10px 12px', fontSize: 13, color: sub }}>{h}</th>
                 ))}
               </tr>
@@ -768,6 +861,7 @@ const Quote = () => {
                 return (
                   <tr key={q.id} style={{ borderTop: `1px solid ${border}` }}>
                     <td style={{ padding: '10px 12px' }}>{i + 1}</td>
+                    <td style={{ padding: '6px 12px' }}><ThumbStrip q={q} size={40} maxShown={3} /></td>
                     <td style={{ padding: '10px 12px', fontWeight: 600 }}>{q.kodeInvoice}</td>
                     <td style={{ padding: '10px 12px' }}>{q.customer}</td>
                     <td style={{ padding: '10px 12px' }}>{rupiah(nilai)}</td>
@@ -788,7 +882,7 @@ const Quote = () => {
                   </tr>
                 );
               })}
-              {filtered.length === 0 && <tr><td colSpan={7} style={{ padding: 16, color: sub }}>Tidak ada quote.</td></tr>}
+              {filtered.length === 0 && <tr><td colSpan={8} style={{ padding: 16, color: sub }}>Tidak ada quote.</td></tr>}
             </tbody>
           </table>
         </div>
@@ -1126,6 +1220,15 @@ const Quote = () => {
         {view === 'allQuotes' && renderAllQuotes()}
         {view === 'form' && renderForm()}
       </div>
+      {lightbox && (
+        <Lightbox
+          images={lightbox.images}
+          idx={lightbox.idx}
+          baseUrl={baseUrl}
+          onIdx={(i) => setLightbox((lb) => ({ ...lb, idx: i }))}
+          onClose={() => setLightbox(null)}
+        />
+      )}
       {tplMgr && (
         <TemplateManager
           type={tplMgr}

@@ -183,7 +183,7 @@ const Spk = () => {
 
   const [suppliers, setSuppliers] = useState([]);
 
-  const kategoriSupplier = ['Stainless', 'Besi', 'Kayu', 'Jok', 'Rotan', 'Marmer', 'Kaca', 'Kain', 'Fiber', 'Veneer', 'Finishing', 'Hardware', 'Barang Jadi'];
+  const kategoriSupplier = ['Stainless', 'Besi', 'Kayu', 'Jok', 'Rotan', 'Marmer', 'Kaca', 'Fiber', 'Veneer', 'Finishing', 'Hardware', 'Barang Jadi'];
 
   // Get semua Supplier sekali saat load halaman
   useEffect(() => {
@@ -1631,7 +1631,6 @@ useEffect(() => {
               { value: 'Rotan', label: 'Rotan' },
               { value: 'Marmer', label: 'Marmer' },
               { value: 'Kaca', label: 'Kaca' },
-              { value: 'Kain', label: 'Kain' },
               { value: 'Fiber', label: 'Fiber' },
               { value: 'Veneer', label: 'Veneer' },
               { value: 'Finishing', label: 'Finishing' },
@@ -2462,22 +2461,6 @@ useEffect(() => {
                 return (
                   <div className="d-flex justify-content-between align-items-center">
                     <li style={{ cursor: 'pointer' }} key={index} onClick={() => handleSearchSupplier(supplier.supplierName, 'Kaca')}>{supplier.supplierName}</li>
-                  </div>
-                )
-              }
-
-            })}
-          </ul>
-
-          <div className="d-flex justify-content-between align-items-center" onClick={() => handleSearchSupplier('Kain', 'Kain')}>
-            <p style={{ cursor: 'pointer' }} className="fw-semibold">Supplier Kain :</p>
-          </div>
-          <ul>
-            {dataSupplierFromDB.map((supplier, index) => {
-              if (supplier.category == 'Kain') {
-                return (
-                  <div className="d-flex justify-content-between align-items-center">
-                    <li style={{ cursor: 'pointer' }} key={index} onClick={() => handleSearchSupplier(supplier.supplierName, 'Kain')}>{supplier.supplierName}</li>
                   </div>
                 )
               }

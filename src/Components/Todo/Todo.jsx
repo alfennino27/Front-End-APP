@@ -345,8 +345,8 @@ const Storage = () => {
       .map((supplierKey) => {
         const categoryName = supplierKey.replace("Supplier", "");
 
-        // Jangan render Kain & Hardware
-        if (categoryName === "Kain" || categoryName === "Hardware") {
+        // Jangan render Hardware (kategori Kain sudah dihapus)
+        if (categoryName === "Hardware") {
           return null;
         }
 

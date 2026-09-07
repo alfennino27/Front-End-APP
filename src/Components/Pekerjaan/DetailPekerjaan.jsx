@@ -2174,7 +2174,15 @@ const DetailPekerjaan = () => {
 
 
 
-          {["Stainless", "Besi", "Kayu", "Jok", "Rotan", "Marmer", "Kaca", "Kain", "Fiber", "Veneer", "Finishing", "Hardware", "BarangJadi", "Pengiriman", "Testimoni"].map((category) => {
+          {["Stainless", "Besi", "Kayu", "Jok", "Rotan", "Marmer", "Kaca", "Fiber", "Veneer", "Finishing", "Hardware", "BarangJadi", "Pengiriman", "Testimoni"]
+            // Kategori "Kain" sudah DIHAPUS (kain sekarang masuk Jok). Tetap ditampilkan
+            // di paling bawah HANYA untuk item lama yang terlanjur punya data Kain,
+            // supaya riwayatnya tidak hilang. Item baru tidak akan pernah memunculkannya.
+            .concat(
+              (dataProjectFromDB[0]?.CategoryStatusKain || dataProjectFromDB[0]?.DescriptionKain || dataProjectFromDB[0]?.SupplierKain)
+                ? ["Kain"] : []
+            )
+            .map((category) => {
             const supplier = eval(`supplier${category}`);
             const status = dataProjectFromDB[0]?.[`CategoryStatus${category}`];
             const azwad = dataProjectFromDB[0]?.[`${category}Azwad`];
@@ -3254,22 +3262,6 @@ const DetailPekerjaan = () => {
           <ul>
             {dataSupplierFromDB.map((supplier, index) => {
               if (supplier.category == 'Kaca') {
-                return (
-                  <div className="d-flex justify-content-between align-items-center">
-                    <li key={index}>{supplier.supplierName}</li><HiOutlineMinusCircle style={{ width: "20px", height: "auto" }} onClick={() => handleDeleteSupplierClick(supplier.id)} />
-                  </div>
-                )
-              }
-
-            })}
-          </ul>
-
-          <div className="d-flex justify-content-between align-items-center">
-            <p>Supplier Kain :</p><MdAddCircleOutline style={{ width: "25px", height: "auto", marginTop: "-15px" }} onClick={() => handleAddSupplierModal('Kain')} />
-          </div>
-          <ul>
-            {dataSupplierFromDB.map((supplier, index) => {
-              if (supplier.category == 'Kain') {
                 return (
                   <div className="d-flex justify-content-between align-items-center">
                     <li key={index}>{supplier.supplierName}</li><HiOutlineMinusCircle style={{ width: "20px", height: "auto" }} onClick={() => handleDeleteSupplierClick(supplier.id)} />

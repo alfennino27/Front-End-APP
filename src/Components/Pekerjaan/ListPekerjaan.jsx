@@ -283,7 +283,7 @@ const ListPekerjaan = () => {
       const categoryKey = `Supplier${searchSupplierCategory}`;
       const kategoriUmum = [
         'Stainless', 'Besi', 'Kayu', 'Jok', 'Rotan',
-        'Marmer', 'Kaca', 'Kain', 'Fiber', 'Veneer',
+        'Marmer', 'Kaca', 'Fiber', 'Veneer',
         'Finishing', 'Hardware', 'BarangJadi'
       ];
 
@@ -1319,22 +1319,6 @@ const ListPekerjaan = () => {
           </ul>
 
           <div className="d-flex justify-content-between align-items-center">
-            <p className="fw-semibold" style={{ cursor: 'pointer' }} onClick={() => handleSearchSupplier('Kain', 'Kain')}>Supplier Kain :</p>
-          </div>
-          <ul>
-            {dataSupplierFromDB.map((supplier, index) => {
-              if (supplier.category == 'Kain') {
-                return (
-                  <div className="d-flex justify-content-between align-items-center">
-                    <li style={{ cursor: 'pointer' }} key={index} onClick={() => handleSearchSupplier(supplier.supplierName, 'Kain')}>{supplier.supplierName}</li>
-                  </div>
-                )
-              }
-
-            })}
-          </ul>
-
-          <div className="d-flex justify-content-between align-items-center">
             <p className="fw-semibold" style={{ cursor: 'pointer' }} onClick={() => handleSearchSupplier('Fiber', 'Fiber')}>Supplier Fiber :</p>
           </div>
           <ul>
@@ -1455,7 +1439,7 @@ const ListPekerjaan = () => {
               <Form.Group className="mb-2">
                 <Form.Label>Category</Form.Label>
                 <Form.Select value={pdfSupplierCategory} onChange={(e) => { setPdfSupplierCategory(e.target.value); setPdfSupplierName(''); }}>
-                  {['Stainless','Besi','Kayu','Jok','Rotan','Marmer','Kaca','Kain','Fiber','Veneer','Finishing','Hardware'].map(c => (
+                  {['Stainless','Besi','Kayu','Jok','Rotan','Marmer','Kaca','Fiber','Veneer','Finishing','Hardware'].map(c => (
                     <option key={c} value={c}>{c}</option>
                   ))}
                 </Form.Select>

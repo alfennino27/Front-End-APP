@@ -100,7 +100,7 @@ const ListPekerjaan = () => {
   const [selectedMonth, setSelectedMonth] = useState(savedFilters.selectedMonth || null);
 
   // Delivery Tracker
-  const [deliveryView, setDeliveryView] = useState(savedFilters.deliveryView || 'all'); // 'all' | 'thisWeek' | 'nextWeek' | 'weekAfterNext' | 'overdue'
+  const [deliveryView, setDeliveryView] = useState(savedFilters.deliveryView || 'all'); // 'all' | 'thisWeek' | 'nextWeek' | 'weekAfterNext' | 'overdue' | 'noTarget'
   const [deliveryData, setDeliveryData] = useState(null);
   const [deliveryLoading, setDeliveryLoading] = useState(false);
   const [showPelunasanModal, setShowPelunasanModal] = useState(false);
@@ -431,10 +431,7 @@ const ListPekerjaan = () => {
   // Get project IDs for active delivery view (used to filter the list)
   const deliveryProjectIds = React.useMemo(() => {
     if (deliveryView === 'all' || !deliveryData) return null;
-    const items = deliveryView === 'thisWeek' ? deliveryData.thisWeek
-      : deliveryView === 'nextWeek' ? deliveryData.nextWeek
-      : deliveryView === 'weekAfterNext' ? deliveryData.weekAfterNext
-      : deliveryData.overdue;
+    const items = deliveryData[deliveryView] || [];
     return new Set((items || []).map(i => i.id));
   }, [deliveryView, deliveryData]);
 
@@ -710,7 +707,14 @@ const ListPekerjaan = () => {
   const deliveryViewLabel = {
     thisWeek: 'Kirim: Minggu Ini', nextWeek: 'Kirim: Minggu Depan',
     weekAfterNext: 'Kirim: 2 Minggu Lagi', overdue: 'Kirim: Overdue',
+    noTarget: 'Kirim: Belum Diisi',
   };
+
+  // Nama periode untuk banner & modal pelunasan.
+  const deliveryPeriodLabel = {
+    thisWeek: 'Minggu Ini', nextWeek: 'Minggu Depan', weekAfterNext: '2 Minggu Lagi',
+    overdue: 'Overdue', noTarget: 'Target Kirim Kosong',
+  }[deliveryView] || deliveryView;
 
   const activeFilters = [];
   if (searchSupplier) {
@@ -751,6 +755,8 @@ const ListPekerjaan = () => {
     { value: 'nextWeek', label: 'Minggu Depan', count: deliveryData?.nextWeek?.length || 0 },
     { value: 'weekAfterNext', label: '2 Minggu Lagi', count: deliveryData?.weekAfterNext?.length || 0 },
     { value: 'overdue', label: 'Overdue', count: deliveryData?.overdue?.length || 0, danger: true },
+    // Target kirim belum diisi — perlu ditentukan dulu sebelum bisa dijadwalkan.
+    { value: 'noTarget', label: 'Target Kirim Kosong', count: deliveryData?.noTarget?.length || 0, danger: true },
   ];
 
   // filter yang diatur lewat panel ini (untuk mewarnai ikon filter di header)
@@ -964,7 +970,7 @@ const ListPekerjaan = () => {
           <div>
             <small style={{ color: globalTheme === 'light' ? '#013175' : '#6fa8ff', fontWeight: 600 }}>
               <TbTruckDelivery style={{ marginRight: 4 }} />
-              {deliveryView === 'thisWeek' ? 'Pelunasan Minggu Ini' : deliveryView === 'nextWeek' ? 'Pelunasan Minggu Depan' : deliveryView === 'weekAfterNext' ? 'Pelunasan 2 Minggu Lagi' : 'Pelunasan Overdue'}
+              Pelunasan {deliveryPeriodLabel}
             </small>
           </div>
           <div style={{ fontWeight: 700, fontSize: '14px', color: globalTheme === 'light' ? '#013175' : '#6fa8ff' }}>
@@ -1096,7 +1102,7 @@ const ListPekerjaan = () => {
         title={
           <span style={{ fontWeight: 700 }}>
             <TbTruckDelivery style={{ marginRight: 6 }} />
-            Detail Pelunasan — {deliveryView === 'thisWeek' ? 'Minggu Ini' : deliveryView === 'nextWeek' ? 'Minggu Depan' : deliveryView === 'weekAfterNext' ? '2 Minggu Lagi' : 'Overdue'}
+            Detail Pelunasan — {deliveryPeriodLabel}
           </span>
         }
         open={showPelunasanModal}

@@ -191,6 +191,15 @@ const AIChatBubble = ({ seedContext = '', greeting = '', onActivity = null } = {
           }),
         });
         updateProposal(msgId, idx, { _status: res.ok ? 'saved' : 'error' });
+      } else if (prop.type === 'alamat_kirim') {
+        const res = await fetch(`${baseUrl}/ai/chat/alamat/confirm`, {
+          method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
+          body: JSON.stringify({
+            invoice_id: prop.invoice_id, kode_invoice: prop.kode_invoice,
+            alamat: prop.alamat_baru, created_by_uid: getUid(),
+          }),
+        });
+        updateProposal(msgId, idx, { _status: res.ok ? 'saved' : 'error' });
       } else if (prop.type === 'todo') {
         const res = await fetch(`${baseUrl}/ai/chat/todo/confirm`, {
           method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
@@ -514,14 +523,15 @@ const AIChatBubble = ({ seedContext = '', greeting = '', onActivity = null } = {
                       const isPotong = p.type === 'potong_piutang_spk';
                       const isTarget = p.type === 'target_kirim';
                       const isTodo = p.type === 'todo';
+                      const isAlamat = p.type === 'alamat_kirim';
                       const isBulk = p.type === 'bulk_comment' || p.type === 'bulk_category_description';
                       const isSpkEdit = p.type === 'spk_item_edit';
                       const isPengeluaran = p.type === 'invoice_pengeluaran';
                       const formatRp = (n) => 'Rp ' + Number(n || 0).toLocaleString('id-ID');
                       return (
                         <div key={i} style={{ fontSize: 13, padding: '8px 10px', marginBottom: 6, borderRadius: 8,
-                          background: isPengeluaran ? (isLight ? '#fdecea' : '#2a1414') : isSpkEdit ? (isLight ? '#fff3cd' : '#2a2108') : isTarget || isBulk || isTodo ? (isLight ? '#e8f5e9' : '#0f2417') : isPotong ? (isLight ? '#e7f1ff' : '#0d1b2a') : isPayment ? (isLight ? '#fff3cd' : '#2a2108') : (isLight ? '#fff8e1' : '#2a2620'),
-                          border: isPengeluaran ? '2px solid #dc3545' : isSpkEdit ? '2px solid #ffc107' : isTarget || isBulk || isTodo ? '2px solid #2e9e5b' : isPotong ? '2px solid #0d6efd' : isPayment ? '2px solid #ffc107' : '1px solid #f0c000' }}>
+                          background: isPengeluaran ? (isLight ? '#fdecea' : '#2a1414') : isSpkEdit ? (isLight ? '#fff3cd' : '#2a2108') : isTarget || isBulk || isTodo || isAlamat ? (isLight ? '#e8f5e9' : '#0f2417') : isPotong ? (isLight ? '#e7f1ff' : '#0d1b2a') : isPayment ? (isLight ? '#fff3cd' : '#2a2108') : (isLight ? '#fff8e1' : '#2a2620'),
+                          border: isPengeluaran ? '2px solid #dc3545' : isSpkEdit ? '2px solid #ffc107' : isTarget || isBulk || isTodo || isAlamat ? '2px solid #2e9e5b' : isPotong ? '2px solid #0d6efd' : isPayment ? '2px solid #ffc107' : '1px solid #f0c000' }}>
                           {isPengeluaran ? (
                             <>
                               <div style={{ fontWeight: 700, marginBottom: 4 }}>
@@ -606,6 +616,20 @@ const AIChatBubble = ({ seedContext = '', greeting = '', onActivity = null } = {
                               {p.skipped && p.skipped.length > 0 && (
                                 <div style={{ marginTop: 4, fontSize: 11.5, color: '#dc3545' }}>{p.skipped.length} item dilewati (tidak ditemukan / tidak ada perubahan).</div>
                               )}
+                            </>
+                          ) : isAlamat ? (
+                            <>
+                              <div style={{ fontWeight: 700, marginBottom: 4 }}>📍 Set Alamat Pengiriman</div>
+                              <div><b>{p.kode_invoice}</b> <span style={{ opacity: 0.7 }}>({p.customer})</span></div>
+                              <div style={{ fontSize: 12, marginTop: 4 }}>
+                                <div style={{ opacity: 0.7 }}>Alamat lama:</div>
+                                <div style={{ marginBottom: 4 }}>{p.alamat_lama || '(kosong)'}</div>
+                                <div style={{ opacity: 0.7 }}>Alamat baru:</div>
+                                <div><b>{p.alamat_baru}</b></div>
+                              </div>
+                              <div style={{ marginTop: 4, fontSize: 11.5, opacity: 0.85 }}>
+                                Semua {p.jumlah_item} item di invoice ini ikut alamat baru.
+                              </div>
                             </>
                           ) : isTodo ? (
                             <>

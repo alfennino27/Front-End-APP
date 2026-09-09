@@ -1377,15 +1377,15 @@ const DetailPekerjaan = () => {
   ];
   const SPK_PRICE_CATEGORIES = ['Kayu', 'Besi', 'Marmer'];
 
-  // Nilai biaya kategori (mirror logic Invoice: SPK<cat> total || estimasi<cat>).
-  // Jika ada nilai SPK → biaya asli (label "SPK"); jika belum → biaya sementara (label "budget").
+  // Nilai biaya kategori. Budget (estimasi) & SPK ditampilkan BERDAMPINGAN —
+  // dulu SPK menggantikan budget, jadi tidak kelihatan lagi berapa rencana
+  // biayanya vs realisasi ke supplier.
   const spkCategoryTotal = spkProductList
     .filter((s) => s.category === category)
     .reduce((sum, s) => sum + (Number(s.harga) || 0), 0);
   const estimasiCategory = Number(dataProjectFromDB[0]?.[`estimasi${category}`] || 0);
   const usingSpkValue = spkCategoryTotal > 0;
-  const categoryCostValue = usingSpkValue ? spkCategoryTotal : estimasiCategory;
-  const categoryCostLabel = usingSpkValue ? 'SPK' : 'budget';
+  const fmtBiaya = (n) => (n > 0 ? `Rp ${n.toLocaleString('id-ID')}` : '-');
   const showSpkPrice =
     SPK_PRICE_AUTHORIZED_UIDS.includes(user?.uid) &&
     SPK_PRICE_CATEGORIES.includes(category);
@@ -2792,18 +2792,28 @@ const DetailPekerjaan = () => {
               </button>
             )}
             {showSpkPrice && (
-              <small
-                style={{
-                  fontSize: '11px',
-                  fontWeight: 600,
-                  color: usingSpkValue
-                    ? (globalTheme === 'light' ? '#0d6efd' : '#9ec5fe')
-                    : (globalTheme === 'light' ? '#6c757d' : '#adb5bd'),
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {categoryCostLabel} Rp {categoryCostValue.toLocaleString('id-ID')}
-              </small>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', lineHeight: 1.35 }}>
+                <small
+                  title="Rencana biaya (estimasi) kategori ini"
+                  style={{
+                    fontSize: '11px', fontWeight: 600, whiteSpace: 'nowrap',
+                    color: globalTheme === 'light' ? '#6c757d' : '#adb5bd',
+                  }}
+                >
+                  Budget {fmtBiaya(estimasiCategory)}
+                </small>
+                <small
+                  title="Nilai SPK yang benar-benar diorder ke supplier"
+                  style={{
+                    fontSize: '11px', fontWeight: 600, whiteSpace: 'nowrap',
+                    color: usingSpkValue
+                      ? (globalTheme === 'light' ? '#0d6efd' : '#9ec5fe')
+                      : (globalTheme === 'light' ? '#6c757d' : '#adb5bd'),
+                  }}
+                >
+                  SPK {fmtBiaya(spkCategoryTotal)}
+                </small>
+              </div>
             )}
           </div>
 

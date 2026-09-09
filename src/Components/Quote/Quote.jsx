@@ -619,8 +619,10 @@ const Quote = () => {
   const [duplicating, setDuplicating] = useState(null); // id quote yang sedang diduplikat
   // Lightbox thumbnail daftar quote: { images: string[], idx: number }
   const [lightbox, setLightbox] = useState(null);
+  // Semua quote boleh diduplikat — termasuk yang sudah Final/Deal/jadi Invoice.
+  // Backend selalu membuat DRAFT baru berkode baru & melepas pid/invoiceId,
+  // jadi dokumen asal tidak ikut berubah.
   const duplicateQuote = async (q) => {
-    if (q.status === 'deal' || q.invoiceId) return;
     setDuplicating(q.id);
     try {
       const res = await fetch(`${baseUrl}/quotation/${q.id}/duplicate`, {
@@ -819,11 +821,10 @@ const Quote = () => {
                 <a href={pdfUrl(baseUrl, q)} target="_blank" rel="noreferrer" style={{ ...btnGhost, textDecoration: 'none' }}>⬇ PDF</a>
                 <a href={pdfUrl(baseUrl, q, 'pricelist')} target="_blank" rel="noreferrer" style={{ ...btnGhost, textDecoration: 'none' }}>Pricelist</a>
                 <button style={btnGhost} onClick={() => openEdit(q.id)}>Edit</button>
-                {/* Duplikat: hanya yang belum Deal. Sudah difinalkan tetap boleh. */}
-                {q.status !== 'deal' && !q.invoiceId && (
-                  <button style={btnGhost} disabled={duplicating === q.id} title="Buat salinan quote ini dengan kode baru"
-                    onClick={() => duplicateQuote(q)}>{duplicating === q.id ? 'Menyalin…' : '⧉ Duplikat'}</button>
-                )}
+                {/* Duplikat: berlaku untuk semua quote, termasuk yang sudah Deal / jadi Invoice. */}
+                <button style={btnGhost} disabled={duplicating === q.id}
+                  title="Buat salinan quote ini dengan kode baru (jadi draft baru, yang lama tidak berubah)"
+                  onClick={() => duplicateQuote(q)}>{duplicating === q.id ? 'Menyalin…' : '⧉ Duplikat'}</button>
                 {q.isDraft !== false && <button style={btn('#b7791f')} onClick={() => finalizeQuote(q.id, false)}>✓ Finalkan</button>}
                 {q.status !== 'deal' && <button style={btn('#1e7b34')} onClick={() => changeStatus(q.id, 'deal')}>Deal</button>}
                 {/* setelah jadi Invoice (Deal), Lost & Hapus dikunci — batalkan invoice di modul Invoice dulu */}
@@ -871,12 +872,10 @@ const Quote = () => {
                       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                         <a href={pdfUrl(baseUrl, q)} target="_blank" rel="noreferrer" style={{ ...btnGhost, padding: '5px 10px', textDecoration: 'none' }}>PDF</a>
                         <button style={{ ...btnGhost, padding: '5px 10px' }} onClick={() => openEdit(q.id)}>Edit</button>
-                        {q.status !== 'deal' && !q.invoiceId && (
-                          <button style={{ ...btnGhost, padding: '5px 10px' }} disabled={duplicating === q.id}
-                            title="Buat salinan quote ini dengan kode baru" onClick={() => duplicateQuote(q)}>
-                            {duplicating === q.id ? '…' : '⧉ Duplikat'}
-                          </button>
-                        )}
+                        <button style={{ ...btnGhost, padding: '5px 10px' }} disabled={duplicating === q.id}
+                          title="Buat salinan quote ini dengan kode baru" onClick={() => duplicateQuote(q)}>
+                          {duplicating === q.id ? '…' : '⧉ Duplikat'}
+                        </button>
                       </div>
                     </td>
                   </tr>

@@ -282,6 +282,9 @@ const Quote = () => {
     rev: 1,
   });
   const [form, setForm] = useState(blankForm());
+  // Real cost dari Projects/SPK/Pengeluaran (hanya quote yang sudah Deal). null = belum/tidak ada.
+  const [realCost, setRealCost] = useState(null);
+  const [pengeluaranOpen, setPengeluaranOpen] = useState(false);
   const [saving, setSaving] = useState(false);
 
   // ================= data fetching =================
@@ -393,6 +396,30 @@ const Quote = () => {
   const totalPenjualanNet = subtotal - numParse(form.discount);
   const totalMarginPct = totalPenjualanNet > 0 ? (totalMargin / totalPenjualanNet) * 100 : 0;
 
+  // ---- Real cost (quote sudah Deal): HPP dari SPK/estimasi Projects, match item by pid ----
+  const realByPid = useMemo(() => {
+    const m = {};
+    ((realCost && realCost.items) || []).forEach((r) => { if (r.found && r.pid) m[r.pid] = r; });
+    return m;
+  }, [realCost]);
+  // per item: hppUnitReal, marginReal = (harga − hppReal) × qty; harga/qty pakai form (sync dgn Projects)
+  const itemReal = useMemo(() => form.items.map((it) => {
+    const r = it.pid ? realByPid[it.pid] : null;
+    if (!r) return null;
+    const harga = numParse(it.harga);
+    const qty = numParse(it.qty);
+    const hppUnit = r.hppUnit || 0;
+    const marginTotal = (harga - hppUnit) * qty;
+    const sale = harga * qty;
+    return { hppUnit, hppTotal: hppUnit * qty, marginTotal, marginPct: sale > 0 ? (marginTotal / sale) * 100 : 0, categories: r.categories, status: r.status };
+  }), [form.items, realByPid]);
+  const hasReal = !!realCost && itemReal.some(Boolean);
+  const totalHPPReal = useMemo(() => itemReal.reduce((a, f) => a + (f ? f.hppTotal : 0), 0), [itemReal]);
+  const totalPengeluaran = (realCost && realCost.totalPengeluaran) || 0;
+  // Margin real = Σ margin real item − discount − pengeluaran lain (mirror crmSync.gross_profit; ongkir/admin quote = 0)
+  const totalMarginReal = itemReal.reduce((a, f) => a + (f ? f.marginTotal : 0), 0) - numParse(form.discount) - totalPengeluaran;
+  const totalMarginRealPct = totalPenjualanNet > 0 ? (totalMarginReal / totalPenjualanNet) * 100 : 0;
+
   // ================= form actions =================
   const setF = (patch) => setForm((f) => ({ ...f, ...patch }));
 
@@ -407,14 +434,22 @@ const Quote = () => {
       f.customerWA = prefillCust.waCust || prefillCust.noTelpCust || '';
     }
     setForm(f);
+    setRealCost(null);
     setView('form');
   };
 
   const openEdit = async (qid) => {
     setLoading(true);
+    setRealCost(null);
     try {
       const q = await (await fetch(`${baseUrl}/quotation/${qid}`)).json();
       if (q && q.id) {
+        if (q.invoiceId) {
+          // sudah Deal → ambil real cost (budget vs real) — gagal tidak fatal
+          fetch(`${baseUrl}/quotation/${qid}/realcost`).then((r) => r.json())
+            .then((rc) => { if (rc && rc.linked) setRealCost(rc); })
+            .catch((e) => console.error('realcost', e));
+        }
         setForm({
           ...blankForm(),
           ...q,
@@ -1017,6 +1052,7 @@ const Quote = () => {
             {/* ringkasan HPP & margin per item (internal, tidak dicetak di PDF) */}
             {(() => {
               const fin = itemFin[idx] || {};
+              const real = itemReal[idx];
               const marginColor = fin.marginTotal >= 0 ? '#1e7b34' : '#c0392b';
               return (
                 <div className="klf-quote-itemfin" style={{ marginTop: 8, background: dark ? '#20262e' : '#f4f7fb', border: `1px solid ${border}`, borderRadius: 8, padding: '10px 12px' }}>
@@ -1045,20 +1081,48 @@ const Quote = () => {
                   {fin.hppTotal === 0 && (
                     <div style={{ color: '#b7791f', fontSize: 11, alignSelf: 'center' }}>⚠ Costing belum diisi — margin belum akurat</div>
                   )}
+                  {real && (
+                    <>
+                      <div className="klf-itemfin-cell" style={{ borderLeft: `2px solid ${border}`, paddingLeft: 10 }}>
+                        <span style={{ color: sub, fontSize: 12 }}>HPP Real</span>
+                        <strong style={{ color: text, fontSize: 14 }}>{rupiah(real.hppTotal)}</strong>
+                        <span style={{ color: sub, fontSize: 11 }}>{rupiah(real.hppUnit)}/unit · selisih {real.hppUnit - fin.hppUnit >= 0 ? '+' : ''}{rupiah(real.hppUnit - fin.hppUnit)}/unit</span>
+                      </div>
+                      <div className="klf-itemfin-cell">
+                        <span style={{ color: sub, fontSize: 12 }}>Margin Real</span>
+                        <strong style={{ color: real.marginTotal >= 0 ? '#1e7b34' : '#c0392b', fontSize: 14 }}>{rupiah(real.marginTotal)}</strong>
+                        <span style={{ color: real.marginTotal >= 0 ? '#1e7b34' : '#c0392b', fontSize: 11 }}>{(real.marginPct || 0).toFixed(1)}%</span>
+                      </div>
+                    </>
+                  )}
                 </div>
               );
             })()}
 
             {/* costing accordion */}
             <button style={{ ...btnGhost, width: '100%', marginTop: 8, textAlign: 'left' }} onClick={() => updateItem(idx, { costingOpen: !it.costingOpen })}>
-              {it.costingOpen ? '▾' : '▸'} Costing (biaya per kategori) — masuk sebagai budget saat jadi Invoice
+              {it.costingOpen ? '▾' : '▸'} Costing (biaya per kategori) — masuk sebagai budget saat jadi Invoice{itemReal[idx] ? ' · Real dari SPK/Projects ditampilkan di bawah tiap kolom' : ''}
             </button>
             {it.costingOpen && (
               <div className="klf-quote-costing" style={{ marginTop: 10 }}>
-                {CATEGORIES.map((cat) => (
-                  <label key={cat} className="klf-fld"><span style={{ color: sub, fontSize: 12 }}>{cat}</span>
-                    <input inputMode="numeric" style={{ ...inputStyle, padding: '8px 10px' }} value={it.costing[cat]} onChange={(e) => updateItem(idx, { costing: { ...it.costing, [cat]: formatRibuan(e.target.value) } })} /></label>
-                ))}
+                {CATEGORIES.map((cat) => {
+                  const rc = itemReal[idx] && itemReal[idx].categories ? itemReal[idx].categories[cat] : null;
+                  const budget = numParse(it.costing[cat]);
+                  // baris real: hanya tampil kalau ada angka (budget atau real)
+                  const showReal = rc && (rc.real > 0 || budget > 0);
+                  const realLabel = !rc ? '' : rc.source === 'spk' ? `SPK${rc.supplier ? ' ' + rc.supplier : ''}` : rc.source === 'tenaga' ? `borong tenaga${rc.supplier ? ' ' + rc.supplier : ''} (pakai estimasi)` : 'masih estimasi';
+                  const diff = rc ? rc.real - budget : 0;
+                  return (
+                    <label key={cat} className="klf-fld"><span style={{ color: sub, fontSize: 12 }}>{cat}</span>
+                      <input inputMode="numeric" style={{ ...inputStyle, padding: '8px 10px' }} value={it.costing[cat]} onChange={(e) => updateItem(idx, { costing: { ...it.costing, [cat]: formatRibuan(e.target.value) } })} />
+                      {showReal && (
+                        <span style={{ fontSize: 11, color: rc.source === 'spk' ? (diff > 0 ? '#c0392b' : '#1e7b34') : sub, lineHeight: 1.3 }}>
+                          Real: <b>{rupiah(rc.real)}</b>{diff !== 0 ? ` (${diff > 0 ? '+' : ''}${rupiah(diff)})` : ''} · {realLabel}
+                        </span>
+                      )}
+                    </label>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -1113,6 +1177,49 @@ const Quote = () => {
               <span style={{ color: totalMargin >= 0 ? '#1e7b34' : '#c0392b', fontSize: 12 }}>{totalMarginPct.toFixed(1)}%</span>
             </div>
           </div>
+          {/* baris REAL — hanya quote yang sudah Deal (data dari Projects/SPK & Jurnal Pengeluaran Order invoice) */}
+          {hasReal && (
+            <>
+              <div style={{ color: sub, fontSize: 12, fontWeight: 600, margin: '12px 0 6px' }}>
+                📊 Real (dari Invoice {realCost.kodeInvoice || ''}) <span style={{ fontWeight: 400 }}>— SPK yang sudah ada harga dipakai, sisanya masih estimasi</span>
+              </div>
+              <div className="klf-quote-margin-grid">
+                <div className="klf-margin-cell">
+                  <span style={{ color: sub, fontSize: 12 }}>Total HPP Real</span>
+                  <strong style={{ color: text, fontSize: 15 }}>{rupiah(totalHPPReal)}</strong>
+                  <span style={{ color: totalHPPReal - totalHPP > 0 ? '#c0392b' : '#1e7b34', fontSize: 12 }}>
+                    {totalHPPReal - totalHPP >= 0 ? '+' : ''}{rupiah(totalHPPReal - totalHPP)} vs budget
+                  </span>
+                </div>
+                <div className="klf-margin-cell" style={{ cursor: realCost.pengeluaran && realCost.pengeluaran.length ? 'pointer' : 'default' }} onClick={() => setPengeluaranOpen((o) => !o)}>
+                  <span style={{ color: sub, fontSize: 12 }}>Pengeluaran Lain ({(realCost.pengeluaran || []).length}) {realCost.pengeluaran && realCost.pengeluaran.length ? (pengeluaranOpen ? '▾' : '▸') : ''}</span>
+                  <strong style={{ color: text, fontSize: 15 }}>{rupiah(totalPengeluaran)}</strong>
+                  <span style={{ color: sub, fontSize: 12 }}>dari Jurnal Pengeluaran Order</span>
+                </div>
+                <div className="klf-margin-cell">
+                  <span style={{ color: sub, fontSize: 12 }}>Total Margin Real{numParse(form.discount) > 0 ? ' (stlh diskon)' : ''}</span>
+                  <strong style={{ color: totalMarginReal >= 0 ? '#1e7b34' : '#c0392b', fontSize: 16 }}>{rupiah(totalMarginReal)}</strong>
+                  <span style={{ color: totalMarginReal >= 0 ? '#1e7b34' : '#c0392b', fontSize: 12 }}>
+                    {totalMarginRealPct.toFixed(1)}% · {totalMarginReal - totalMargin >= 0 ? '+' : ''}{rupiah(totalMarginReal - totalMargin)} vs budget
+                  </span>
+                </div>
+              </div>
+              {pengeluaranOpen && realCost.pengeluaran && realCost.pengeluaran.length > 0 && (
+                <table style={{ width: '100%', marginTop: 8, fontSize: 12, borderCollapse: 'collapse' }}>
+                  <tbody>
+                    {realCost.pengeluaran.map((x, i) => (
+                      <tr key={x.id || i} style={{ borderTop: `1px solid ${border}` }}>
+                        <td style={{ padding: '4px 6px', color: sub, whiteSpace: 'nowrap' }}>{x.tanggal ? String(x.tanggal).slice(0, 10) : '-'}</td>
+                        <td style={{ padding: '4px 6px' }}>{x.kategori || '-'}</td>
+                        <td style={{ padding: '4px 6px', color: sub }}>{x.keterangan || ''}</td>
+                        <td style={{ padding: '4px 6px', textAlign: 'right', whiteSpace: 'nowrap' }}>{rupiah(x.nominal)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </>
+          )}
         </div>
 
         <div className="klf-quote-form-grid">

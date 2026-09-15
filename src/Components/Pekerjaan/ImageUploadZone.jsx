@@ -215,11 +215,13 @@ const ImageUploadZone = ({ images = [], onChange, max = 10, theme = 'light', all
       />
 
       {/* Ambil foto langsung dari kamera belakang HP (tim lapangan).
-          `capture="environment"` → buka app kamera OS, hasilnya masuk & langsung dikompres. */}
+          `capture="environment"` → buka app kamera OS, hasilnya masuk & langsung dikompres.
+          accept HARUS persis "image/*" saja: Android Chrome mengabaikan `capture` kalau accept
+          campuran (video/*, .heic) → malah buka galeri. iPhone toleran, Android tidak. */}
       <input
         ref={cameraRef}
         type="file"
-        accept={allowVideo ? 'image/*,video/*,.heic,.heif' : 'image/*,.heic,.heif'}
+        accept="image/*"
         capture="environment"
         style={{ display: 'none' }}
         onChange={(e) => {

@@ -3,6 +3,7 @@ import { Segmented, Collapse, Empty } from 'antd';
 import { Col, Row, Modal, Button, Container, Dropdown } from 'react-bootstrap';
 import { getApiBaseUrl } from '../../Config/APIurl';
 import '../Pekerjaan/pekerjaan.css';
+import './Notes.css';
 import { useTheme } from '../../ThemeContext';
 import ReactQuill from 'react-quill';
 import '../../../node_modules/react-quill/dist/quill.snow.css';

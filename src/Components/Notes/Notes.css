@@ -1,3 +1,24 @@
 .custom-modal-width {
   width: 80vw;
 }
+
+/* Tampilan baca note — samakan spacing dengan editor Quill (.ql-editor):
+   Bootstrap kasih margin-bottom 1rem ke p/ul/ol sehingga tiap <p><br></p> jadi 3x spasi. */
+.notes-detail p,
+.notes-detail ul,
+.notes-detail ol,
+.notes-detail h1,
+.notes-detail h2,
+.notes-detail h3 {
+  margin: 0;
+}
+.notes-detail ul,
+.notes-detail ol {
+  padding-left: 1.5em;
+}
+.notes-detail li {
+  padding-left: 0.2em;
+}
+.notes-detail p:empty::before {
+  content: '\00a0';
+}

@@ -168,8 +168,8 @@ const Notes = () => {
             setTitleInput(item.title);
             setDetailInput(item.detail);
           }}
+          className="notes-detail"
           style={{
-            whiteSpace: 'pre-line',
             cursor: 'pointer',
             padding: '5px 0px',
             color: globalTheme === 'light' ? 'black' : 'white',

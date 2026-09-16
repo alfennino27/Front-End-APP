@@ -17,6 +17,7 @@ import { getImageUrl } from '../../Utils/image';
 import { FiEdit, FiMinus, FiPlus } from "react-icons/fi";
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons';
 import { NumericFormat } from 'react-number-format';
+import ImageUploadZone from '../Pekerjaan/ImageUploadZone';
 
 const { Option } = Select;
 
@@ -606,7 +607,12 @@ const Products = () => {
       await res.json();
       console.log('Image deleted successfully:');
 
-      await fetchDataProducts();
+      // segarkan list + produk yang sedang dibuka di modal foto
+      const r2 = await fetch(`${baseUrl}/products/get`);
+      const all = await r2.json();
+      setDataProducts(all);
+      const fresh = all.find((p) => p.id === idProductEdit);
+      if (fresh) setSelectedDataProduct(fresh);
 
     } catch (e) {
       console.error('Error updating Note Item:', e);
@@ -769,6 +775,67 @@ const Products = () => {
 
   const selected = enriched.find((p) => p.id === selectedId) || null;
 
+  // ---- Label produk (ongkir wajib + label per kategori) — master di koleksi ProductLabels ----
+  const [labelMaster, setLabelMaster] = useState({ defaultOngkir: 'Gratis ongkir', labels: [] });
+  const [showLabelMgr, setShowLabelMgr] = useState(false);
+  const [labelMgrCat, setLabelMgrCat] = useState('');
+  const [labelNew, setLabelNew] = useState({ ongkir: '', label: '' });
+  const fetchLabels = async () => {
+    try {
+      const r = await fetch(`${baseUrl}/products/labels/get`);
+      const d = await r.json();
+      if (d && d.labels) setLabelMaster(d);
+    } catch (e) { console.error('labels', e); }
+  };
+  useEffect(() => { fetchLabels(); }, []);
+  const ongkirOptions = labelMaster.labels.filter((l) => l.type === 'ongkir');
+  const labelOptionsFor = (cat) => labelMaster.labels.filter((l) => l.type === 'label' && l.category === cat);
+
+  const saveTags = async (item, patch) => {
+    setDataProducts((prev) => prev.map((p) => (p.id === item.id ? { ...p, ...patch } : p)));
+    try {
+      const r = await fetch(`${baseUrl}/products/tags/update`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: item.id, ...patch }),
+      });
+      if (!r.ok) throw new Error((await r.json()).message);
+    } catch (e) { message.error(`Gagal simpan tag: ${e.message}`); fetchDataProducts(); }
+  };
+  const labelApi = async (method, path, body) => {
+    const r = await fetch(`${baseUrl}${path}`, { method, headers: { 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) { message.error(d.message || 'Gagal'); return false; }
+    await fetchLabels(); await fetchDataProducts();
+    return true;
+  };
+
+  // ---- Upload foto produk: drag & drop / pilih file / paste (ImageUploadZone) → isi slot imageN berikutnya ----
+  const [newPhotos, setNewPhotos] = useState([]);
+  const [uploadingPhotos, setUploadingPhotos] = useState(false);
+  const uploadNewPhotos = async () => {
+    if (!newPhotos.length || !selectedDataProduct) return;
+    let max = 0;
+    for (let i = 1; i <= 50; i++) if (selectedDataProduct[`image${i}`]) max = i;
+    if (max + newPhotos.length > 50) { message.error('Maksimal 50 foto per produk'); return; }
+    const fd = new FormData();
+    newPhotos.forEach((f, i) => fd.append(`image${max + i + 1}`, f));
+    setUploadingPhotos(true);
+    try {
+      const r = await fetch(`${baseUrl}/products/images/update/${selectedDataProduct.id}`, { method: 'PUT', body: fd });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.message || 'Upload gagal');
+      message.success(`${newPhotos.length} foto diupload`);
+      setNewPhotos([]);
+      // segarkan produk terpilih di modal
+      const res = await fetch(`${baseUrl}/products/get`);
+      const all = await res.json();
+      setDataProducts(all);
+      const fresh = all.find((p) => p.id === selectedDataProduct.id);
+      if (fresh) setSelectedDataProduct(fresh);
+    } catch (e) { message.error(e.message); }
+    finally { setUploadingPhotos(false); }
+  };
+
   // toggle tampil dari panel — optimistic + autosave (edit-bulk) seperti sebelumnya
   const toggleDisplay = (item) => {
     const next = !item.isDisplay;
@@ -898,8 +965,11 @@ const Products = () => {
                 <button style={toolbarBtn(isEditing)} onClick={() => setIsEditing((v) => !v)} title="Mode edit massal (HPP per kategori, judul, deskripsi)"><FiEdit /></button>
               )}
             </div>
+            <button style={{ ...toolbarBtn(false), marginLeft: 'auto' }} onClick={() => { setLabelMgrCat(filterCategory || (dataCategory[0] && dataCategory[0].name) || ''); setShowLabelMgr(true); }} title="Kelola tag ongkir & label produk">
+              ⚙ Label
+            </button>
             <button
-              style={{ ...toolbarBtn(true), marginLeft: 'auto', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}
+              style={{ ...toolbarBtn(true), fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}
               onClick={() => { setShowTambahDataModal(true); refreshData(); }}
             >
               <FiPlus /> Produk Baru
@@ -1426,6 +1496,35 @@ const Products = () => {
                       <a href={`https://karyalogamfurniture.com/category/detail?id=${selected._id || selected.id}`} target="_blank" rel="noreferrer" style={{ ...toolbarBtn(false), textDecoration: 'none' }}>Lihat di website ↗</a>
                     </div>
 
+                    {/* tag ongkir (wajib) & label produk per kategori — tersimpan langsung, tampil di website */}
+                    <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                      <div>
+                        <div style={{ fontSize: 12, color: textMuted, marginBottom: 4 }}>Ongkir</div>
+                        <Select
+                          size="small"
+                          style={{ width: '100%' }}
+                          value={selected.ongkirTag || labelMaster.defaultOngkir}
+                          getPopupContainer={(node) => node.parentNode}
+                          onChange={(v) => saveTags(selected, { ongkirTag: v })}
+                          options={ongkirOptions.map((o) => ({ value: o.name, label: o.name }))}
+                        />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 12, color: textMuted, marginBottom: 4 }}>Label ({selected.category || '-'})</div>
+                        <Select
+                          size="small"
+                          mode="multiple"
+                          style={{ width: '100%' }}
+                          placeholder={labelOptionsFor(selected.category).length ? 'Pilih label' : 'Belum ada label untuk kategori ini'}
+                          value={selected.labels || []}
+                          getPopupContainer={(node) => node.parentNode}
+                          onChange={(v) => saveTags(selected, { labels: v })}
+                          options={labelOptionsFor(selected.category).map((o) => ({ value: o.name, label: o.name }))}
+                          maxTagCount="responsive"
+                        />
+                      </div>
+                    </div>
+
                     {/* semua foto produk — klik untuk preview besar; "Kelola foto" untuk ganti/hapus */}
                     {(() => {
                       const imgs = Array.from({ length: 50 }, (_, i) => selected[`image${i + 1}`]).filter(Boolean);
@@ -1743,24 +1842,39 @@ const Products = () => {
             {Array.from({ length: 50 }, (_, i) => `image${i + 1}`)
               .filter((key) => selectedDataProduct?.[key])
               .map((key, idx) => (
-                <Image
-                  key={idx}
-                  src={getImageUrl(selectedDataProduct[key])}
-                  alt={`Gambar ${key}`}
-                  width={120}
-                  height={120}
-                  style={{ objectFit: 'cover', borderRadius: 6 }}
-                  preview={{
-                    getContainer: () => document.body, // pastikan di-render di body, bukan dalam modal
-                    zIndex: 2000, // lebih tinggi dari modal Bootstrap (biasanya z-index 1050–1100)
-                  }}
-                />
+                <div key={idx} style={{ position: 'relative' }}>
+                  <Image
+                    src={getImageUrl(selectedDataProduct[key])}
+                    alt={`Gambar ${key}`}
+                    width={120}
+                    height={120}
+                    style={{ objectFit: 'cover', borderRadius: 6 }}
+                    preview={{
+                      getContainer: () => document.body, // pastikan di-render di body, bukan dalam modal
+                      zIndex: 2000, // lebih tinggi dari modal Bootstrap (biasanya z-index 1050–1100)
+                    }}
+                  />
+                  <button
+                    title="Hapus foto"
+                    onClick={() => { setShowConfirmDeleteImage(true); setImageDeleteNumber(key); }}
+                    style={{ position: 'absolute', top: 4, right: 4, border: 'none', borderRadius: '50%', width: 24, height: 24, background: 'rgba(220,38,38,.9)', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  ><MdDelete size={14} /></button>
+                  {idx === 0 && <span style={{ position: 'absolute', bottom: 4, left: 4, fontSize: 10, background: 'rgba(1,49,117,.85)', color: '#fff', padding: '1px 6px', borderRadius: 999 }}>Utama</span>}
+                </div>
               ))}
+          </div>
+          {/* Tambah foto: drag & drop / pilih file / paste — sama seperti komentar project */}
+          <div style={{ marginTop: 16 }}>
+            <div className="fw-semibold mb-1" style={{ fontSize: 13 }}>Tambah foto</div>
+            <ImageUploadZone images={newPhotos} onChange={setNewPhotos} max={50} theme={globalTheme} />
           </div>
         </Modal.Body>
         <Modal.Footer>
-          <Button variant="primary" onClick={() => { setFileToUploadEdit({}); setShowEditGambarModal(true); setShowGambarDataModal(false); }}>
-            Edit
+          <Button variant="secondary" onClick={() => { setFileToUploadEdit({}); setShowEditGambarModal(true); setShowGambarDataModal(false); }}>
+            Ganti per slot
+          </Button>
+          <Button variant="primary" disabled={!newPhotos.length || uploadingPhotos} onClick={uploadNewPhotos}>
+            {uploadingPhotos ? 'Mengupload…' : `Upload ${newPhotos.length ? `(${newPhotos.length})` : ''}`}
           </Button>
         </Modal.Footer>
       </Modal>
@@ -2204,6 +2318,66 @@ const Products = () => {
             Submit
           </Button>
         </Modal.Footer>
+      </Modal>
+
+      {/* ===== Modal kelola label: tag ongkir (global) & label produk per kategori ===== */}
+      <Modal show={showLabelMgr} onHide={() => setShowLabelMgr(false)} centered backdrop="static">
+        <Modal.Header closeButton><Modal.Title style={{ fontSize: 17 }}>Kelola Label Produk</Modal.Title></Modal.Header>
+        <Modal.Body>
+          {[
+            { type: 'ongkir', title: 'Tag Ongkir', hint: 'Wajib untuk semua produk. Default: ' + labelMaster.defaultOngkir, rows: ongkirOptions },
+            { type: 'label', title: 'Label Produk per Kategori', hint: 'Bisa difilter customer di website. Tiap kategori punya label sendiri.', rows: labelOptionsFor(labelMgrCat) },
+          ].map((sec) => (
+            <div key={sec.type} className="mb-4">
+              <div className="fw-semibold">{sec.title}</div>
+              <div className="text-muted" style={{ fontSize: 12 }}>{sec.hint}</div>
+              {sec.type === 'label' && (
+                <Select
+                  size="small" style={{ width: '100%', marginTop: 6 }} value={labelMgrCat || undefined} placeholder="Pilih kategori"
+                  showSearch optionFilterProp="label"
+                  getPopupContainer={(node) => node.parentNode}
+                  onChange={setLabelMgrCat}
+                  options={dataCategory.map((c) => ({ value: c.name, label: c.name }))}
+                />
+              )}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 8 }}>
+                {sec.rows.length === 0 && <div className="text-muted" style={{ fontSize: 12 }}>Belum ada.</div>}
+                {sec.rows.map((l) => (
+                  <div key={l.id} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <input
+                      className="form-control form-control-sm"
+                      defaultValue={l.name}
+                      onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== l.name) labelApi('PUT', `/products/labels/update/${l.id}`, { name: v }); }}
+                      onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+                    />
+                    <Popconfirm title="Hapus label ini? Akan dilepas dari semua produk." onConfirm={() => labelApi('DELETE', `/products/labels/delete/${l.id}`)} okText="Hapus" cancelText="Batal">
+                      <button className="btn btn-sm btn-outline-danger" disabled={sec.type === 'ongkir' && l.name === labelMaster.defaultOngkir}><MdDelete /></button>
+                    </Popconfirm>
+                  </div>
+                ))}
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <input
+                    className="form-control form-control-sm"
+                    placeholder={sec.type === 'ongkir' ? 'Tag ongkir baru…' : `Label baru untuk ${labelMgrCat || 'kategori'}…`}
+                    value={labelNew[sec.type]}
+                    disabled={sec.type === 'label' && !labelMgrCat}
+                    onChange={(e) => setLabelNew((n) => ({ ...n, [sec.type]: e.target.value }))}
+                    onKeyDown={async (e) => {
+                      if (e.key !== 'Enter' || !labelNew[sec.type].trim()) return;
+                      if (await labelApi('POST', '/products/labels/create', { type: sec.type, category: labelMgrCat, name: labelNew[sec.type] })) setLabelNew((n) => ({ ...n, [sec.type]: '' }));
+                    }}
+                  />
+                  <button
+                    className="btn btn-sm btn-primary"
+                    disabled={!labelNew[sec.type].trim() || (sec.type === 'label' && !labelMgrCat)}
+                    onClick={async () => { if (await labelApi('POST', '/products/labels/create', { type: sec.type, category: labelMgrCat, name: labelNew[sec.type] })) setLabelNew((n) => ({ ...n, [sec.type]: '' })); }}
+                  ><FiPlus /></button>
+                </div>
+              </div>
+            </div>
+          ))}
+          <div className="text-muted" style={{ fontSize: 11 }}>Ubah nama: edit lalu klik di luar / Enter — produk yang memakainya ikut berubah.</div>
+        </Modal.Body>
       </Modal>
 
       <Modal className={`${globalTheme === 'light' ? 'modalKLFlight' : 'modalKLF'}`} show={showConfirmDeleteImage} onHide={() => { setShowConfirmDeleteImage(false); }}>

@@ -893,7 +893,10 @@ const Products = () => {
             />
             <div style={{ display: 'flex', gap: 4 }}>
               <button style={toolbarBtn(viewMode === 'grid')} onClick={() => setViewMode('grid')}>Grid</button>
-              <button style={toolbarBtn(viewMode === 'table')} onClick={() => setViewMode('table')} title="Tabel edit massal (HPP per kategori)">Tabel</button>
+              <button style={toolbarBtn(viewMode === 'table')} onClick={() => setViewMode('table')}>Tabel</button>
+              {viewMode === 'table' && (
+                <button style={toolbarBtn(isEditing)} onClick={() => setIsEditing((v) => !v)} title="Mode edit massal (HPP per kategori, judul, deskripsi)"><FiEdit /></button>
+              )}
             </div>
             <button
               style={{ ...toolbarBtn(true), marginLeft: 'auto', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}
@@ -910,9 +913,11 @@ const Products = () => {
           </div>
 
           {viewMode === 'table' ? (
-            /* ===== Mode Tabel: edit massal lama (HPP per kategori, judul, deskripsi, display) ===== */
+            /* ===== Mode Tabel: tabel lama; ikon pensil → mode edit massal ===== */
             <div style={{ backgroundColor: 'white', borderRadius: 15, padding: 6, boxShadow: '0 4px 8px rgba(0,0,0,0.05)', border: '1px solid #ddd' }}>
               <div style={{ maxHeight: '77vh', overflow: 'auto', borderRadius: 12, backgroundColor: 'white' }}>
+                {isEditing ? (
+                  // === EDIT MODE: tabel input massal (HPP per kategori, judul, deskripsi, display) ===
                 <table
                   className="table table-striped"
                   style={{
@@ -1159,6 +1164,156 @@ const Products = () => {
 
 
                 </table>
+                ) : (
+                  // === VIEW MODE: tabel ringkas seperti semula (klik gambar → foto, judul → detail, varian → edit) ===
+                <table
+                  className="table table-striped table-hover"
+                  style={{
+                    borderCollapse: 'collapse',
+                    width: 'max-content', // supaya auto scroll kanan jika kolom banyak
+                    minWidth: '100%',
+                  }}
+                >
+                  <thead
+                    style={{
+                      position: 'sticky',
+                      top: 0,
+                      backgroundColor: '#f8f9fa',
+                      zIndex: 1,
+                      boxShadow: '0 2px 5px rgba(0,0,0,0.05)',
+                    }}
+                  >
+                    <tr>
+                      {[
+                        'No', 'Gambar', 'Detail', 'Varian',
+                        'HPP', 'Jual', 'GPM', 'GP'
+                      ].map((title, i) => (
+                        <th
+                          key={i}
+                          style={{
+                            padding: '10px',
+                            textAlign: 'left',
+                            color: '#354985',
+                            borderBottom: '1px solid #ccc',
+                            backgroundColor: '#f8f9fa',
+                          }}
+                        >
+                          {title}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {pageItems.map((item, index) => {
+                      const itemVarian = dataVarian.filter(v => v.idProduct === item.id);
+
+                      return (
+                        <tr key={index} style={{ cursor: "pointer" }}>
+                          {/* No */}
+                          <td style={{ padding: '10px', borderBottom: '1px solid #eee' }}>{index + 1}</td>
+
+                          {/* Gambar */}
+                          <td
+                            style={{ padding: '10px', borderBottom: '1px solid #eee' }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setShowGambarDataModal(true);
+                              setIdProductEdit(item.id);
+                              setSelectedDataProduct(item);
+                            }}
+                          >
+                            {(() => {
+                              const imageKey = Array.from({ length: 50 }, (_, i) => `image${i + 1}`).find(
+                                (key) => item[key]
+                              );
+                              return imageKey ? (
+                                <Image
+                                  src={getImageUrl(item[imageKey])}
+                                  alt="Gambar Produk"
+                                  width={100}
+                                  height={100}
+                                  style={{ objectFit: 'cover', borderRadius: 4 }}
+                                  preview={false}
+                                />
+                              ) : (
+                                null
+                              );
+                            })()}
+                          </td>
+
+
+                          {/* Judul */}
+                          <td style={{ padding: '10px', borderBottom: '1px solid #eee' }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setIdProductEdit(item.id);
+                              setJudul(item.judul);
+                              setDeskripsi(item.deskripsi);
+                              setCategory(item.category);
+                              setLinkVideo1(item.linkVideo1);
+                              setLinkVideo2(item.linkVideo2);
+                              setLinkVideo3(item.linkVideo3);
+                              setModel3dUrl(item.model3d);
+                              setSelectedProjects(item.linkProject || []);
+                              setShowDetailDataModal(true);
+                            }}
+                          >
+                            {item.judul.length > 20 ? item.judul.slice(0, 20) + '...' : item.judul}
+                          </td>
+
+                          {/* Varian, HPP, Jual, GPM, GP */}
+                          {['varian', 'hpp', 'jual', 'gpm', 'gp'].map((field, idx) => (
+                            <td key={idx} style={{ padding: '10px', borderBottom: '1px solid #eee' }}>
+                              {itemVarian.map((v, vi) => {
+                                const hpp = Number(v.stainless || 0) + Number(v.besi || 0) + Number(v.kayu || 0) + Number(v.jok || 0) +
+                                  Number(v.rotan || 0) + Number(v.finishing || 0) + Number(v.marmer || 0) + Number(v.fiber || 0) + Number(v.veneer || 0);
+                                const jual = Number(v.jual || 0);
+                                const gp = jual - hpp;
+                                const gpm = jual ? ((gp / jual) * 100).toFixed(2) : '0.00';
+
+                                let content = '';
+                                switch (field) {
+                                  case 'varian': content = v.varian; break;
+                                  case 'hpp': content = `Rp ${hpp.toLocaleString()}`; break;
+                                  case 'jual': content = `Rp ${jual.toLocaleString()}`; break;
+                                  case 'gp': content = `Rp ${gp.toLocaleString()}`; break;
+                                  case 'gpm': content = `${gpm}%`; break;
+                                }
+
+                                return (
+                                  <div
+                                    key={vi}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleEditVarian(v);
+                                    }}
+                                    style={{
+                                      padding: '3px 0',
+                                      cursor: 'pointer',
+                                      borderRadius: '4px',
+                                      transition: 'background 0.2s',
+                                    }}
+                                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f0f0f0'}
+                                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                                  >
+                                    {content}
+                                  </div>
+                                );
+                              })}
+                            </td>
+                          ))}
+                        </tr>
+                      );
+                    })}
+
+
+
+
+                  </tbody>
+
+                </table>
+                )}
               </div>
             </div>
           ) : (
@@ -1270,6 +1425,32 @@ const Products = () => {
                       <button style={toolbarBtn(false)} onClick={() => { setIdProductEdit(selected.id); refreshDataVarian(); setShowTambahVarianModal(true); }}><FiPlus /> Varian</button>
                       <a href={`https://karyalogamfurniture.com/category/detail?id=${selected._id || selected.id}`} target="_blank" rel="noreferrer" style={{ ...toolbarBtn(false), textDecoration: 'none' }}>Lihat di website ↗</a>
                     </div>
+
+                    {/* semua foto produk — klik untuk preview besar; "Kelola foto" untuk ganti/hapus */}
+                    {(() => {
+                      const imgs = Array.from({ length: 50 }, (_, i) => selected[`image${i + 1}`]).filter(Boolean);
+                      return (
+                        <div style={{ marginTop: 12 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, color: textMuted, marginBottom: 6 }}>
+                            <span>Foto ({imgs.length})</span>
+                            <span onClick={() => { setShowGambarDataModal(true); setIdProductEdit(selected.id); setSelectedDataProduct(selected); }} style={{ cursor: 'pointer', color: '#013175' }}>Kelola foto ›</span>
+                          </div>
+                          {imgs.length === 0 ? (
+                            <div style={{ fontSize: 12, color: textMuted }}>Belum ada foto.</div>
+                          ) : (
+                            <Image.PreviewGroup>
+                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 6 }}>
+                                {imgs.map((src, i) => (
+                                  <div key={i} style={{ aspectRatio: '1 / 1', borderRadius: 8, overflow: 'hidden', border: `1px solid ${cardBorder}`, background: dark ? '#2a2a3a' : '#f3f4f6' }}>
+                                    <Image src={getImageUrl(src)} alt="" width="100%" height="100%" style={{ objectFit: 'cover', width: '100%', height: '100%' }} />
+                                  </div>
+                                ))}
+                              </div>
+                            </Image.PreviewGroup>
+                          )}
+                        </div>
+                      );
+                    })()}
 
                     {/* tabel varian: Jual bisa diedit langsung (autosave); klik nama varian → modal HPP per kategori */}
                     <table style={{ width: '100%', marginTop: 14, fontSize: 13, borderCollapse: 'collapse' }}>

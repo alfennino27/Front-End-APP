@@ -713,32 +713,120 @@ const Products = () => {
   const removeSelect = (index) =>
     setSelectedProjects(selectedProjects.filter((_, i) => i !== index));
 
+  // ================= Katalog: state tampilan baru (grid + panel detail) =================
+  const [viewMode, setViewMode] = useState('grid');          // 'grid' | 'table' (edit massal lama)
+  const [search, setSearch] = useState('');
+  const [filterStatus, setFilterStatus] = useState('all');   // all | display | hidden | nohpp
+  const [pageSize, setPageSize] = useState(() => Number(localStorage.getItem('products.pageSize')) || 20);
+  const [page, setPage] = useState(1);
+  const [selectedId, setSelectedId] = useState(null);
+
+  const hppOf = (v) => ['stainless', 'besi', 'kayu', 'jok', 'rotan', 'finishing', 'marmer', 'fiber', 'veneer']
+    .reduce((a, k) => a + (Number(v[k]) || 0), 0);
+  const rp = (n) => `Rp ${Math.round(Number(n) || 0).toLocaleString('id-ID')}`;
+  const rpShort = (n) => {
+    const x = Number(n) || 0;
+    if (x >= 1e6) return `${(x / 1e6).toLocaleString('id-ID', { maximumFractionDigits: 1 })} jt`;
+    if (x >= 1e3) return `${Math.round(x / 1e3)} rb`;
+    return String(x);
+  };
+  const firstImage = (item) => {
+    const key = Array.from({ length: 50 }, (_, i) => `image${i + 1}`).find((k) => item[k]);
+    return key ? getImageUrl(item[key]) : '';
+  };
+
+  // Ringkasan per produk (varian, rentang harga, jumlah varian tanpa HPP) — dihitung sekali per render
+  const enriched = React.useMemo(() => dataProducts.map((item) => {
+    const varians = dataVarian.filter((v) => v.idProduct === item.id);
+    const juals = varians.map((v) => Number(v.jual) || 0).filter((x) => x > 0);
+    const noHpp = varians.filter((v) => hppOf(v) <= 0).length;
+    return {
+      ...item,
+      _varians: varians,
+      _jualMin: juals.length ? Math.min(...juals) : 0,
+      _jualMax: juals.length ? Math.max(...juals) : 0,
+      _noHpp: noHpp,
+    };
+  }), [dataProducts, dataVarian]);
+
+  const filteredList = React.useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return enriched.filter((p) => {
+      if (filterCategory && p.category !== filterCategory) return false;
+      if (filterStatus === 'display' && !p.isDisplay) return false;
+      if (filterStatus === 'hidden' && p.isDisplay) return false;
+      if (filterStatus === 'nohpp' && !(p._noHpp > 0 || p._varians.length === 0)) return false;
+      if (q && !String(p.judul || '').toLowerCase().includes(q)) return false;
+      return true;
+    });
+  }, [enriched, filterCategory, filterStatus, search]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredList.length / pageSize));
+  const pageSafe = Math.min(page, totalPages);
+  const pageItems = filteredList.slice((pageSafe - 1) * pageSize, pageSafe * pageSize);
+  useEffect(() => { setPage(1); }, [search, filterCategory, filterStatus, pageSize]);
+  useEffect(() => { localStorage.setItem('products.pageSize', String(pageSize)); }, [pageSize]);
+
+  const selected = enriched.find((p) => p.id === selectedId) || null;
+
+  // toggle tampil dari panel — optimistic + autosave (edit-bulk) seperti sebelumnya
+  const toggleDisplay = (item) => {
+    const next = !item.isDisplay;
+    setDataProducts((prev) => prev.map((p) => (p.id === item.id ? { ...p, isDisplay: next } : p)));
+    handleChangeProduct(item.id, 'isDisplay', next);
+  };
+
+  const openDetailModal = (item) => {
+    setIdProductEdit(item.id);
+    setJudul(item.judul);
+    setDeskripsi(item.deskripsi);
+    setCategory(item.category);
+    setLinkVideo1(item.linkVideo1);
+    setLinkVideo2(item.linkVideo2);
+    setLinkVideo3(item.linkVideo3);
+    setModel3dUrl(item.model3d);
+    setSelectedProjects(item.linkProject || []);
+    setShowDetailDataModal(true);
+  };
+
+  const dark = globalTheme !== 'light';
+  const cardBg = dark ? '#1e1e2d' : '#fff';
+  const cardBorder = dark ? '#333' : '#e3e3e3';
+  const textMuted = dark ? '#9aa0a6' : '#6b7280';
+  const textMain = dark ? '#fff' : '#1f2937';
+  const chip = (bg, fg) => ({ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 999, background: bg, color: fg, whiteSpace: 'nowrap' });
+  const toolbarBtn = (active) => ({
+    padding: '6px 12px', borderRadius: 8, border: `1px solid ${active ? '#013175' : cardBorder}`,
+    background: active ? '#013175' : cardBg, color: active ? '#fff' : textMain, cursor: 'pointer', fontSize: 13,
+  });
+
   return (
     <>
-      <Container>
+      <Container fluid style={{ maxWidth: 1500 }}>
         <Col md={12} className='lowonganPekerjaan overflow-auto pekerjaan px-2'>
 
-
+          {/* ===== Toolbar ===== */}
           <div style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            position: 'sticky',
-            ...(isMobile ? { top: -1 } : { top: 0 }),
-            zIndex: 1,
-            padding: '10px',
-            backgroundColor: "transparent",
-            color: globalTheme === "light" ? "black" : 'white',
-            transition: "background-color 1s ease",
+            display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center',
+            position: 'sticky', top: isMobile ? -1 : 0, zIndex: 2, padding: '10px 4px',
+            color: textMain, background: dark ? '#14141f' : 'transparent',
           }}>
-            <h4 style={{ margin: 0 }}>Products</h4>
-
+            <h4 style={{ margin: 0, marginRight: 6 }}>Products</h4>
+            <Input
+              allowClear
+              prefix={<FaSearch style={{ color: '#999' }} />}
+              placeholder="Cari nama produk…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              style={{ width: 240 }}
+            />
             <div>
-
               <Select
                 onDropdownVisibleChange={(visible) => { setOpen(visible); setDeleteMode(false); }}
-                style={{ width: 250 }}
-                placeholder={deleteMode ? 'Click item to delete' : 'Select item'}
+                style={{ width: 220 }}
+                allowClear
+                onClear={() => setFilterCategory(null)}
+                placeholder={deleteMode ? 'Klik item untuk hapus' : 'Semua kategori'}
                 open={open}
                 value={filterCategory}
                 onChange={setFilterCategory}
@@ -785,35 +873,46 @@ const Products = () => {
                 )}
                 options={[]} // tetap dikosongkan karena kita handle sendiri rendernya
               />
-
-
-              <MdFormatListBulletedAdd style={{ marginLeft: "10px", marginBottom: "3px", cursor: "pointer" }} size={25} onClick={() => { setShowTambahDataModal(true); refreshData(); }} />
-              <FiEdit
-                style={{
-                  marginLeft: "10px",
-                  marginBottom: "3px",
-                  cursor: "pointer",
-                  color: isEditing ? "blue" : "inherit", // warna biru jika isEditing true
-                }}
-                size={23}
-                onClick={() => setIsEditing(prev => !prev)} // toggle nilai isEditing
-              />
-
             </div>
+            <Select
+              value={filterStatus}
+              onChange={setFilterStatus}
+              style={{ width: 190 }}
+              options={[
+                { value: 'all', label: 'Semua status' },
+                { value: 'display', label: '● Tampil di website' },
+                { value: 'hidden', label: '○ Hidden' },
+                { value: 'nohpp', label: '⚠ HPP belum diisi' },
+              ]}
+            />
+            <Select
+              value={pageSize}
+              onChange={setPageSize}
+              style={{ width: 130 }}
+              options={[20, 40, 80].map((n) => ({ value: n, label: `${n} / halaman` }))}
+            />
+            <div style={{ display: 'flex', gap: 4 }}>
+              <button style={toolbarBtn(viewMode === 'grid')} onClick={() => setViewMode('grid')}>Grid</button>
+              <button style={toolbarBtn(viewMode === 'table')} onClick={() => setViewMode('table')} title="Tabel edit massal (HPP per kategori)">Tabel</button>
+            </div>
+            <button
+              style={{ ...toolbarBtn(true), marginLeft: 'auto', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}
+              onClick={() => { setShowTambahDataModal(true); refreshData(); }}
+            >
+              <FiPlus /> Produk Baru
+            </button>
           </div>
 
+          <div style={{ fontSize: 12, color: textMuted, padding: '0 4px 8px' }}>
+            {filteredList.length} produk{filterCategory ? ` · ${filterCategory}` : ''}
+            {filterStatus === 'nohpp' ? ' · HPP belum diisi' : ''}
+            {' · '}halaman {pageSafe}/{totalPages}
+          </div>
 
-          <div style={{ backgroundColor: "white", borderRadius: '15px', paddingTop: "6px", paddingLeft: "6px", boxShadow: '0 4px 8px rgba(0, 0, 0, 0.05)', border: '1px solid #ddd' }}>
-            <div
-              style={{
-                maxHeight: '77vh',
-                overflow: 'auto', // SCROLL VERTIKAL & HORIZONTAL
-                borderRadius: '12px',
-                backgroundColor: 'white',
-              }}
-            >
-              {isEditing ? (
-                // === EDIT MODE: tabel baru khusus input ===
+          {viewMode === 'table' ? (
+            /* ===== Mode Tabel: edit massal lama (HPP per kategori, judul, deskripsi, display) ===== */
+            <div style={{ backgroundColor: 'white', borderRadius: 15, padding: 6, boxShadow: '0 4px 8px rgba(0,0,0,0.05)', border: '1px solid #ddd' }}>
+              <div style={{ maxHeight: '77vh', overflow: 'auto', borderRadius: 12, backgroundColor: 'white' }}>
                 <table
                   className="table table-striped"
                   style={{
@@ -851,16 +950,7 @@ const Products = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {filterCategory === "" && (
-                      <tr>
-                        <td colSpan="100%" className="text-center text-gray-500 py-4">
-                          Please select a category first
-                        </td>
-                      </tr>
-                    )}
-
-                    {filteredDataProducts.map((item, index) => {
-                      8
+                    {pageItems.map((item, index) => {
                       const itemVarian = dataVarian.filter(v => v.idProduct === item.id);
 
                       return (
@@ -916,7 +1006,7 @@ const Products = () => {
                                   const newValue = e.target.checked;
 
                                   // 1. Update UI langsung (optimistic update)
-                                  setFilteredDataProducts(prev =>
+                                  setDataProducts(prev =>
                                     prev.map(p => (p.id === item.id ? { ...p, isDisplay: newValue } : p))
                                   );
 
@@ -1069,175 +1159,175 @@ const Products = () => {
 
 
                 </table>
-              ) : (
-                // === VIEW MODE: tabel dataProducts asli ===
-                <table
-                  className="table table-striped table-hover"
-                  style={{
-                    borderCollapse: 'collapse',
-                    width: 'max-content', // supaya auto scroll kanan jika kolom banyak
-                    minWidth: '100%',
-                  }}
-                >
-                  <thead
-                    style={{
-                      position: 'sticky',
-                      top: 0,
-                      backgroundColor: '#f8f9fa',
-                      zIndex: 1,
-                      boxShadow: '0 2px 5px rgba(0,0,0,0.05)',
-                    }}
-                  >
-                    <tr>
-                      {[
-                        'No', 'Gambar', 'Detail', 'Varian',
-                        'HPP', 'Jual', 'GPM', 'GP'
-                      ].map((title, i) => (
-                        <th
-                          key={i}
-                          style={{
-                            padding: '10px',
-                            textAlign: 'left',
-                            color: '#354985',
-                            borderBottom: '1px solid #ccc',
-                            backgroundColor: '#f8f9fa',
-                          }}
-                        >
-                          {title}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-
-                  <tbody>
-                    {filterCategory === "" && (
-                      <tr>
-                        <td colSpan="100%" className="text-center text-gray-500 py-4">
-                          Please select a category first
-                        </td>
-                      </tr>
-                    )}
-
-
-                    {filteredDataProducts.map((item, index) => {
-                      const itemVarian = dataVarian.filter(v => v.idProduct === item.id);
-
-                      return (
-                        <tr key={index} style={{ cursor: "pointer" }}>
-                          {/* No */}
-                          <td style={{ padding: '10px', borderBottom: '1px solid #eee' }}>{index + 1}</td>
-
-                          {/* Gambar */}
-                          <td
-                            style={{ padding: '10px', borderBottom: '1px solid #eee' }}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setShowGambarDataModal(true);
-                              setIdProductEdit(item.id);
-                              setSelectedDataProduct(item);
-                            }}
-                          >
-                            {(() => {
-                              const imageKey = Array.from({ length: 50 }, (_, i) => `image${i + 1}`).find(
-                                (key) => item[key]
-                              );
-                              return imageKey ? (
-                                <Image
-                                  src={getImageUrl(item[imageKey])}
-                                  alt="Gambar Produk"
-                                  width={100}
-                                  height={100}
-                                  style={{ objectFit: 'cover', borderRadius: 4 }}
-                                  preview={false}
-                                />
-                              ) : (
-                                null
-                              );
-                            })()}
-                          </td>
-
-
-                          {/* Judul */}
-                          <td style={{ padding: '10px', borderBottom: '1px solid #eee' }}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setIdProductEdit(item.id);
-                              setJudul(item.judul);
-                              setDeskripsi(item.deskripsi);
-                              setCategory(item.category);
-                              setLinkVideo1(item.linkVideo1);
-                              setLinkVideo2(item.linkVideo2);
-                              setLinkVideo3(item.linkVideo3);
-                              setModel3dUrl(item.model3d);
-                              setSelectedProjects(item.linkProject || []);
-                              setShowDetailDataModal(true);
-                            }}
-                          >
-                            {item.judul.length > 20 ? item.judul.slice(0, 20) + '...' : item.judul}
-                          </td>
-
-                          {/* Varian, HPP, Jual, GPM, GP */}
-                          {['varian', 'hpp', 'jual', 'gpm', 'gp'].map((field, idx) => (
-                            <td key={idx} style={{ padding: '10px', borderBottom: '1px solid #eee' }}>
-                              {itemVarian.map((v, vi) => {
-                                const hpp = Number(v.stainless || 0) + Number(v.besi || 0) + Number(v.kayu || 0) + Number(v.jok || 0) +
-                                  Number(v.rotan || 0) + Number(v.finishing || 0) + Number(v.marmer || 0) + Number(v.fiber || 0) + Number(v.veneer || 0);
-                                const jual = Number(v.jual || 0);
-                                const gp = jual - hpp;
-                                const gpm = jual ? ((gp / jual) * 100).toFixed(2) : '0.00';
-
-                                let content = '';
-                                switch (field) {
-                                  case 'varian': content = v.varian; break;
-                                  case 'hpp': content = `Rp ${hpp.toLocaleString()}`; break;
-                                  case 'jual': content = `Rp ${jual.toLocaleString()}`; break;
-                                  case 'gp': content = `Rp ${gp.toLocaleString()}`; break;
-                                  case 'gpm': content = `${gpm}%`; break;
-                                }
-
-                                return (
-                                  <div
-                                    key={vi}
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleEditVarian(v);
-                                    }}
-                                    style={{
-                                      padding: '3px 0',
-                                      cursor: 'pointer',
-                                      borderRadius: '4px',
-                                      transition: 'background 0.2s',
-                                    }}
-                                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f0f0f0'}
-                                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                                  >
-                                    {content}
-                                  </div>
-                                );
-                              })}
-                            </td>
-                          ))}
-                        </tr>
-                      );
-                    })}
-
-
-
-
-                  </tbody>
-
-                </table>
-              )}
-
+              </div>
             </div>
-          </div>
+          ) : (
+            /* ===== Mode Grid: kartu ringkas + panel detail ===== */
+            <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: 12 }}>
+                  {pageItems.map((item) => {
+                    const active = item.id === selectedId;
+                    const img = firstImage(item);
+                    return (
+                      <div
+                        key={item.id}
+                        onClick={() => setSelectedId(item.id)}
+                        style={{
+                          background: cardBg, border: `2px solid ${active ? '#013175' : cardBorder}`, borderRadius: 12,
+                          overflow: 'hidden', cursor: 'pointer', opacity: item.isDisplay ? 1 : 0.75,
+                          boxShadow: active ? '0 4px 14px rgba(1,49,117,0.25)' : '0 1px 4px rgba(0,0,0,0.06)',
+                          transition: 'box-shadow .15s, border-color .15s',
+                        }}
+                      >
+                        <div style={{ position: 'relative', aspectRatio: '1 / 1', background: dark ? '#2a2a3a' : '#f3f4f6' }}>
+                          {img ? (
+                            <img src={img} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', filter: item.isDisplay ? 'none' : 'grayscale(0.6)' }} loading="lazy" />
+                          ) : (
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: textMuted }}><FaRegImages size={28} /></div>
+                          )}
+                          <span style={{ ...chip(item.isDisplay ? '#dcfce7' : '#e5e7eb', item.isDisplay ? '#166534' : '#374151'), position: 'absolute', top: 8, left: 8 }}>
+                            {item.isDisplay ? 'Tampil' : 'Hidden'}
+                          </span>
+                          {(item._noHpp > 0 || item._varians.length === 0) && (
+                            <span style={{ ...chip('#fee2e2', '#b91c1c'), position: 'absolute', top: 8, right: 8 }} title="Ada varian yang HPP-nya masih 0">
+                              {item._varians.length === 0 ? 'Belum ada varian' : `HPP kosong ${item._noHpp}/${item._varians.length}`}
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ padding: '8px 10px 10px' }}>
+                          <div style={{ fontSize: 11, color: textMuted, textTransform: 'uppercase', letterSpacing: .3 }}>{item.category || '-'}</div>
+                          <div style={{ fontWeight: 600, fontSize: 13, color: textMain, lineHeight: 1.3, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', minHeight: 34 }} title={item.judul}>
+                            {item.judul || 'Produk tanpa judul'}
+                          </div>
+                          <div style={{ fontSize: 12, color: textMuted, marginTop: 4 }}>
+                            {item._varians.length} varian
+                            {item._jualMax > 0 && (
+                              <> · <span style={{ color: textMain, fontWeight: 600 }}>
+                                {item._jualMin === item._jualMax ? rpShort(item._jualMin) : `${rpShort(item._jualMin)}–${rpShort(item._jualMax)}`}
+                              </span></>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                {pageItems.length === 0 && (
+                  <div style={{ padding: 40, textAlign: 'center', color: textMuted }}>Tidak ada produk yang cocok.</div>
+                )}
+                {/* pagination */}
+                {totalPages > 1 && (
+                  <div style={{ display: 'flex', gap: 6, justifyContent: 'center', alignItems: 'center', padding: '16px 0' }}>
+                    <button style={toolbarBtn(false)} disabled={pageSafe <= 1} onClick={() => setPage(pageSafe - 1)}>‹</button>
+                    {Array.from({ length: totalPages }, (_, i) => i + 1)
+                      .filter((n) => n === 1 || n === totalPages || Math.abs(n - pageSafe) <= 2)
+                      .reduce((acc, n, i, arr) => { if (i && n - arr[i - 1] > 1) acc.push('…'); acc.push(n); return acc; }, [])
+                      .map((n, i) => n === '…'
+                        ? <span key={`e${i}`} style={{ color: textMuted }}>…</span>
+                        : <button key={n} style={toolbarBtn(n === pageSafe)} onClick={() => setPage(n)}>{n}</button>)}
+                    <button style={toolbarBtn(false)} disabled={pageSafe >= totalPages} onClick={() => setPage(pageSafe + 1)}>›</button>
+                  </div>
+                )}
+              </div>
 
+              {/* ===== Panel detail produk terpilih ===== */}
+              <div style={{
+                width: 420, flexShrink: 0, position: 'sticky', top: 64, maxHeight: 'calc(100vh - 90px)', overflow: 'auto',
+                background: cardBg, border: `1px solid ${cardBorder}`, borderRadius: 12, padding: 14, color: textMain,
+              }}>
+                {!selected ? (
+                  <div style={{ color: textMuted, textAlign: 'center', padding: '60px 10px', fontSize: 13 }}>
+                    Klik salah satu produk untuk melihat & mengedit varian, HPP, harga jual, foto, dan status tampil.
+                  </div>
+                ) : (
+                  <>
+                    <div style={{ display: 'flex', gap: 12 }}>
+                      <div
+                        onClick={() => { setShowGambarDataModal(true); setIdProductEdit(selected.id); setSelectedDataProduct(selected); }}
+                        title="Kelola foto"
+                        style={{ width: 96, height: 96, borderRadius: 10, overflow: 'hidden', background: dark ? '#2a2a3a' : '#f3f4f6', cursor: 'pointer', flexShrink: 0 }}
+                      >
+                        {firstImage(selected)
+                          ? <img src={firstImage(selected)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          : <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: textMuted }}><FaRegImages /></div>}
+                      </div>
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div style={{ fontSize: 11, color: textMuted, textTransform: 'uppercase' }}>{selected.category || '-'}</div>
+                        <div style={{ fontWeight: 700, fontSize: 15, lineHeight: 1.3 }}>{selected.judul}</div>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, cursor: 'pointer', fontSize: 13 }}>
+                          <input type="checkbox" checked={!!selected.isDisplay} onChange={() => toggleDisplay(selected)} />
+                          <span style={chip(selected.isDisplay ? '#dcfce7' : '#e5e7eb', selected.isDisplay ? '#166534' : '#374151')}>
+                            {selected.isDisplay ? 'Tampil di website' : 'Hidden'}
+                          </span>
+                        </label>
+                      </div>
+                    </div>
 
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 12 }}>
+                      <button style={toolbarBtn(false)} onClick={() => openDetailModal(selected)}><MdOutlineEditNote /> Detail / Edit</button>
+                      <button style={toolbarBtn(false)} onClick={() => { setShowGambarDataModal(true); setIdProductEdit(selected.id); setSelectedDataProduct(selected); }}><FaRegImages /> Foto</button>
+                      <button style={toolbarBtn(false)} onClick={() => { setIdProductEdit(selected.id); refreshDataVarian(); setShowTambahVarianModal(true); }}><FiPlus /> Varian</button>
+                      <a href={`https://karyalogamfurniture.com/category/detail?id=${selected._id || selected.id}`} target="_blank" rel="noreferrer" style={{ ...toolbarBtn(false), textDecoration: 'none' }}>Lihat di website ↗</a>
+                    </div>
 
-
-
-
-
+                    {/* tabel varian: Jual bisa diedit langsung (autosave); klik nama varian → modal HPP per kategori */}
+                    <table style={{ width: '100%', marginTop: 14, fontSize: 13, borderCollapse: 'collapse' }}>
+                      <thead>
+                        <tr style={{ color: '#354985', fontSize: 12 }}>
+                          <th style={{ textAlign: 'left', padding: '6px 4px', borderBottom: `1px solid ${cardBorder}` }}>Varian</th>
+                          <th style={{ textAlign: 'right', padding: '6px 4px', borderBottom: `1px solid ${cardBorder}` }}>HPP</th>
+                          <th style={{ textAlign: 'right', padding: '6px 4px', borderBottom: `1px solid ${cardBorder}` }}>Jual</th>
+                          <th style={{ textAlign: 'right', padding: '6px 4px', borderBottom: `1px solid ${cardBorder}` }}>GPM</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {selected._varians.length === 0 && (
+                          <tr><td colSpan={4} style={{ padding: 12, color: textMuted, textAlign: 'center' }}>Belum ada varian — klik "+ Varian".</td></tr>
+                        )}
+                        {selected._varians.map((v) => {
+                          const hpp = hppOf(v);
+                          const pending = variantChanges[v.id] && variantChanges[v.id].jual !== undefined ? Number(variantChanges[v.id].jual) : null;
+                          const jual = pending !== null ? pending : (Number(v.jual) || 0);
+                          const gpm = jual > 0 ? ((jual - hpp) / jual) * 100 : null;
+                          const gpmColor = gpm === null ? textMuted : gpm < 30 ? '#c0392b' : '#1e7b34';
+                          return (
+                            <tr key={v.id}>
+                              <td style={{ padding: '6px 4px', borderBottom: `1px solid ${cardBorder}` }}>
+                                <span onClick={() => handleEditVarian(v)} style={{ cursor: 'pointer', textDecoration: 'underline dotted', textUnderlineOffset: 3 }} title="Edit varian & HPP per kategori">
+                                  {v.varian || '-'}
+                                </span>
+                              </td>
+                              <td style={{ padding: '6px 4px', textAlign: 'right', borderBottom: `1px solid ${cardBorder}`, color: hpp > 0 ? textMain : '#b91c1c', cursor: 'pointer' }} onClick={() => handleEditVarian(v)} title="Klik untuk isi HPP per kategori">
+                                {hpp > 0 ? rp(hpp) : 'belum diisi'}
+                              </td>
+                              <td style={{ padding: '4px', textAlign: 'right', borderBottom: `1px solid ${cardBorder}` }}>
+                                <NumericFormat
+                                  value={jual || ''}
+                                  thousandSeparator="."
+                                  decimalSeparator=","
+                                  prefix="Rp "
+                                  placeholder={hpp > 0 ? `min ${rp(Math.round(hpp / 0.7))}` : 'Rp'}
+                                  style={{ ...inputStyle, width: 130, textAlign: 'right', padding: '4px 6px', background: pending !== null ? '#fffbe6' : undefined }}
+                                  onValueChange={(values) => handleChangeVarian(v.id, 'jual', values.value)}
+                                />
+                              </td>
+                              <td style={{ padding: '6px 4px', textAlign: 'right', borderBottom: `1px solid ${cardBorder}`, color: gpmColor, fontWeight: 600 }}>
+                                {gpm === null ? '—' : `${gpm.toFixed(1)}%`}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                    <div style={{ fontSize: 11, color: textMuted, marginTop: 8 }}>
+                      Harga jual tersimpan otomatis beberapa detik setelah diketik. Klik nama varian / HPP untuk isi biaya per kategori.
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
         </Col>
       </Container>
 

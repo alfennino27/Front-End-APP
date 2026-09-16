@@ -17,6 +17,7 @@ import ConsistencyCheck from '../AI/ConsistencyCheck';
 import SPKPrecheckModal from '../AI/SPKPrecheckModal';
 import SPKLayoutModal from './SPKLayoutModal';
 import ImageUploadZone from './ImageUploadZone';
+import LinkProductCard from './LinkProductCard';
 import { format } from "date-fns";
 import { id } from 'date-fns/locale';
 import { useNavigate } from 'react-router-dom';
@@ -215,6 +216,7 @@ const DetailPekerjaan = () => {
   const bottomRef = useRef(null);
 
   const [canSeeTelepon, setCanSeeTelepon] = useState(false);
+  const [canLinkProduct, setCanLinkProduct] = useState(false); // akses hubungkan project ↔ produk website
   useEffect(() => {
     if (!user?.uid) return;
     fetch(`${baseUrl}/useraccess/get`)
@@ -222,6 +224,9 @@ const DetailPekerjaan = () => {
       .then(data => {
         const has = data.some(a => a.uid === user.uid && a.menu === 'Lihat Telepon' && a.value === true);
         setCanSeeTelepon(has);
+        // owner (super admin) selalu boleh; user lain via User Management → "Link Project ke Produk Website"
+        const superAdmin = ['fYpdHwXRDLhj5XGxM5FZIAvxp9E2', 'w4M5JJjgGQeHFbS2nkyoCfUBE532'].includes(user.uid);
+        setCanLinkProduct(superAdmin || data.some(a => a.uid === user.uid && a.menu === 'Link Produk' && a.value === true));
       })
       .catch(() => {});
   }, []);
@@ -2033,6 +2038,11 @@ const DetailPekerjaan = () => {
 
           {slug && dataProjectFromDB.length > 0 && (
             <ConsistencyCheck projectId={slug} itemName={dataProjectFromDB[0]?.NamaBarang} />
+          )}
+
+          {/* Hubungkan project ke produk katalog website (foto BarangJadi tampil di halaman produk) */}
+          {slug && dataProjectFromDB.length > 0 && (
+            <LinkProductCard projectId={slug} linkProduct={dataProjectFromDB[0]?.linkProduct} canEdit={canLinkProduct} theme={globalTheme} />
           )}
 
           <div onClick={handleShowInformationModal}>

@@ -46,6 +46,7 @@ import Register from './Components/Auth/Register';
 import AppraisalPage from './Pages/AppraisalPage';
 import PriceListPage from './Pages/PriceListPage';
 import ProductsPage from './Pages/ProductsPage';
+import ProductNewPage from './Pages/ProductNewPage';
 import CategoryPage from './Pages/CategoryPage';
 import TodoPage from './Pages/TodoPage';
 import ModalGuard from './Components/ModalGuard';
@@ -106,6 +107,7 @@ function App() {
         <Route path="/appraisal" element={<AppraisalPage />} />
         <Route path="/pricelist" element={<PriceListPage />} />
         <Route path="/products" element={<ProductsPage />} />
+        <Route path="/products/new" element={<ProductNewPage />} />
         <Route path="/login" element={<Login />} />
         <Route path="/logout" element={<Logout />} />
         <Route path="/direct-login/:slug" element={<DirectLogin />} />

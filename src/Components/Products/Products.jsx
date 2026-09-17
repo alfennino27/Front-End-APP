@@ -725,7 +725,7 @@ const Products = () => {
   const [filterStatus, setFilterStatus] = useState('all');   // all | display | hidden | nohpp
   const [pageSize, setPageSize] = useState(() => Number(localStorage.getItem('products.pageSize')) || 20);
   const [page, setPage] = useState(1);
-  const [selectedId, setSelectedId] = useState(null);
+  const [selectedId, setSelectedId] = useState(() => new URLSearchParams(window.location.search).get('id') || null);
 
   const hppOf = (v) => ['stainless', 'besi', 'kayu', 'jok', 'rotan', 'finishing', 'marmer', 'fiber', 'veneer']
     .reduce((a, k) => a + (Number(v[k]) || 0), 0);
@@ -970,7 +970,8 @@ const Products = () => {
             </button>
             <button
               style={{ ...toolbarBtn(true), fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}
-              onClick={() => { setShowTambahDataModal(true); refreshData(); }}
+              onClick={() => window.open('/products/new', '_blank')}
+              title="Buka halaman tambah produk (tab baru)"
             >
               <FiPlus /> Produk Baru
             </button>

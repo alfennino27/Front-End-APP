@@ -236,7 +236,8 @@ const ProductNew = () => {
   return (
     <div style={{ background: bg, minHeight: '100vh', color: text }}>
       {/* header sticky */}
-      <div style={{ position: 'sticky', top: 0, zIndex: 5, background: card, borderBottom: `1px solid ${border}`, padding: '10px 20px', display: 'flex', alignItems: 'center', gap: 12 }}>
+      <div style={{ position: 'sticky', top: 0, zIndex: 5, background: card, borderBottom: `1px solid ${border}` }}>
+        <div style={{ maxWidth: 1100, margin: '0 auto', padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
         <button style={btn(false)} onClick={() => navigate('/products')}><FiArrowLeft /> Kembali</button>
         <div style={{ fontWeight: 700, fontSize: 17 }}>Tambah Produk Baru</div>
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -248,9 +249,7 @@ const ProductNew = () => {
               <button style={{ ...btn(false), color: '#c0392b' }}>Buang draft</button>
             </Popconfirm>
           )}
-          <span style={{ fontSize: 13, color: muted }}>Tampil di website</span>
-          <Switch checked={isDisplay} onChange={setIsDisplay} />
-          <button style={btn(true)} disabled={saving} onClick={save}>{saving ? 'Menyimpan…' : 'Simpan Produk'}</button>
+        </div>
         </div>
       </div>
 
@@ -384,9 +383,15 @@ const ProductNew = () => {
               <div><span style={{ color: muted }}>Label:</span> {labels.length ? labels.join(', ') : '-'}</div>
               <div><span style={{ color: muted }}>Varian:</span> {varians.length}</div>
               <div><span style={{ color: muted }}>Harga:</span> {(() => { const j = totals.map((t) => t.jual).filter((x) => x > 0); return j.length ? (Math.min(...j) === Math.max(...j) ? rp(j[0]) : `${rp(Math.min(...j))} – ${rp(Math.max(...j))}`) : '-'; })()}</div>
-              <div><span style={{ color: muted }}>Status:</span> {isDisplay ? 'Tampil di website' : 'Hidden'}</div>
             </div>
-            <button style={{ ...btn(true), width: '100%', justifyContent: 'center', marginTop: 14, padding: '11px 14px', fontSize: 14 }} disabled={saving} onClick={save}>{saving ? 'Menyimpan…' : 'Simpan Produk'}</button>
+            <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginTop: 14, padding: '10px 12px', border: `1px solid ${border}`, borderRadius: 10, cursor: 'pointer' }}>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 600 }}>Tampil di website</div>
+                <div style={{ fontSize: 11, color: muted }}>{isDisplay ? 'Produk langsung terlihat customer setelah disimpan' : 'Disimpan sebagai hidden — bisa ditampilkan nanti'}</div>
+              </div>
+              <Switch checked={isDisplay} onChange={setIsDisplay} />
+            </label>
+            <button style={{ ...btn(true), width: '100%', justifyContent: 'center', marginTop: 10, padding: '11px 14px', fontSize: 14 }} disabled={saving} onClick={save}>{saving ? 'Menyimpan…' : 'Simpan Produk'}</button>
           </Section>
         </div>
       </div>

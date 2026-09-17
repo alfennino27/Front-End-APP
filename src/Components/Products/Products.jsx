@@ -18,6 +18,7 @@ import { FiEdit, FiMinus, FiPlus } from "react-icons/fi";
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons';
 import { NumericFormat } from 'react-number-format';
 import ImageUploadZone from '../Pekerjaan/ImageUploadZone';
+import ProductOptionsEditor from './ProductOptionsEditor';
 
 const { Option } = Select;
 
@@ -1624,6 +1625,16 @@ const Products = () => {
                     <div style={{ fontSize: 11, color: textMuted, marginTop: 8 }}>
                       Harga jual tersimpan otomatis beberapa detik setelah diketik. Klik nama varian / HPP untuk isi biaya per kategori.
                     </div>
+
+                    {/* opsi tambahan (konfigurator website): kursi utk meja makan, dll */}
+                    <ProductOptionsEditor
+                      product={selected}
+                      products={dataProducts}
+                      varians={dataVarian}
+                      categories={dataCategory}
+                      theme={globalTheme}
+                      onSaved={(opts) => setDataProducts((prev) => prev.map((p) => (p.id === selected.id ? { ...p, options: opts } : p)))}
+                    />
                   </>
                 )}
               </div>

@@ -775,6 +775,21 @@ const Products = () => {
 
   const selected = enriched.find((p) => p.id === selectedId) || null;
 
+  // ---- Draft produk baru (autosave dari /products/new) ----
+  const [drafts, setDrafts] = useState([]);
+  const [showDrafts, setShowDrafts] = useState(false);
+  const fetchDrafts = () => fetch(`${baseUrl}/products/drafts/get`).then((r) => r.json()).then((d) => setDrafts(Array.isArray(d) ? d : [])).catch(() => {});
+  useEffect(() => {
+    fetchDrafts();
+    const onFocus = () => { fetchDrafts(); fetchDataProducts(); fetchDataVarian(); }; // balik dari tab tambah produk → segarkan
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, []);
+  const deleteDraft = async (id) => {
+    try { await fetch(`${baseUrl}/products/drafts/delete/${id}`, { method: 'DELETE' }); } catch (e) { /* abaikan */ }
+    fetchDrafts();
+  };
+
   // ---- Label produk (ongkir wajib + label per kategori) — master di koleksi ProductLabels ----
   const [labelMaster, setLabelMaster] = useState({ defaultOngkir: 'Gratis ongkir', labels: [] });
   const [showLabelMgr, setShowLabelMgr] = useState(false);
@@ -968,6 +983,11 @@ const Products = () => {
             <button style={{ ...toolbarBtn(false), marginLeft: 'auto' }} onClick={() => { setLabelMgrCat(filterCategory || (dataCategory[0] && dataCategory[0].name) || ''); setShowLabelMgr(true); }} title="Kelola tag ongkir & label produk">
               ⚙ Label
             </button>
+            {drafts.length > 0 && (
+              <button style={{ ...toolbarBtn(false), borderColor: '#e08a2f', color: '#e08a2f' }} onClick={() => setShowDrafts(true)} title="Produk yang belum selesai diisi">
+                ✎ Draft ({drafts.length})
+              </button>
+            )}
             <button
               style={{ ...toolbarBtn(true), fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}
               onClick={() => window.open('/products/new', '_blank')}
@@ -2319,6 +2339,31 @@ const Products = () => {
             Submit
           </Button>
         </Modal.Footer>
+      </Modal>
+
+      {/* ===== Modal daftar draft produk baru ===== */}
+      <Modal show={showDrafts} onHide={() => setShowDrafts(false)} centered>
+        <Modal.Header closeButton><Modal.Title style={{ fontSize: 17 }}>Draft Produk Baru</Modal.Title></Modal.Header>
+        <Modal.Body>
+          {drafts.length === 0 && <div className="text-muted">Tidak ada draft.</div>}
+          {drafts.map((d) => (
+            <div key={d.id} style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '8px 0', borderBottom: `1px solid ${cardBorder}` }}>
+              <div style={{ width: 48, height: 48, borderRadius: 8, background: '#eee', overflow: 'hidden', flexShrink: 0 }}>
+                {d.photos && d.photos[0] && <img src={getImageUrl(d.photos[0])} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 600, fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{(d.data && d.data.judul) || '(tanpa judul)'}</div>
+                <div style={{ fontSize: 11, color: textMuted }}>
+                  {(d.data && d.data.category) || '-'} · {(d.photos || []).length} foto · {(d.data && d.data.varians ? d.data.varians.length : 0)} varian · {d.updated_at ? new Date(d.updated_at).toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''}
+                </div>
+              </div>
+              <button className="btn btn-sm btn-primary" onClick={() => { window.open(`/products/new?draft=${d.id}`, '_blank'); setShowDrafts(false); }}>Lanjutkan</button>
+              <Popconfirm title="Buang draft ini?" onConfirm={() => deleteDraft(d.id)} okText="Buang" cancelText="Batal">
+                <button className="btn btn-sm btn-outline-danger"><MdDelete /></button>
+              </Popconfirm>
+            </div>
+          ))}
+        </Modal.Body>
       </Modal>
 
       {/* ===== Modal kelola label: tag ongkir (global) & label produk per kategori ===== */}

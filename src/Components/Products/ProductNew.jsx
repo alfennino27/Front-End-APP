@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Select, Input, message, Switch, Popconfirm } from 'antd';
 import { FiPlus, FiTrash2, FiCopy, FiChevronLeft, FiChevronRight, FiArrowLeft } from 'react-icons/fi';
 import { FaRegImages, FaStar } from 'react-icons/fa';
@@ -7,6 +7,7 @@ import { NumericFormat } from 'react-number-format';
 import { getApiBaseUrl } from '../../Config/APIurl';
 import { useTheme } from '../../ThemeContext';
 import { compressImageFiles } from '../../Utils/compressImage';
+import { getImageUrl } from '../../Utils/image';
 import { isHeic } from '../../Utils/heic';
 
 /**
@@ -63,8 +64,17 @@ const ProductNew = () => {
   const [model3d, setModel3d] = useState(null);
   const [isDisplay, setIsDisplay] = useState(true);
   const [varians, setVarians] = useState([emptyVarian()]);
-  const [photos, setPhotos] = useState([]); // [{file, url}]
+  const [photos, setPhotos] = useState([]); // [{url}] — url di server (foto draft langsung diupload)
   const [saving, setSaving] = useState(false);
+  // ---- draft & autosave ----
+  const [searchParams] = useSearchParams();
+  const [draftId, setDraftId] = useState(searchParams.get('draft') || null);
+  const draftIdRef = useRef(draftId);
+  useEffect(() => { draftIdRef.current = draftId; }, [draftId]);
+  const [draftStatus, setDraftStatus] = useState(''); // '', 'Menyimpan…', 'Tersimpan HH:MM', 'Gagal'
+  const [draftLoaded, setDraftLoaded] = useState(!searchParams.get('draft'));
+  const dirtyRef = useRef(false);
+  const timerRef = useRef(null);
   const [dragOver, setDragOver] = useState(false);
   const [dragIdx, setDragIdx] = useState(null);
   const fileRef = useRef(null);
@@ -72,18 +82,83 @@ const ProductNew = () => {
 
   const ongkirOptions = labelMaster.labels.filter((l) => l.type === 'ongkir');
   const labelOptions = labelMaster.labels.filter((l) => l.type === 'label' && l.category === category);
-  useEffect(() => { setLabels([]); }, [category]); // label ikut kategori
+  const prevCatRef = useRef(category);
+  useEffect(() => { if (prevCatRef.current && prevCatRef.current !== category) setLabels([]); prevCatRef.current = category; }, [category]); // ganti kategori → label direset
+
+  // muat draft (?draft=id)
+  useEffect(() => {
+    const id = searchParams.get('draft');
+    if (!id) return;
+    fetch(`${baseUrl}/products/drafts/get`).then((r) => r.json()).then((rows) => {
+      const d = (rows || []).find((x) => x.id === id);
+      if (!d) { message.warning('Draft tidak ditemukan'); setDraftId(null); setDraftLoaded(true); return; }
+      const dt = d.data || {};
+      setJudul(dt.judul || ''); setDeskripsi(dt.deskripsi || ''); setCategory(dt.category || '');
+      if (dt.ongkirTag) setOngkirTag(dt.ongkirTag);
+      setVideo(Array.isArray(dt.video) && dt.video.length === 3 ? dt.video : ['', '', '']);
+      setIsDisplay(dt.isDisplay !== false);
+      setVarians(Array.isArray(dt.varians) && dt.varians.length ? dt.varians.map((v) => ({ ...emptyVarian(), ...v, open: false })) : [emptyVarian()]);
+      setPhotos((d.photos || []).map((u) => ({ url: u })));
+      // labels diset setelah category (efek reset label hanya saat kategori BERUBAH dari nilai sebelumnya)
+      setTimeout(() => setLabels(Array.isArray(dt.labels) ? dt.labels : []), 0);
+      setDraftLoaded(true);
+      setDraftStatus(d.updated_at ? `Tersimpan ${new Date(d.updated_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}` : '');
+    }).catch(() => setDraftLoaded(true));
+  }, []);
+
+  // autosave: 1,5 detik setelah perubahan terakhir (setelah draft dimuat). Draft dibuat saat ada isi.
+  const draftPayload = () => ({ judul, deskripsi, category, ongkirTag, labels, video, isDisplay, varians: varians.map(({ key, open, ...v }) => v) });
+  const hasContent = () => judul.trim() || deskripsi.trim() || category || photos.length || varians.some((v) => v.varian || num(v.jual) > 0);
+  const saveDraft = async (photoList) => {
+    if (!hasContent() && !draftIdRef.current) return null;
+    setDraftStatus('Menyimpan…');
+    try {
+      const r = await fetch(`${baseUrl}/products/drafts/save`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: draftIdRef.current, uid: user?.uid, data: draftPayload(), photos: (photoList || photos).map((p) => p.url) }),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.message);
+      if (!draftIdRef.current) { draftIdRef.current = d.id; setDraftId(d.id); window.history.replaceState(null, '', `/products/new?draft=${d.id}`); }
+      dirtyRef.current = false;
+      setDraftStatus(`Tersimpan ${new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}`);
+      return d.id;
+    } catch (e) { setDraftStatus('Gagal autosave'); return null; }
+  };
+  useEffect(() => {
+    if (!draftLoaded) return;
+    dirtyRef.current = true;
+    clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => { if (dirtyRef.current) saveDraft(); }, 1500);
+    return () => clearTimeout(timerRef.current);
+  }, [judul, deskripsi, category, ongkirTag, labels, video, isDisplay, varians, photos, draftLoaded]);
+  // peringatan kalau tutup tab saat masih ada perubahan yang belum tersimpan
+  useEffect(() => {
+    const h = (e) => { if (dirtyRef.current && hasContent()) { e.preventDefault(); e.returnValue = ''; } };
+    window.addEventListener('beforeunload', h);
+    return () => window.removeEventListener('beforeunload', h);
+  });
 
   // ---- foto: tambah (drop / pilih / paste), hapus, geser urutan ----
   const addFiles = async (incoming) => {
     const files = Array.from(incoming || []).filter((f) => f && ((f.type && f.type.startsWith('image/')) || isHeic(f)));
     if (!files.length) return;
     if (photos.length + files.length > 50) { message.error('Maksimal 50 foto'); return; }
-    const hide = message.loading('Memproses foto…', 0);
+    const hide = message.loading('Mengupload foto…', 0);
     try {
       const compressed = await compressImageFiles(files);
-      setPhotos((prev) => [...prev, ...compressed.map((f) => ({ file: f, url: URL.createObjectURL(f) }))]);
-    } finally { hide(); }
+      // pastikan draft ada dulu (foto disimpan ke draft supaya aman kalau tab ditutup)
+      let id = draftIdRef.current;
+      if (!id) id = await saveDraft([]);
+      if (!id) throw new Error('Draft belum bisa dibuat');
+      const fd = new FormData();
+      compressed.forEach((f) => fd.append('images', f));
+      const r = await fetch(`${baseUrl}/products/drafts/${id}/photos`, { method: 'POST', body: fd });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.message || 'Upload gagal');
+      setPhotos((prev) => [...prev, ...(d.urls || []).map((u) => ({ url: u }))]);
+    } catch (e) { message.error(e.message); }
+    finally { hide(); }
   };
   useEffect(() => {
     const onPaste = (e) => {
@@ -97,7 +172,7 @@ const ProductNew = () => {
     if (to < 0 || to >= photos.length || from === to) return;
     setPhotos((prev) => { const a = [...prev]; const [x] = a.splice(from, 1); a.splice(to, 0, x); return a; });
   };
-  const removePhoto = (i) => setPhotos((prev) => { URL.revokeObjectURL(prev[i].url); return prev.filter((_, j) => j !== i); });
+  const removePhoto = (i) => setPhotos((prev) => prev.filter((_, j) => j !== i));
 
   // ---- varian helpers ----
   const setV = (key, patch) => setVarians((prev) => prev.map((v) => (v.key === key ? { ...v, ...patch } : v)));
@@ -127,15 +202,25 @@ const ProductNew = () => {
       fd.append('labels', JSON.stringify(labels));
       fd.append('isDisplay', String(isDisplay));
       fd.append('varians', JSON.stringify(varians.map(({ key, open, ...v }) => v)));
-      photos.forEach((p) => fd.append('images', p.file));
+      fd.append('existingImages', JSON.stringify(photos.map((p) => p.url)));
+      if (draftIdRef.current) fd.append('draftId', draftIdRef.current);
       if (model3d) fd.append('model3d', model3d);
       const r = await fetch(`${baseUrl}/products/create-full`, { method: 'POST', body: fd });
       const d = await r.json();
       if (!r.ok) throw new Error(d.message || 'Gagal menyimpan');
+      dirtyRef.current = false;
       message.success('Produk tersimpan');
       navigate(`/products?id=${d.insertedId}`);
     } catch (e) { message.error(e.message); }
     finally { setSaving(false); }
+  };
+
+  const discardDraft = async () => {
+    if (draftIdRef.current) {
+      try { await fetch(`${baseUrl}/products/drafts/delete/${draftIdRef.current}`, { method: 'DELETE' }); } catch (e) { /* abaikan */ }
+    }
+    dirtyRef.current = false;
+    navigate('/products');
   };
 
   // ---- style ----
@@ -155,6 +240,14 @@ const ProductNew = () => {
         <button style={btn(false)} onClick={() => navigate('/products')}><FiArrowLeft /> Kembali</button>
         <div style={{ fontWeight: 700, fontSize: 17 }}>Tambah Produk Baru</div>
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span style={{ fontSize: 12, color: draftStatus.startsWith('Gagal') ? '#c0392b' : muted }} title="Draft tersimpan otomatis; bisa dilanjutkan dari tombol Draft di halaman Products">
+            {draftStatus ? `Draft · ${draftStatus}` : 'Draft otomatis tersimpan'}
+          </span>
+          {draftId && (
+            <Popconfirm title="Buang draft ini? Foto yang sudah diupload ikut dihapus." onConfirm={discardDraft} okText="Buang" cancelText="Batal">
+              <button style={{ ...btn(false), color: '#c0392b' }}>Buang draft</button>
+            </Popconfirm>
+          )}
           <span style={{ fontSize: 13, color: muted }}>Tampil di website</span>
           <Switch checked={isDisplay} onChange={setIsDisplay} />
           <button style={btn(true)} disabled={saving} onClick={save}>{saving ? 'Menyimpan…' : 'Simpan Produk'}</button>
@@ -164,7 +257,7 @@ const ProductNew = () => {
       <div style={{ maxWidth: 1100, margin: '0 auto', padding: '18px 16px 80px', display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 360px', gap: 14 }} className="klf-pn-grid">
         <div>
           {/* FOTO */}
-          <Section th={th} title="Foto Produk" hint="Foto pertama = foto utama di website. Geser kartu (drag) atau pakai panah untuk mengatur urutan. Bisa drag & drop dari Finder/Photos, klik untuk pilih file, atau paste (Cmd/Ctrl+V).">
+          <Section th={th} title="Foto Produk" hint="Foto pertama = foto utama di website. Geser kartu (drag) atau pakai panah untuk mengatur urutan. Bisa drag & drop dari Finder/Photos, klik untuk pilih file, atau paste (Cmd/Ctrl+V). Foto langsung tersimpan ke draft.">
             <div
               onClick={() => fileRef.current && fileRef.current.click()}
               onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
@@ -189,7 +282,7 @@ const ProductNew = () => {
                     onDragEnd={() => setDragIdx(null)}
                     style={{ position: 'relative', borderRadius: 10, overflow: 'hidden', border: `2px solid ${i === 0 ? '#013175' : border}`, aspectRatio: '1 / 1', background: '#eee', cursor: 'grab', opacity: dragIdx === i ? 0.4 : 1 }}
                   >
-                    <img src={p.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', pointerEvents: 'none' }} />
+                    <img src={getImageUrl(p.url)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', pointerEvents: 'none' }} />
                     {i === 0 && <span style={{ position: 'absolute', top: 6, left: 6, fontSize: 10, fontWeight: 700, background: '#013175', color: '#fff', padding: '2px 7px', borderRadius: 999, display: 'flex', alignItems: 'center', gap: 3 }}><FaStar size={9} /> Utama</span>}
                     <span style={{ position: 'absolute', bottom: 6, left: 6, fontSize: 10, background: 'rgba(0,0,0,.55)', color: '#fff', padding: '1px 6px', borderRadius: 999 }}>{i + 1}</span>
                     <button type="button" onClick={(e) => { e.stopPropagation(); removePhoto(i); }} title="Hapus" style={{ position: 'absolute', top: 6, right: 6, border: 'none', background: 'rgba(220,38,38,.9)', color: '#fff', borderRadius: '50%', width: 22, height: 22, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><FiTrash2 size={12} /></button>
@@ -273,7 +366,7 @@ const ProductNew = () => {
             {video.map((v, i) => (
               <Field th={th} key={i} label={`Link video ${i + 1}`}><input style={input} value={v} onChange={(e) => setVideo((prev) => prev.map((x, j) => (j === i ? e.target.value : x)))} placeholder="https://…" /></Field>
             ))}
-            <Field th={th} label="3D Model (.glb)">
+            <Field th={th} label="3D Model (.glb) — tidak ikut draft, pilih saat akan simpan">
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                 <button type="button" style={btn(false)} onClick={() => glbRef.current && glbRef.current.click()}>Pilih file</button>
                 <span style={{ fontSize: 12, color: muted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{model3d ? model3d.name : 'Belum ada'}</span>

@@ -817,6 +817,16 @@ const Products = () => {
       if (!r.ok) throw new Error((await r.json()).message);
     } catch (e) { message.error(`Gagal simpan tag: ${e.message}`); fetchDataProducts(); }
   };
+  // aturan opsi per kategori (bundling), mis. Dining Table → Kursi dari Dining Chair
+  const [ruleNew, setRuleNew] = useState({ nama: 'Kursi', sourceCategory: '', noneLabel: 'Tanpa kursi' });
+  const catRules = (dataCategory.find((c) => c.name === labelMgrCat) || {}).addonRules || [];
+  const saveRules = async (rules) => {
+    const r = await fetch(`${baseUrl}/products/category/addon-rules`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ categoryName: labelMgrCat, addonRules: rules }) });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) { message.error(d.message || 'Gagal'); return; }
+    message.success('Aturan opsi tersimpan');
+    fetchDataCategory();
+  };
   const labelApi = async (method, path, body) => {
     const r = await fetch(`${baseUrl}${path}`, { method, headers: { 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
     const d = await r.json().catch(() => ({}));
@@ -2434,6 +2444,34 @@ const Products = () => {
             </div>
           ))}
           <div className="text-muted" style={{ fontSize: 11 }}>Ubah nama: edit lalu klik di luar / Enter — produk yang memakainya ikut berubah.</div>
+
+          {/* ===== Opsi kategori (bundling): semua produk kategori ini otomatis dapat grup pilihan dari kategori lain ===== */}
+          <div className="mt-4">
+            <div className="fw-semibold">Opsi Tambahan Kategori{labelMgrCat ? ` — ${labelMgrCat}` : ''}</div>
+            <div className="text-muted" style={{ fontSize: 12 }}>Semua produk kategori ini otomatis bisa ditambah produk dari kategori lain di website (mis. Dining Table → Kursi dari Dining Chair). Harga ikut produk sumber; yang hidden tidak muncul.</div>
+            {!labelMgrCat && <div className="text-muted" style={{ fontSize: 12, marginTop: 6 }}>Pilih kategori di atas dulu.</div>}
+            {labelMgrCat && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
+                {catRules.map((r) => (
+                  <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
+                    <span style={{ flex: 1 }}><b>{r.nama}</b> ← semua produk <b>{r.sourceCategory}</b> <span className="text-muted">· "{r.noneLabel || 'Tanpa'}"</span></span>
+                    <Popconfirm title="Hapus aturan ini?" onConfirm={() => saveRules(catRules.filter((x) => x.id !== r.id))} okText="Hapus" cancelText="Batal">
+                      <button className="btn btn-sm btn-outline-danger"><MdDelete /></button>
+                    </Popconfirm>
+                  </div>
+                ))}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.3fr 1fr auto', gap: 6 }}>
+                  <input className="form-control form-control-sm" placeholder="Nama grup (Kursi)" value={ruleNew.nama} onChange={(e) => setRuleNew((n) => ({ ...n, nama: e.target.value }))} />
+                  <Select size="small" placeholder="Kategori sumber" value={ruleNew.sourceCategory || undefined} onChange={(v) => setRuleNew((n) => ({ ...n, sourceCategory: v }))}
+                    showSearch optionFilterProp="label" getPopupContainer={(node) => node.parentNode}
+                    options={dataCategory.filter((c) => c.name !== labelMgrCat).map((c) => ({ value: c.name, label: c.name }))} />
+                  <input className="form-control form-control-sm" placeholder="Teks tanpa (Tanpa kursi)" value={ruleNew.noneLabel} onChange={(e) => setRuleNew((n) => ({ ...n, noneLabel: e.target.value }))} />
+                  <button className="btn btn-sm btn-primary" disabled={!ruleNew.nama.trim() || !ruleNew.sourceCategory}
+                    onClick={() => saveRules([...catRules, { id: Math.random().toString(36).slice(2, 10), nama: ruleNew.nama.trim(), sourceCategory: ruleNew.sourceCategory, noneLabel: ruleNew.noneLabel.trim() }])}><FiPlus /></button>
+                </div>
+              </div>
+            )}
+          </div>
         </Modal.Body>
       </Modal>
 

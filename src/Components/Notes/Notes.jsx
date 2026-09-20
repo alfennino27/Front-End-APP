@@ -8,6 +8,31 @@ import { useTheme } from '../../ThemeContext';
 import ReactQuill from 'react-quill';
 import '../../../node_modules/react-quill/dist/quill.snow.css';
 
+// Quill secara default merapikan whitespace saat paste, jadi indentasi (tab / spasi
+// awal baris) dari text editor biasa hilang. Wrapper ini menangkap paste text/plain
+// dan memasukkannya apa adanya lewat insertText (tab tetap tersimpan sebagai \t).
+const NoteEditor = ({ value, onChange, modules, style }) => {
+  const ref = useRef(null);
+  useEffect(() => {
+    const quill = ref.current?.getEditor?.();
+    if (!quill) return;
+    const onPaste = (e) => {
+      const html = e.clipboardData?.getData('text/html');
+      const text = e.clipboardData?.getData('text/plain');
+      if (html || !text) return; // paste kaya format (dari web/Word) biarkan Quill yang urus
+      e.preventDefault();
+      const range = quill.getSelection(true) || { index: quill.getLength() - 1, length: 0 };
+      if (range.length) quill.deleteText(range.index, range.length, 'user');
+      quill.insertText(range.index, text, 'user');
+      quill.setSelection(range.index + text.length, 0, 'silent');
+    };
+    // capture di container (induk root) supaya jalan sebelum handler clipboard Quill
+    quill.container.addEventListener('paste', onPaste, true);
+    return () => quill.container.removeEventListener('paste', onPaste, true);
+  }, []);
+  return <ReactQuill ref={ref} theme="snow" value={value} onChange={onChange} modules={modules} style={style} />;
+};
+
 const Notes = () => {
   const baseUrl = getApiBaseUrl();
   const { globalTheme } = useTheme();
@@ -239,7 +264,7 @@ const Notes = () => {
       [{ header: [1, 2, 3, false] }], // Header
       ['bold', 'italic', 'underline', 'strike'], // Gaya teks
       [{ color: [] }, { background: [] }], // Warna teks & latar belakang
-      [{ list: 'ordered' }, { list: 'bullet' }], // List
+      [{ list: 'ordered' }, { list: 'bullet' }, { indent: '-1' }, { indent: '+1' }], // List & indent
       [{ align: [] }], // Perataan teks
       ['link', 'image'], // Tautan dan gambar
       ['clean'], // Hapus format
@@ -337,8 +362,7 @@ const Notes = () => {
                 <label className='mt-2'>Title :</label>
                 <input className="form-control" type='text' value={titleInput} onChange={(e) => setTitleInput(e.target.value)} required></input>
                 <label className='mt-2'>Detail :</label>
-                <ReactQuill
-                  theme="snow"
+                <NoteEditor
                   value={detailInput}
                   onChange={setDetailInput}
                   modules={modules}
@@ -369,8 +393,7 @@ const Notes = () => {
                 <input className="form-control" type='text' value={titleInput} onChange={(e) => setTitleInput(e.target.value)} required></input>
                 <label className='mt-2'>Detail :</label>
                 {/* <textarea className="form-control" type='text' rows="10" value={detailInput} onChange={(e) => setDetailInput(e.target.value)} required></textarea> */}
-                <ReactQuill
-                  theme="snow"
+                <NoteEditor
                   value={detailInput}
                   onChange={setDetailInput}
                   modules={modules}

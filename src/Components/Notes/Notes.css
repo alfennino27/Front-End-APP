@@ -22,3 +22,6 @@
 .notes-detail p:empty::before {
   content: '\00a0';
 }
+
+/* Tampilkan tab & spasi ganda persis seperti di editor (Quill .ql-editor pakai pre-wrap + tab-size 4) */
+.notes-detail { white-space: pre-wrap; tab-size: 4; }

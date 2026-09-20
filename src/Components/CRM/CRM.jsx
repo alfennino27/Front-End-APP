@@ -44,7 +44,7 @@ export default function CRM() {
   const [grossProfit, setGrossProfit] = useState('');
   const [qualityNote, setQualityNote] = useState('');
   const [editingCampaign, setEditingCampaign] = useState(null);
-  const [campForm, setCampForm] = useState({ nama:'', platform:'instagram', bulan:'', spend:'', status:'active' });
+  const [campForm, setCampForm] = useState({ nama:'', platform:'instagram', bulan:'', spend:'', status:'active', thumbnail:'' });
   const [showUploadModal, setShowUploadModal] = useState(false); // dialog drag & drop file (sebelum preview)
   const [uploadDragOver, setUploadDragOver] = useState(false);   // highlight dropzone di dalam dialog
   const [showImportModal, setShowImportModal] = useState(false);
@@ -172,10 +172,27 @@ export default function CRM() {
     setShowDeleteConfirm(false); setShowLeadDetail(false); fetchAll();
   };
 
+  const [thumbPreview, setThumbPreview] = useState(null); // {src, nama} untuk modal preview besar
+  const [uploadingThumb, setUploadingThumb] = useState(false);
+  const thumbUrl = (p) => p ? (p.startsWith('http') ? p : baseUrl + p) : '';
+
+  const handleUploadThumb = async (file) => {
+    if (!file) return;
+    setUploadingThumb(true);
+    try {
+      const fd = new FormData(); fd.append('file', file);
+      const r = await fetch(baseUrl+'/crm/campaigns/upload-thumbnail', {method:'POST', body:fd});
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.message||'Gagal upload');
+      setCampForm(f=>({...f, thumbnail:j.path}));
+    } catch(e) { alert('Upload thumbnail gagal: '+e.message); }
+    finally { setUploadingThumb(false); }
+  };
+
   const handleSaveCampaign = async () => {
     const url = editingCampaign ? baseUrl+'/crm/campaigns/update/'+editingCampaign.id : baseUrl+'/crm/campaigns/create';
     await fetch(url, {method:editingCampaign?'PUT':'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(campForm)});
-    setShowCampaignModal(false); setEditingCampaign(null); setCampForm({nama:'',platform:'instagram',bulan:'',spend:'',status:'active'}); fetchAll();
+    setShowCampaignModal(false); setEditingCampaign(null); setCampForm({nama:'',platform:'instagram',bulan:'',spend:'',status:'active',thumbnail:''}); fetchAll();
   };
 
   const parseCSVLine = (line) => {
@@ -482,7 +499,7 @@ export default function CRM() {
               title="Buka dialog import: drag & drop file .csv export Meta Ads, atau klik Pilih File"
               onClick={()=>{setUploadDragOver(false);setShowUploadModal(true);}}
             ><MdFileUpload/> Import Meta Ads</Button>
-            <Button size="sm" variant="primary" onClick={()=>{setEditingCampaign(null);setCampForm({nama:'',platform:'instagram',bulan:'',spend:'',status:'active'});setShowCampaignModal(true);}}><MdAdd/> Tambah Campaign</Button>
+            <Button size="sm" variant="primary" onClick={()=>{setEditingCampaign(null);setCampForm({nama:'',platform:'instagram',bulan:'',spend:'',status:'active',thumbnail:''});setShowCampaignModal(true);}}><MdAdd/> Tambah Campaign</Button>
           </>}
         </div>
       </div>
@@ -584,6 +601,9 @@ export default function CRM() {
                         {hasDailyData&&<button onClick={()=>setExpandedCamp(isExpanded?null:camp.id)} style={{border:'none',background:'none',cursor:'pointer',color:'#013175',fontSize:16,lineHeight:1,padding:0}}>{isExpanded?'▾':'▸'}</button>}
                       </td>
                       <td style={{padding:'8px 6px',fontWeight:600,color:text}}>
+                        {camp.thumbnail
+                          ? <img src={thumbUrl(camp.thumbnail)} alt="" onClick={()=>setThumbPreview({src:thumbUrl(camp.thumbnail),nama:camp.nama})} title="Klik untuk perbesar" style={{width:44,height:44,objectFit:'cover',borderRadius:6,marginRight:8,verticalAlign:'middle',cursor:'zoom-in',border:'1px solid '+(dark?'#333':'#e5e5e5')}}/>
+                          : <span style={{display:'inline-block',width:44,height:44,borderRadius:6,marginRight:8,verticalAlign:'middle',background:dark?'#2a2a2a':'#f2f2f2',color:muted,fontSize:9,textAlign:'center',lineHeight:'44px'}}>no img</span>}
                         {camp.nama}
                         {hasMeta&&<span style={{marginLeft:6,fontSize:10,background:'#E7F3FF',color:'#1877F2',padding:'1px 5px',borderRadius:4,fontWeight:600}}>Meta</span>}
                         {periodLabel&&<span style={{marginLeft:4,fontSize:10,color:muted}}>{periodLabel}</span>}
@@ -603,7 +623,7 @@ export default function CRM() {
                       <td style={{padding:'8px 6px'}}><span style={{color:sc[camp.status]||muted,fontWeight:600,fontSize:11,textTransform:'capitalize'}}>● {camp.status}</span></td>
                       <td style={{padding:'8px 6px'}}>
                         <div style={{display:'flex',gap:4}}>
-                          <button onClick={()=>{setEditingCampaign(camp);setCampForm({nama:camp.nama,platform:camp.platform,bulan:camp.bulan||'',spend:camp.spend||'',status:camp.status});setShowCampaignModal(true);}} style={{border:'none',background:'none',cursor:'pointer',color:'#013175',fontSize:16}}><MdEdit/></button>
+                          <button onClick={()=>{setEditingCampaign(camp);setCampForm({nama:camp.nama,platform:camp.platform,bulan:camp.bulan||'',spend:camp.spend||'',status:camp.status,thumbnail:camp.thumbnail||''});setShowCampaignModal(true);}} style={{border:'none',background:'none',cursor:'pointer',color:'#013175',fontSize:16}}><MdEdit/></button>
                           <button onClick={()=>{setDeleteTarget({type:'campaign',id:camp.id,label:camp.nama});setShowDeleteConfirm(true);}} style={{border:'none',background:'none',cursor:'pointer',color:'#a32d2d',fontSize:16}}><MdDelete/></button>
                         </div>
                       </td>
@@ -1011,8 +1031,26 @@ export default function CRM() {
               <option value="active">Active</option><option value="paused">Paused</option><option value="stopped">Stopped</option>
             </Form.Select>
           </Form.Group>
+          <Form.Group className="mb-2"><Form.Label style={{color:dark?'white':'black'}}>Thumbnail Iklan</Form.Label>
+            <div style={{display:'flex',gap:10,alignItems:'center'}}>
+              {campForm.thumbnail
+                ? <img src={thumbUrl(campForm.thumbnail)} alt="" style={{width:80,height:80,objectFit:'cover',borderRadius:8,border:'1px solid #ddd'}}/>
+                : <div style={{width:80,height:80,borderRadius:8,background:dark?'#2a2a2a':'#f2f2f2',color:muted,fontSize:11,display:'flex',alignItems:'center',justifyContent:'center'}}>belum ada</div>}
+              <div style={{flex:1}}>
+                <Form.Control type="file" accept="image/*,.heic,.heif" disabled={uploadingThumb} onChange={e=>{handleUploadThumb(e.target.files?.[0]); e.target.value='';}}/>
+                <div style={{fontSize:11,color:muted,marginTop:4}}>{uploadingThumb?'Mengupload...':'Screenshot / gambar iklan, otomatis dikompres.'}</div>
+                {campForm.thumbnail&&<button type="button" onClick={()=>setCampForm(f=>({...f,thumbnail:''}))} style={{border:'none',background:'none',color:'#a32d2d',fontSize:11,padding:0,cursor:'pointer'}}>Hapus thumbnail</button>}
+              </div>
+            </div>
+          </Form.Group>
         </Modal.Body>
-        <Modal.Footer><Button variant="secondary" onClick={()=>setShowCampaignModal(false)}>Batal</Button><Button variant="primary" onClick={handleSaveCampaign} disabled={!campForm.nama.trim()}>Simpan</Button></Modal.Footer>
+        <Modal.Footer><Button variant="secondary" onClick={()=>setShowCampaignModal(false)}>Batal</Button><Button variant="primary" onClick={handleSaveCampaign} disabled={!campForm.nama.trim()||uploadingThumb}>Simpan</Button></Modal.Footer>
+      </Modal>
+
+      {/* PREVIEW THUMBNAIL CAMPAIGN */}
+      <Modal show={!!thumbPreview} onHide={()=>setThumbPreview(null)} className={mc} size="lg" centered>
+        <Modal.Header closeButton><Modal.Title style={{color:dark?'white':'black',fontSize:16}}>{thumbPreview?.nama}</Modal.Title></Modal.Header>
+        <Modal.Body style={{textAlign:'center'}}>{thumbPreview&&<img src={thumbPreview.src} alt="" style={{maxWidth:'100%',maxHeight:'75vh',borderRadius:8}}/>}</Modal.Body>
       </Modal>
 
       {/* Modal Evaluasi Iklan */}

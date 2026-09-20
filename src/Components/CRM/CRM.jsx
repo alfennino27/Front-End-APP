@@ -172,6 +172,9 @@ export default function CRM() {
     setShowDeleteConfirm(false); setShowLeadDetail(false); fetchAll();
   };
 
+  const campModalOpenRef = useRef(false);
+  useEffect(() => { campModalOpenRef.current = showCampaignModal; }, [showCampaignModal]);
+  const [thumbDragOver, setThumbDragOver] = useState(false);
   const [thumbPreview, setThumbPreview] = useState(null); // {src, nama} untuk modal preview besar
   const [uploadingThumb, setUploadingThumb] = useState(false);
   const thumbUrl = (p) => p ? (p.startsWith('http') ? p : baseUrl + p) : '';
@@ -315,9 +318,11 @@ export default function CRM() {
   useEffect(() => {
     if (activeTab !== 'campaigns') { dragDepth.current = 0; setCsvDragOver(false); return; }
 
+    const firstImage = (files) => Array.from(files||[]).find(f => /^image\//.test(f.type) || /\.(heic|heif)$/i.test(f.name));
     const onDragEnter = (e) => {
       if (!dragHasFile(e)) return;
       e.preventDefault();
+      if (campModalOpenRef.current) return; // modal campaign terbuka → jangan tampilkan overlay CSV
       dragDepth.current += 1;
       setCsvDragOver(true);
     };
@@ -336,8 +341,18 @@ export default function CRM() {
       e.preventDefault(); // cegah browser membuka file di tab baru
       dragDepth.current = 0;
       setCsvDragOver(false);
+      if (campModalOpenRef.current) { handleUploadThumb(firstImage(e.dataTransfer.files)); return; }
       parseCSVFile(firstCSV(e.dataTransfer.files));
     };
+    // Cmd+V / Ctrl+V gambar (screenshot) saat modal campaign terbuka → thumbnail
+    const onPaste = (e) => {
+      if (!campModalOpenRef.current) return;
+      const img = firstImage(Array.from(e.clipboardData?.files||[]));
+      if (!img) return;
+      e.preventDefault();
+      handleUploadThumb(img);
+    };
+    window.addEventListener('paste', onPaste);
 
     window.addEventListener('dragenter', onDragEnter);
     window.addEventListener('dragover', onDragOver);
@@ -348,6 +363,7 @@ export default function CRM() {
       window.removeEventListener('dragover', onDragOver);
       window.removeEventListener('dragleave', onDragLeave);
       window.removeEventListener('drop', onDrop);
+      window.removeEventListener('paste', onPaste);
     };
   }, [activeTab]);
 
@@ -1032,15 +1048,24 @@ export default function CRM() {
             </Form.Select>
           </Form.Group>
           <Form.Group className="mb-2"><Form.Label style={{color:dark?'white':'black'}}>Thumbnail Iklan</Form.Label>
-            <div style={{display:'flex',gap:10,alignItems:'center'}}>
+            <div
+              onDragOver={e=>{e.preventDefault();e.stopPropagation();e.dataTransfer.dropEffect='copy';setThumbDragOver(true);}}
+              onDragLeave={()=>setThumbDragOver(false)}
+              onDrop={e=>{e.preventDefault();e.stopPropagation();setThumbDragOver(false);handleUploadThumb(Array.from(e.dataTransfer.files||[]).find(f=>/^image\//.test(f.type)||/\.(heic|heif)$/i.test(f.name)));}}
+              onClick={()=>document.getElementById('campThumbInput')?.click()}
+              style={{display:'flex',gap:12,alignItems:'center',padding:10,borderRadius:8,cursor:'pointer',
+                border:'2px dashed '+(thumbDragOver?'#013175':(dark?'#444':'#ccc')),background:thumbDragOver?(dark?'#1a2035':'#f0f5ff'):'transparent',transition:'all .15s'}}>
               {campForm.thumbnail
-                ? <img src={thumbUrl(campForm.thumbnail)} alt="" style={{width:80,height:80,objectFit:'cover',borderRadius:8,border:'1px solid #ddd'}}/>
-                : <div style={{width:80,height:80,borderRadius:8,background:dark?'#2a2a2a':'#f2f2f2',color:muted,fontSize:11,display:'flex',alignItems:'center',justifyContent:'center'}}>belum ada</div>}
-              <div style={{flex:1}}>
-                <Form.Control type="file" accept="image/*,.heic,.heif" disabled={uploadingThumb} onChange={e=>{handleUploadThumb(e.target.files?.[0]); e.target.value='';}}/>
-                <div style={{fontSize:11,color:muted,marginTop:4}}>{uploadingThumb?'Mengupload...':'Screenshot / gambar iklan, otomatis dikompres.'}</div>
-                {campForm.thumbnail&&<button type="button" onClick={()=>setCampForm(f=>({...f,thumbnail:''}))} style={{border:'none',background:'none',color:'#a32d2d',fontSize:11,padding:0,cursor:'pointer'}}>Hapus thumbnail</button>}
+                ? <img src={thumbUrl(campForm.thumbnail)} alt="" style={{width:80,height:80,objectFit:'cover',borderRadius:8,border:'1px solid #ddd',flexShrink:0}}/>
+                : <div style={{width:80,height:80,borderRadius:8,background:dark?'#2a2a2a':'#f2f2f2',color:muted,fontSize:11,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>belum ada</div>}
+              <div style={{flex:1,fontSize:12,color:muted,lineHeight:1.5}}>
+                {uploadingThumb ? <b style={{color:'#013175'}}>Mengupload...</b> : <>
+                  <b style={{color:text}}>Drag & drop</b> gambar ke sini, <b style={{color:text}}>paste</b> (Cmd/Ctrl+V) screenshot, atau <b style={{color:text}}>klik</b> untuk pilih file.<br/>
+                  <span style={{fontSize:11}}>Otomatis dikompres.</span>
+                </>}
+                {campForm.thumbnail&&!uploadingThumb&&<div><button type="button" onClick={e=>{e.stopPropagation();setCampForm(f=>({...f,thumbnail:''}));}} style={{border:'none',background:'none',color:'#a32d2d',fontSize:11,padding:0,cursor:'pointer'}}>Hapus thumbnail</button></div>}
               </div>
+              <input id="campThumbInput" type="file" accept="image/*,.heic,.heif" style={{display:'none'}} disabled={uploadingThumb} onChange={e=>{handleUploadThumb(e.target.files?.[0]); e.target.value='';}}/>
             </div>
           </Form.Group>
         </Modal.Body>

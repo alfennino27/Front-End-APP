@@ -1564,12 +1564,25 @@ const Invoice = () => {
 
         {isRepeatOrder && <>
           <label className='mt-2'>Campaign Asal Customer <span style={{ color: 'red' }}>*</span> :</label>
-          {/* tidak difilter bulan: campaign asal customer repeat biasanya dari bulan lampau */}
-          <small style={{ display: 'block', color: '#888', marginBottom: 4 }}>Campaign dari mana customer ini pertama kali beli (masuk CLV, bukan ROAS)</small>
+          <small style={{ display: 'block', color: '#888', marginBottom: 4 }}>
+            Campaign dari mana customer ini pertama kali beli (masuk CLV, bukan ROAS) — hanya campaign yang aktif di {labelBulan(leadMonth)}
+          </small>
           <select className="form-control" value={repeatRefCampaignId} onChange={(e) => setRepeatRefCampaignId(e.target.value)}>
             <option value="">— Pilih Campaign Asal —</option>
-            {crmCampaigns.map(c => (<option key={c.id} value={c.id}>{c.nama}</option>))}
+            {campaignsBulanIni.map(c => (<option key={c.id} value={c.id}>{c.nama}</option>))}
           </select>
+          {campaignsBulanIni.length === 0 && (
+            <small style={{ display: 'block', color: '#c0392b', marginTop: 4 }}>
+              Belum ada campaign yang tercatat aktif di {labelBulan(leadMonth)}. Import CSV Meta Ads
+              bulan tsb di menu CRM dulu, atau pilih bulan lead yang lain.
+            </small>
+          )}
+          {repeatRefCampaignId && !campaignsBulanIni.some(c => c.id === repeatRefCampaignId) && (
+            <small style={{ display: 'block', color: '#c0392b', marginTop: 4 }}>
+              Campaign yang tersimpan sebelumnya tidak aktif di {labelBulan(leadMonth)} — pilih ulang campaign
+              atau ganti bulan lead, lalu simpan.
+            </small>
+          )}
         </>}
       </>
     );

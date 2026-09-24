@@ -60,6 +60,18 @@ const formatRibuan = (v) => {
   return digits.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
 };
 
+// Baca persentase per termin dari NAMA template payment terms, mis. "DP 50% /
+// Pelunasan sebelum kirim" → [50], atau "40-40-20" → [40, 40, 20]. Dipakai buat
+// nyaranin nominal tiap baris DP (posisi ke-i template ↔ baris DP ke-i).
+const parseTermsPercents = (nama) => {
+  if (!nama) return [];
+  const pctMatches = [...nama.matchAll(/(\d+(?:[.,]\d+)?)\s*%/g)].map((m) => parseFloat(m[1].replace(',', '.')));
+  if (pctMatches.length > 0) return pctMatches;
+  const seqMatch = nama.match(/\b\d{1,3}(?:\s*[-/]\s*\d{1,3}){1,}\b/);
+  if (seqMatch) return seqMatch[0].split(/[-/]/).map((s) => parseFloat(s.trim()));
+  return [];
+};
+
 // URL PDF quote. Segmen terakhir sengaja berakhiran ".pdf" (nama file mirror
 // dari quotationPdf.js) karena sebagian PDF viewer memakai nama dari path URL
 // dan mengabaikan Content-Disposition, jadi dialog Save muncul tanpa ekstensi.
@@ -370,6 +382,15 @@ const Quote = () => {
     [form.paymentRows],
   );
   const grandTotalCalc = subtotal - numParse(form.discount) - totalDP;
+
+  // Saran nominal tiap baris DP dari % di nama template payment terms (posisi
+  // ke-i template ↔ baris DP ke-i), basisnya subtotal − discount (bukan sisa
+  // berjalan) — sesuai definisi Grand Total di atas.
+  const dpBase = Math.max(subtotal - numParse(form.discount), 0);
+  const termsPercents = useMemo(
+    () => parseTermsPercents(terms.find((t) => t.id === form.termsTemplateId)?.nama),
+    [terms, form.termsTemplateId],
+  );
 
   // Ringkasan HPP & margin per item (internal — tidak dicetak di PDF customer).
   // HPP costing = per-unit (mirror estimasi<cat>); HPP total item = hppUnit × qty.
@@ -1139,17 +1160,23 @@ const Quote = () => {
           <input inputMode="numeric" style={inputStyle} value={form.discount} onChange={(e) => setF({ discount: formatRibuan(e.target.value) })} /></label>
 
         <div style={{ color: sub, fontSize: 13, marginBottom: 6 }}>Baris pembayaran (DP / termin) — bisa banyak</div>
-        {form.paymentRows.map((p, i) => (
-          <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-            <input style={{ ...inputStyle, flex: '1 1 120px' }} placeholder="Label (mis. DP 1)" value={p.label} onChange={(e) => updatePayRow(i, { label: e.target.value })} />
-            <input inputMode="numeric" style={{ ...inputStyle, flex: '1 1 120px' }} placeholder="Nominal" value={p.amount} onChange={(e) => updatePayRow(i, { amount: formatRibuan(e.target.value) })} />
-            <label style={{ display: 'flex', gap: 6, alignItems: 'center', color: p.paid ? '#1e7b34' : sub, fontWeight: p.paid ? 700 : 400, cursor: 'pointer', whiteSpace: 'nowrap', fontSize: 13 }}>
-              <input type="checkbox" checked={!!p.paid} onChange={(e) => updatePayRow(i, { paid: e.target.checked })} />
-              *PAID
-            </label>
-            <button style={{ ...btnGhost, color: '#c0392b' }} onClick={() => removePayRow(i)}>×</button>
-          </div>
-        ))}
+        {form.paymentRows.map((p, i) => {
+          const pct = termsPercents[i];
+          const nominalPlaceholder = pct != null
+            ? `≈ ${rupiah(Math.round(dpBase * pct / 100))} (${pct}%)`
+            : 'Nominal';
+          return (
+            <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <input style={{ ...inputStyle, flex: '1 1 120px' }} placeholder="Label (mis. DP 1)" value={p.label} onChange={(e) => updatePayRow(i, { label: e.target.value })} />
+              <input inputMode="numeric" style={{ ...inputStyle, flex: '1 1 120px' }} placeholder={nominalPlaceholder} value={p.amount} onChange={(e) => updatePayRow(i, { amount: formatRibuan(e.target.value) })} />
+              <label style={{ display: 'flex', gap: 6, alignItems: 'center', color: p.paid ? '#1e7b34' : sub, fontWeight: p.paid ? 700 : 400, cursor: 'pointer', whiteSpace: 'nowrap', fontSize: 13 }}>
+                <input type="checkbox" checked={!!p.paid} onChange={(e) => updatePayRow(i, { paid: e.target.checked })} />
+                *PAID
+              </label>
+              <button style={{ ...btnGhost, color: '#c0392b' }} onClick={() => removePayRow(i)}>×</button>
+            </div>
+          );
+        })}
         <button style={{ ...btnGhost, marginBottom: 12 }} onClick={addPayRow}>+ Baris pembayaran</button>
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, padding: '10px 12px', background: dark ? '#2b3038' : '#eef1f6', borderRadius: 8 }}>
@@ -1278,8 +1305,20 @@ const Quote = () => {
           <label className="klf-fld" style={{ marginTop: 10 }}><span style={{ color: sub }}>Campaign asal (repeat → CLV)</span>
             <select style={inputStyle} value={form.repeatRefCampaignId} onChange={(e) => setF({ repeatRefCampaignId: e.target.value })}>
               <option value="">— pilih —</option>
-              {campaigns.map((c) => <option key={c.id} value={c.id}>{c.nama}</option>)}
-            </select></label>
+              {campaignsBulanLead.map((c) => <option key={c.id} value={c.id}>{c.nama}</option>)}
+            </select>
+            {campaignsBulanLead.length === 0 ? (
+              <small style={{ color: '#c0392b', fontSize: 12 }}>
+                Belum ada campaign aktif di {labelBulan(form.leadMonth)} — import CSV Meta Ads bulan tsb di menu CRM.
+              </small>
+            ) : (
+              <small style={{ color: sub, fontSize: 12 }}>Campaign yang aktif di {labelBulan(form.leadMonth)}</small>
+            )}
+            {form.repeatRefCampaignId && !campaignsBulanLead.some((c) => c.id === form.repeatRefCampaignId) && (
+              <small style={{ color: '#c0392b', fontSize: 12 }}>
+                Campaign tersimpan tidak aktif di bulan ini — pilih ulang campaign atau ganti bulan lead.
+              </small>
+            )}</label>
         )}
       </div>
 

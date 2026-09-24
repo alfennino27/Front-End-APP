@@ -47,6 +47,7 @@ const Accounting = () => {
     { label: 'Hutang', to: '/accounting/hutang' },
 
     { label: 'Evaluasi Estimasi', to: '/accounting/evaluasi-estimasi' },
+    { label: 'Cek Finishing & Jok', to: '/accounting/cek-finishing-jok' },
   ];
 
 

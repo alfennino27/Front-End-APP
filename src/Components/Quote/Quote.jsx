@@ -288,6 +288,8 @@ const Quote = () => {
     repeatRefCampaignId: '',
     paymentRows: [{ label: 'DP 1', amount: '', paid: false }],
     items: [emptyItem()],
+    // lampiran PO customer: lama {url,name,type} | baru {file,name,type,preview}
+    poAttachments: [],
     status: 'quote',
     invoiceId: null,
     isDraft: true,
@@ -488,6 +490,7 @@ const Quote = () => {
             costing: CATEGORIES.reduce((a, c) => ({ ...a, [c]: formatRibuan(it.costing && it.costing[c]) }), {}),
             costingOpen: false,
           })),
+          poAttachments: (q.poAttachments || []).map((a) => ({ url: a.url, name: a.name, type: a.type, uploadedAt: a.uploadedAt })),
           campaignId: q.campaignId || 'organic',
           // quote lama belum punya leadMonth → pakai bulan quote, bisa dikoreksi di form
           leadMonth: q.leadMonth || toMonth(q.tanggal) || toMonth(new Date()),
@@ -579,6 +582,23 @@ const Quote = () => {
     else setF({ kodeCust });
   };
 
+  // ---- lampiran PO customer ----
+  const [poDrag, setPoDrag] = useState(false);
+  const addPoFiles = (fileList) => {
+    const baru = Array.from(fileList || [])
+      .filter((f) => /^image\//.test(f.type) || f.type === 'application/pdf' || /\.(pdf|heic|heif)$/i.test(f.name))
+      .map((f) => {
+        const isPdf = f.type === 'application/pdf' || /\.pdf$/i.test(f.name);
+        return { file: f, name: f.name || (isPdf ? 'PO.pdf' : 'PO.jpg'), type: isPdf ? 'pdf' : 'image', preview: isPdf ? null : URL.createObjectURL(f) };
+      });
+    if (baru.length) setForm((f) => ({ ...f, poAttachments: [...f.poAttachments, ...baru] }));
+  };
+  const removePo = (i) => setForm((f) => ({ ...f, poAttachments: f.poAttachments.filter((_, j) => j !== i) }));
+  const onPoPaste = (e) => {
+    const files = Array.from(e.clipboardData?.files || []);
+    if (files.length) { e.preventDefault(); e.stopPropagation(); addPoFiles(files); }
+  };
+
   const buildFormData = () => {
     const fd = new FormData();
     const itemsPayload = form.items.map((it, idx) => {
@@ -589,6 +609,8 @@ const Quote = () => {
       return { pid: it.pid || null, kategori: it.kategori || '', judul: it.judul || '', images: existingUrls, details: it.details, harga: numParse(it.harga), qty: numParse(it.qty), costing };
     });
     fd.append('items', JSON.stringify(itemsPayload));
+    fd.append('poAttachments', JSON.stringify(form.poAttachments.filter((a) => a.url).map(({ url, name, type, uploadedAt }) => ({ url, name, type, uploadedAt }))));
+    form.poAttachments.filter((a) => a.file).forEach((a) => fd.append('po_file', a.file, a.name));
     fd.append('paymentRows', JSON.stringify(form.paymentRows.filter((p) => p.label || p.amount).map((p) => ({ label: p.label, amount: numParse(p.amount), paid: !!p.paid }))));
     fd.append('kodeInvoice', form.kodeInvoice);
     fd.append('docLabel', form.docLabel);
@@ -629,7 +651,11 @@ const Quote = () => {
         window.open(pdfUrl(baseUrl, saved), '_blank');
       }
       // stay on form in edit mode
-      setForm((f) => ({ ...f, id: saved.id, invoiceId: saved.invoiceId ?? f.invoiceId }));
+      setForm((f) => ({
+        ...f, id: saved.id, invoiceId: saved.invoiceId ?? f.invoiceId,
+        // file PO yang baru diunggah sekarang sudah punya URL di server
+        poAttachments: (saved.poAttachments || []).map((a) => ({ url: a.url, name: a.name, type: a.type, uploadedAt: a.uploadedAt })),
+      }));
       return saved;
     } catch (e) {
       console.error('save quote', e);
@@ -1150,6 +1176,56 @@ const Quote = () => {
         ))}
       </div>
       <button style={{ ...btnGhost, width: '100%', marginBottom: 16, padding: '12px' }} onClick={addItem}>+ Tambah Item</button>
+
+      {/* LAMPIRAN PO CUSTOMER — ikut dicetak di PDF, halaman terpisah setelah invoice/quote */}
+      <h6 style={{ color: text }}>Lampiran PO Customer</h6>
+      <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 12, padding: 14, marginBottom: 16 }} onPaste={onPoPaste}>
+        {form.poAttachments.length > 0 && (
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 10 }}>
+            {form.poAttachments.map((a, i) => {
+              const href = a.url ? `${baseUrl}${a.url}` : (a.preview || '');
+              return (
+                <div key={(a.url || a.name) + i} style={{ position: 'relative', width: 96 }}>
+                  <a href={href || undefined} target="_blank" rel="noreferrer" title={a.name} style={{ textDecoration: 'none' }}
+                    onClick={(e) => { if (!href) e.preventDefault(); }}>
+                    {a.type === 'pdf' ? (
+                      <div style={{ width: 96, height: 96, borderRadius: 8, border: `1px solid ${border}`, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: sub, fontSize: 12 }}>
+                        <span style={{ fontSize: 30 }}>📄</span>PDF
+                      </div>
+                    ) : (
+                      <img src={href} alt={a.name} style={{ width: 96, height: 96, objectFit: 'cover', borderRadius: 8, border: `1px solid ${border}` }} />
+                    )}
+                  </a>
+                  <div style={{ fontSize: 11, color: sub, marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={a.name}>
+                    {a.file ? '● ' : ''}{a.name}
+                  </div>
+                  <button type="button" onClick={() => removePo(i)} title="Hapus lampiran"
+                    style={{ position: 'absolute', top: -6, right: -6, background: '#c0392b', color: '#fff', border: 'none', borderRadius: '50%', width: 20, height: 20, cursor: 'pointer', lineHeight: '18px' }}>×</button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        <label
+          onDragOver={(e) => { e.preventDefault(); setPoDrag(true); }}
+          onDragLeave={() => setPoDrag(false)}
+          onDrop={(e) => { e.preventDefault(); setPoDrag(false); addPoFiles(e.dataTransfer.files); }}
+          style={{
+            display: 'block', border: `2px dashed ${poDrag ? primary : border}`, borderRadius: 8, padding: 16, textAlign: 'center',
+            cursor: 'pointer', color: sub, background: poDrag ? (dark ? '#1c2733' : '#eef4ff') : 'transparent', transition: 'all .15s',
+          }}>
+          <div style={{ fontSize: 22, marginBottom: 4 }}>🧾</div>
+          <div style={{ fontSize: 13, lineHeight: 1.4 }}>
+            Lampirkan PO customer (foto, scan, atau PDF)
+            <br /><span style={{ fontSize: 11 }}>Drag &amp; drop, klik untuk pilih file, atau paste (Cmd+V). Ikut dicetak di PDF sebagai halaman terpisah setelah {form.status === 'deal' || form.invoiceId ? 'invoice' : 'quote'}.</span>
+          </div>
+          <input type="file" accept="image/*,.heic,.heif,application/pdf,.pdf" multiple style={{ display: 'none' }}
+            onChange={(e) => { addPoFiles(e.target.files); e.target.value = ''; }} />
+        </label>
+        {form.poAttachments.some((a) => a.file) && (
+          <div style={{ fontSize: 11, color: sub, marginTop: 6 }}>● = belum diunggah, tersimpan saat quote disimpan.</div>
+        )}
+      </div>
 
       {/* TOTALS + OPTIONS */}
       <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 12, padding: 16, marginBottom: 16 }}>

@@ -1,9 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Container, Spinner } from 'react-bootstrap';
+import { Container, Modal, Spinner } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
-import { DatePicker } from 'antd';
+import { DatePicker, Image } from 'antd';
 import dayjs from 'dayjs';
 import { getApiBaseUrl } from '../../Config/APIurl';
+import { getImageUrl } from '../../Utils/image';
+import noImageAvailable from '../../assets/images/noImageAvailable.png';
 
 // Cek Finishing & Jok — budget vs real cost bengkel in-house.
 //
@@ -34,6 +36,9 @@ const parseNominal = (teks) => {
   const angka = Number(s.replace(/rb|jt|k/g, '').replace(/\./g, '').replace(',', '.').replace(/[^\d.]/g, ''));
   return Number.isFinite(angka) ? Math.round(angka * kali) : null;
 };
+// Gambar /uploads lewat endpoint resize supaya ratusan thumbnail tidak mengunduh file asli
+const urlThumb = (url) => (url && url.startsWith('/uploads') ? `https://api.karyalogamfurniture.com/img?src=${encodeURIComponent(url)}&w=120` : getImageUrl(url));
+const tglPanjang = (t) => (t ? new Date(t).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : '-');
 const fmtInput = (v) => (v === null || v === undefined ? '' : Number(v).toLocaleString('id-ID'));
 
 const status = (r) => {
@@ -66,6 +71,7 @@ const CekFinishingJok = () => {
   const [cari, setCari] = useState('');
   const [hanyaKosong, setHanyaKosong] = useState(false);
   const tabelRef = useRef(null);
+  const [detail, setDetail] = useState(null); // item yang dibuka di popup
 
   const fetchData = async () => {
     setLoading(true);
@@ -305,7 +311,7 @@ const CekFinishingJok = () => {
             <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 980 }}>
               <thead>
                 <tr>
-                  <th style={th}>No</th><th style={th}>Invoice</th><th style={th}>Nama barang</th><th style={th}>Qty</th>
+                  <th style={th}>No</th><th style={th}>Invoice</th><th style={th}>Produk</th><th style={th}>Qty</th>
                   <th style={th}>Tgl finishing</th><th style={th}>Supplier finishing</th><th style={th}>Budget finishing / unit</th>
                   <th style={th}>Tgl jok</th><th style={th}>Supplier jok</th><th style={th}>Budget jok / unit</th>
                   <th style={th}>Total budget</th>
@@ -339,7 +345,16 @@ const CekFinishingJok = () => {
                     <tr key={it.id}>
                       <td style={{ ...td, textAlign: 'center' }}>{idx + 1}</td>
                       <td style={{ ...td, whiteSpace: 'nowrap' }}><a href={`/invoice/${it.idInvoice}`} target='_blank' rel='noreferrer' title={it.customer}>{it.kodeInvoice}</a></td>
-                      <td style={{ ...td, minWidth: 180 }}>{it.namaBarang}</td>
+                      <td style={{ ...td, padding: '3px', textAlign: 'center', width: 70 }}>
+                        <button type='button' onClick={() => setDetail(it)} title={`${it.namaBarang} — klik untuk lihat detail`}
+                          style={{ border: 'none', padding: 0, background: 'none', cursor: 'zoom-in', position: 'relative' }}>
+                          <img src={it.images[0] ? urlThumb(it.images[0]) : noImageAvailable} alt={it.namaBarang} loading='lazy'
+                            style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: '6px', border: '1px solid #ddd', display: 'block' }} />
+                          {it.images.length > 1 && (
+                            <span style={{ position: 'absolute', right: 2, bottom: 2, fontSize: '10px', background: 'rgba(0,0,0,.6)', color: '#fff', borderRadius: '4px', padding: '0 4px' }}>{it.images.length}</span>
+                          )}
+                        </button>
+                      </td>
                       <td style={{ ...td, textAlign: 'center' }}>{it.qty}</td>
                       <td style={{ ...td, whiteSpace: 'nowrap', color: it.masukFinishing ? undefined : '#aaa' }}>{tglPendek(it.tglFinishing)}</td>
                       <td style={td}>{it.supplierFinishing || '-'}</td>
@@ -376,6 +391,57 @@ const CekFinishingJok = () => {
           )}
         </>
       )}
+
+      <Modal show={!!detail} onHide={() => setDetail(null)} size='lg' centered enforceFocus={false}>
+        {detail && (
+          <>
+            <Modal.Header closeButton>
+              <Modal.Title style={{ fontSize: '18px' }}>
+                {detail.namaBarang}
+                <div style={{ fontSize: '14px', fontWeight: 400, color: '#555' }}>{detail.buyer || detail.customer}</div>
+              </Modal.Title>
+            </Modal.Header>
+            <Modal.Body>
+              <div style={{ fontSize: '13px' }}>
+                <div>🧾 Invoice: <a href={`/invoice/${detail.idInvoice}`} target='_blank' rel='noreferrer'>{detail.kodeInvoice}</a></div>
+                <div>⏱ Deadline: {tglPanjang(detail.deadline)}</div>
+                {detail.targetKirim && <div style={{ color: '#e67e22', fontWeight: 600 }}>🚚 Target Kirim: {tglPanjang(detail.targetKirim)}</div>}
+              </div>
+
+              <div className='fw-semibold mt-3 mb-2'>Gambar Produk</div>
+              {detail.images.length > 0 ? (
+                <Image.PreviewGroup preview={{ zIndex: 2000 }}>
+                  <div className='d-flex flex-wrap gap-2'>
+                    {detail.images.map((url, i) => (
+                      <Image key={url + i} src={getImageUrl(url)} height={140} style={{ borderRadius: '8px', objectFit: 'cover' }} alt={`${detail.namaBarang} ${i + 1}`} />
+                    ))}
+                  </div>
+                </Image.PreviewGroup>
+              ) : (
+                <img src={noImageAvailable} alt='Tidak ada gambar' style={{ height: 120, borderRadius: '8px' }} />
+              )}
+              <div style={{ fontSize: '11px', color: '#6c757d', marginTop: '4px' }}>Klik gambar untuk memperbesar.</div>
+
+              <div className='fw-semibold mt-3 mb-1'>Deskripsi Produk</div>
+              <div style={{ whiteSpace: 'pre-line', fontSize: '13px' }}>{detail.spesifikasi || '-'}</div>
+              <div style={{ fontSize: '13px', marginTop: '6px' }}>Quantity: <b>{detail.qty}</b></div>
+
+              <div className='d-flex gap-3 flex-wrap mt-3 p-2' style={{ background: '#f6f8fb', borderRadius: '8px', fontSize: '13px' }}>
+                {KATEGORI.map((k) => (
+                  <div key={k} style={{ flex: '1 1 220px' }}>
+                    <div className='fw-semibold'>{k}</div>
+                    <div style={{ color: '#555' }}>{tglPendek(k === 'Finishing' ? detail.tglFinishing : detail.tglJok)} · {(k === 'Finishing' ? detail.supplierFinishing : detail.supplierJok) || '-'}</div>
+                    <label className='mt-1 d-block' htmlFor={`modal-budget-${k}`}>Budget {k.toLowerCase()} / unit</label>
+                    <input id={`modal-budget-${k}`} inputMode='numeric' value={nilaiSel(detail, k)} onChange={(e) => ubahSel(detail, k, e.target.value)}
+                      placeholder='belum diisi' style={{ width: '100%', textAlign: 'right', border: '1px solid #ccc', borderRadius: '4px', padding: '4px 6px' }} />
+                  </div>
+                ))}
+              </div>
+              <div style={{ fontSize: '11px', color: '#6c757d', marginTop: '4px' }}>Perubahan di sini ikut tombol "Simpan semua" di bawah tabel.</div>
+            </Modal.Body>
+          </>
+        )}
+      </Modal>
     </Container>
   );
 };

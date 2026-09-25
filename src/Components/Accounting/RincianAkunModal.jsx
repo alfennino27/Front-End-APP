@@ -28,6 +28,93 @@ const namaBulan = (ym) => {
   return new Date(Number(y), Number(m) - 1, 1).toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
 };
 
+// Pemilih akun dengan kotak cari (ketik kode atau nama). Daftar tampil inline
+// di bawah input (bukan popup terpisah) dengan tinggi terbatas, jadi tidak
+// menutupi layar di HP dan tidak bentrok z-index dengan Modal.
+const AkunPicker = ({ value, onChange, opsi, disabled }) => {
+  const [buka, setBuka] = useState(false);
+  const [cari, setCari] = useState('');
+  const [aktif, setAktif] = useState(0);
+  const terpilih = opsi.find((a) => a.kodeAkun === value);
+
+  const hasil = useMemo(() => {
+    const q = cari.trim().toLowerCase();
+    if (!q) return opsi;
+    const kata = q.split(/\s+/);
+    // Yang katanya diawali kata kunci (mis. "bunga" → "Beban Bunga") di atas
+    // yang cuma mengandung (mis. "Tabungan").
+    const skor = (a) => {
+      const kataAkun = `${a.kodeAkun} ${a.namaAkun || ''}`.toLowerCase().split(/\s+/);
+      return kata.every((k) => kataAkun.some((w) => w.startsWith(k))) ? 0 : 1;
+    };
+    return opsi
+      .filter((a) => {
+        const teks = `${a.kodeAkun} ${a.namaAkun || ''}`.toLowerCase();
+        return kata.every((k) => teks.includes(k));
+      })
+      .sort((a, b) => skor(a) - skor(b));
+  }, [cari, opsi]);
+
+  const pilih = (a) => {
+    onChange(a.kodeAkun);
+    setBuka(false);
+    setCari('');
+  };
+
+  const onKey = (ev) => {
+    if (ev.key === 'ArrowDown') { ev.preventDefault(); setAktif((i) => Math.min(i + 1, hasil.length - 1)); }
+    else if (ev.key === 'ArrowUp') { ev.preventDefault(); setAktif((i) => Math.max(i - 1, 0)); }
+    else if (ev.key === 'Enter') { ev.preventDefault(); if (hasil[aktif]) pilih(hasil[aktif]); }
+    else if (ev.key === 'Escape') { ev.stopPropagation(); setBuka(false); setCari(''); }
+  };
+
+  const st = {
+    kotak: { display: 'flex', alignItems: 'center', gap: 6, border: `1px solid ${buka ? 'blue' : '#ccc'}`, borderRadius: 8, padding: '0 10px', background: disabled ? '#f3f3f3' : '#fff' },
+    input: { flex: 1, minWidth: 0, border: 'none', outline: 'none', fontSize: 14, padding: '8px 0', background: 'transparent' },
+    daftar: { maxHeight: 190, overflowY: 'auto', border: '1px solid #ddd', borderRadius: 8, marginTop: 4, background: '#fff', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' },
+    item: (on, sel) => ({ padding: '8px 10px', fontSize: 13, cursor: 'pointer', background: on ? '#EEF1FF' : '#fff', fontWeight: sel ? 600 : 400, display: 'flex', gap: 8 }),
+    kode: { color: 'blue', minWidth: 38, flexShrink: 0 },
+  };
+
+  return (
+    <div style={{ marginBottom: 8 }}>
+      <div style={st.kotak} onClick={() => !disabled && setBuka(true)}>
+        <span style={{ color: '#999', fontSize: 13 }}>🔍</span>
+        <input
+          style={st.input}
+          disabled={disabled}
+          value={buka ? cari : terpilih ? `${terpilih.kodeAkun} · ${terpilih.namaAkun}` : ''}
+          placeholder={buka && terpilih ? `${terpilih.kodeAkun} · ${terpilih.namaAkun}` : 'Ketik kode / nama akun…'}
+          onFocus={() => { setBuka(true); setAktif(0); }}
+          onBlur={() => setTimeout(() => { setBuka(false); setCari(''); }, 150)}
+          onChange={(ev) => { setCari(ev.target.value); setAktif(0); }}
+          onKeyDown={onKey}
+        />
+        <span style={{ color: '#999', fontSize: 11 }}>{buka ? '▲' : '▼'}</span>
+      </div>
+      {buka && (
+        <div style={st.daftar}>
+          {hasil.length === 0 ? (
+            <div style={{ padding: 10, fontSize: 13, color: '#888' }}>Akun tidak ditemukan</div>
+          ) : (
+            hasil.map((a, i) => (
+              <div
+                key={a.kodeAkun}
+                style={st.item(i === aktif, a.kodeAkun === value)}
+                onMouseDown={(ev) => { ev.preventDefault(); pilih(a); }}
+                onMouseEnter={() => setAktif(i)}
+              >
+                <span style={st.kode}>{a.kodeAkun}</span>
+                <span style={{ wordBreak: 'break-word' }}>{a.namaAkun}</span>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const RincianAkunModal = ({ akun, filterDate, dataJurnal, dataAkun, onHide, onJurnalUpdated }) => {
   const kodeAkun = akun?.kodeAkun;
   // Form edit akun: hanya satu transaksi yang terbuka sekaligus.
@@ -120,7 +207,6 @@ const RincianAkunModal = ({ akun, filterDate, dataJurnal, dataAkun, onHide, onJu
     tombolUbah: { border: '1px solid #c9d0ff', background: '#fff', color: 'blue', borderRadius: 8, fontSize: 12, padding: '4px 10px', marginTop: 8 },
     formEdit: { marginTop: 10, paddingTop: 10, borderTop: '1px dashed #ddd' },
     labelEdit: { fontSize: 12, color: '#555', marginBottom: 2, display: 'block' },
-    select: { width: '100%', fontSize: 14, padding: '8px', borderRadius: 8, border: '1px solid #ccc', marginBottom: 8, background: '#fff' },
     tombolSimpan: { background: 'blue', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 14, flex: 1 },
     tombolBatal: { background: '#fff', color: '#333', border: '1px solid #ccc', borderRadius: 8, padding: '8px 16px', fontSize: 14, flex: 1 },
     pesan: (tipe) => ({ fontSize: 13, borderRadius: 8, padding: '8px 12px', marginBottom: 10, background: tipe === 'ok' ? '#E8F7EE' : '#FDECEC', color: tipe === 'ok' ? '#1e7a3e' : '#b3261e' }),
@@ -193,19 +279,9 @@ const RincianAkunModal = ({ akun, filterDate, dataJurnal, dataAkun, onHide, onJu
               {editId === idJurnal(e) ? (
                 <div style={s.formEdit}>
                   <label style={s.labelEdit}>Akun Debet · {rupiah(e.nominalDebet)}</label>
-                  <select style={s.select} value={editDebet} onChange={(ev) => setEditDebet(ev.target.value)} disabled={saving}>
-                    <option value="">— pilih akun —</option>
-                    {opsiAkun.map((a) => (
-                      <option key={a.kodeAkun} value={a.kodeAkun}>{a.kodeAkun} · {a.namaAkun}</option>
-                    ))}
-                  </select>
+                  <AkunPicker value={editDebet} onChange={setEditDebet} opsi={opsiAkun} disabled={saving} />
                   <label style={s.labelEdit}>Akun Kredit · {rupiah(e.nominalKredit)}</label>
-                  <select style={s.select} value={editKredit} onChange={(ev) => setEditKredit(ev.target.value)} disabled={saving}>
-                    <option value="">— pilih akun —</option>
-                    {opsiAkun.map((a) => (
-                      <option key={a.kodeAkun} value={a.kodeAkun}>{a.kodeAkun} · {a.namaAkun}</option>
-                    ))}
-                  </select>
+                  <AkunPicker value={editKredit} onChange={setEditKredit} opsi={opsiAkun} disabled={saving} />
                   {pesan?.tipe === 'err' && <div style={s.pesan('err')}>{pesan.teks}</div>}
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button type="button" style={s.tombolBatal} onClick={() => { setEditId(null); setPesan(null); }} disabled={saving}>Batal</button>

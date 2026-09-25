@@ -9,6 +9,7 @@ import { DatePicker, Space } from 'antd';
 import { hitungFinansialInvoice, ambilSpkTenagaIds } from '../../Utils/invoiceFinancial';
 import ExportLabaRugiPdf from './ExportLabaRugiPdf';
 import RincianAkunModal from './RincianAkunModal';
+import InvoiceBiayaModal from './InvoiceBiayaModal';
 import { buatLaporanProfit } from '../../Utils/labaRugiReport';
 
 const Jurnal = () => {
@@ -183,6 +184,8 @@ const Jurnal = () => {
   const [filterDate, setFilterDate] = useState(null);
   // Akun yang diklik di tabel Pengeluaran → popup rincian jurnalnya.
   const [akunDipilih, setAkunDipilih] = useState(null);
+  // Invoice yang diklik di tabel Penjualan → popup biaya/estimasi HPP.
+  const [invoiceDipilih, setInvoiceDipilih] = useState(null);
 
   const handleDateChange = (date, dateString) => {
     setFilterDate(dateString); // Format dateString: "YYYY-MM"
@@ -382,7 +385,7 @@ const Jurnal = () => {
 
         </div>
         <div className='mt-3' style={{ maxHeight: '77vh', overflowY: 'auto' }}>
-          <p className='fw-semibold px-4'>Penjualan (Lunas)</p>
+          <p className='fw-semibold px-4 mb-2'>Penjualan (Lunas) <span className='fw-normal text-muted' style={{ fontSize: 12 }}>· klik invoice untuk lihat / isi biaya</span></p>
           <div style={{ ...tableContainerStyle, maxHeight: '60vh', overflowY: 'auto' }}>
             <table style={tableStyle}>
               <thead>
@@ -425,7 +428,10 @@ const Jurnal = () => {
                     return (
                       <tr
                         key={index}
-                        style={index % 2 === 0 ? tbodyTrEvenStyle : tbodyTrOddStyle}
+                        className='tr-hover-effect'
+                        onClick={() => setInvoiceDipilih(item)}
+                        title='Klik untuk lihat / isi biaya'
+                        style={{ ...(index % 2 === 0 ? tbodyTrEvenStyle : tbodyTrOddStyle), cursor: 'pointer' }}
                       >
                         <td style={thTdStyle} className="text-center">
                           {index + 1}
@@ -446,7 +452,7 @@ const Jurnal = () => {
                             })
                             : "-"}
                         </td>
-                        <td style={thTdStyle}>{item.kodeInvoice}</td>
+                        <td style={thTdStyle}><span style={{ color: 'blue' }}>{item.kodeInvoice} ›</span></td>
                         <td style={thTdStyle}>Rp. {totalPenjualan.toLocaleString('id-ID')}</td>
                         <td style={thTdStyle}>Rp. {totalGrossProfit.toLocaleString('id-ID')}</td>
                         {/* <td style={thTdStyle}>{status}</td> */}
@@ -591,6 +597,18 @@ const Jurnal = () => {
         </div>
 
       </Container>
+
+      <InvoiceBiayaModal
+        invoice={invoiceDipilih}
+        dataProject={dataProject}
+        dataSPKProduct={dataSPKProduct}
+        dataInvoicePengeluaran={dataInvoicePengeluaran}
+        spkTenagaIds={spkTenagaIds}
+        onHide={() => setInvoiceDipilih(null)}
+        onEstimasiSaved={(idProduct, cat, value) =>
+          setDataProject((prev) => prev.map((p) => (p.id === idProduct ? { ...p, [`estimasi${cat}`]: value } : p)))
+        }
+      />
 
       <RincianAkunModal
         akun={akunDipilih}

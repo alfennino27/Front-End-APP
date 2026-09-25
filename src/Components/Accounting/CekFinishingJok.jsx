@@ -71,15 +71,23 @@ const CekFinishingJok = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [edit, setEdit] = useState({}); // idProduct -> { Finishing?: teks, Jok?: teks }
-  const [menyimpan, setMenyimpan] = useState(false);
-  const [pesan, setPesan] = useState('');
+  // Auto save: status 'idle' | 'menyimpan' | 'tersimpan' | 'gagal'
+  const [statusSimpan, setStatusSimpan] = useState({ status: 'idle', waktu: '', pesan: '' });
+  const editRef = useRef(edit);
+  editRef.current = edit;
+  const sedangSimpanRef = useRef(false);
+  const ulangiRef = useRef(false);
+  const timerRef = useRef(null);
+  // item yang sudah diubah di sesi ini tetap tampil walau filter "belum diisi" aktif,
+  // supaya baris tidak loncat saat autosave selesai
+  const [tetapTampil, setTetapTampil] = useState(() => new Set());
   const [cari, setCari] = useState('');
   const [hanyaKosong, setHanyaKosong] = useState(false);
   const tabelRef = useRef(null);
   const [detail, setDetail] = useState(null); // item yang dibuka di popup
 
-  const fetchData = async () => {
-    setLoading(true);
+  const fetchData = async ({ senyap = false } = {}) => {
+    if (!senyap) setLoading(true);
     setError('');
     try {
       const res = await fetch(`${baseUrl}/accounting/cek-finishing-jok/get?dari=${mulai}&sampai=${sampai}`);
@@ -88,9 +96,9 @@ const CekFinishingJok = () => {
       setData(json);
     } catch (err) {
       console.error('Gagal mengambil cek finishing & jok:', err);
-      setError(err.message);
+      if (!senyap) setError(err.message);
     } finally {
-      setLoading(false);
+      if (!senyap) setLoading(false);
     }
   };
 
@@ -113,7 +121,7 @@ const CekFinishingJok = () => {
     return fmtInput(k === 'Finishing' ? item.budgetFinishing : item.budgetJok);
   };
   const ubahSel = (item, k, teks) => {
-    setPesan('');
+    setTetapTampil((prev) => (prev.has(item.id) ? prev : new Set(prev).add(item.id)));
     setEdit((prev) => {
       const asli = fmtInput(k === 'Finishing' ? item.budgetFinishing : item.budgetJok);
       const baris = { ...(prev[item.id] || {}) };
@@ -132,11 +140,11 @@ const CekFinishingJok = () => {
       if (hanyaKosong) {
         const kosongFin = it.masukFinishing && (edit[it.id]?.Finishing ?? fmtInput(it.budgetFinishing)) === '';
         const kosongJok = it.masukJok && (edit[it.id]?.Jok ?? fmtInput(it.budgetJok)) === '';
-        if (!kosongFin && !kosongJok) return false;
+        if (!kosongFin && !kosongJok && !tetapTampil.has(it.id)) return false;
       }
       return true;
     });
-  }, [data, cari, hanyaKosong, edit]);
+  }, [data, cari, hanyaKosong, edit, tetapTampil]);
 
   // Enter = turun ke baris berikutnya di kolom yang sama
   const fokusSel = (baris, k) => {
@@ -159,19 +167,31 @@ const CekFinishingJok = () => {
     });
   };
 
-  const simpan = async () => {
+  // Simpan semua perubahan yang tertunda. Dipanggil otomatis ~0,8 detik setelah
+  // berhenti mengetik. Perubahan yang terjadi SELAMA request tetap tertahan di
+  // `edit` dan disimpan di putaran berikutnya.
+  const simpanOtomatis = async () => {
+    if (sedangSimpanRef.current) { ulangiRef.current = true; return; }
+    const snapshot = editRef.current;
     const payload = [];
-    for (const [idProduct, e] of Object.entries(edit)) {
+    const tidakValid = [];
+    for (const [idProduct, e] of Object.entries(snapshot)) {
       const baris = { idProduct };
       for (const k of KATEGORI) {
         if (e[k] === undefined) continue;
         const v = parseNominal(e[k]);
-        if (e[k].trim() !== '' && v === null) { setPesan(`Angka tidak valid: "${e[k]}"`); return; }
+        if (e[k].trim() !== '' && v === null) { tidakValid.push(e[k]); continue; }
         baris[k.toLowerCase()] = v;
       }
-      payload.push(baris);
+      if (Object.keys(baris).length > 1) payload.push(baris);
     }
-    setMenyimpan(true);
+    if (payload.length === 0) {
+      if (tidakValid.length) setStatusSimpan({ status: 'gagal', waktu: '', pesan: `Angka tidak valid, belum disimpan: "${tidakValid[0]}"` });
+      return;
+    }
+
+    sedangSimpanRef.current = true;
+    setStatusSimpan((st) => ({ ...st, status: 'menyimpan' }));
     try {
       const res = await fetch(`${baseUrl}/accounting/cek-finishing-jok/budget`, {
         method: 'PUT',
@@ -180,15 +200,69 @@ const CekFinishingJok = () => {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.message || 'Gagal menyimpan');
-      setEdit({});
-      setPesan(`${payload.length} item tersimpan.`);
-      await fetchData();
+
+      // tulis nilai tersimpan ke data lokal, lalu buang dari `edit` hanya sel yang
+      // teksnya belum berubah lagi sejak snapshot diambil
+      const tersimpan = Object.fromEntries(payload.map((p) => [p.idProduct, p]));
+      setData((d) => d && ({
+        ...d,
+        items: d.items.map((it) => {
+          const p = tersimpan[it.id];
+          if (!p) return it;
+          return {
+            ...it,
+            budgetFinishing: p.finishing !== undefined ? p.finishing : it.budgetFinishing,
+            budgetJok: p.jok !== undefined ? p.jok : it.budgetJok,
+          };
+        }),
+      }));
+      setEdit((prev) => {
+        const next = { ...prev };
+        for (const p of payload) {
+          const skr = next[p.idProduct];
+          if (!skr) continue;
+          const baris = { ...skr };
+          for (const k of KATEGORI) {
+            if (p[k.toLowerCase()] !== undefined && baris[k] === snapshot[p.idProduct]?.[k]) delete baris[k];
+          }
+          if (Object.keys(baris).length) next[p.idProduct] = baris; else delete next[p.idProduct];
+        }
+        return next;
+      });
+      const waktu = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+      setStatusSimpan({
+        status: tidakValid.length ? 'gagal' : 'tersimpan',
+        waktu,
+        pesan: tidakValid.length ? `Angka tidak valid, belum disimpan: "${tidakValid[0]}"` : '',
+      });
+      fetchData({ senyap: true }); // perbarui total budget di kartu & tabel bulanan
     } catch (err) {
-      setPesan(`Gagal menyimpan: ${err.message}`);
+      console.error('Autosave budget gagal:', err);
+      setStatusSimpan({ status: 'gagal', waktu: '', pesan: `Gagal menyimpan (${err.message}). Mencoba lagi…` });
+      clearTimeout(timerRef.current);
+      timerRef.current = setTimeout(simpanOtomatis, 5000);
     } finally {
-      setMenyimpan(false);
+      sedangSimpanRef.current = false;
+      if (ulangiRef.current) { ulangiRef.current = false; simpanOtomatis(); }
     }
   };
+
+  // jadwalkan autosave setiap ada perubahan
+  useEffect(() => {
+    if (Object.keys(edit).length === 0) return;
+    clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(simpanOtomatis, 800);
+    return () => clearTimeout(timerRef.current);
+  }, [edit]);
+
+  // cegah menutup halaman saat masih ada yang belum tersimpan
+  useEffect(() => {
+    const cegah = (e) => {
+      if (Object.keys(editRef.current).length || sedangSimpanRef.current) { e.preventDefault(); e.returnValue = ''; }
+    };
+    window.addEventListener('beforeunload', cegah);
+    return () => window.removeEventListener('beforeunload', cegah);
+  }, []);
 
   // ----- gaya -----
   const kartu = { border: '1px solid #dddddd', borderRadius: '10px', padding: '16px 18px', background: '#fff', flex: '1 1 320px' };
@@ -299,7 +373,7 @@ const CekFinishingJok = () => {
               <div className='fw-semibold' style={{ fontSize: '15px' }}>Isi budget per unit ({data.items.length} item)</div>
               <div style={{ fontSize: '12px', color: '#6c757d', maxWidth: 720 }}>
                 Isi angka all-in per unit (bahan + ongkos). Untuk jok yang dijahit supplier luar, isi biaya kain &amp; busanya saja.
-                Isi <b>0</b> kalau item memang tanpa finishing/jok. Tekan Enter untuk turun, atau tempel satu kolom dari Excel.
+                Isi <b>0</b> kalau item memang tanpa finishing/jok. Tersimpan otomatis. Tekan Enter untuk turun, atau tempel satu kolom dari Excel.
                 Contoh: 150000, 150.000, atau 150rb.
               </div>
             </div>
@@ -378,22 +452,21 @@ const CekFinishingJok = () => {
             </table>
           </div>
 
-          {(jumlahPerubahan > 0 || pesan) && (
-            <div style={{ position: 'sticky', bottom: 'env(safe-area-inset-bottom, 0px)', marginTop: '12px', background: '#fff', border: '1px solid blue', borderRadius: '10px', padding: '10px 14px', zIndex: 5 }}
-              className='d-flex justify-content-between align-items-center flex-wrap gap-2'>
-              <span style={{ fontSize: '13px' }}>
-                {jumlahPerubahan > 0 ? `${jumlahPerubahan} perubahan belum disimpan.` : ''} {pesan}
-              </span>
-              {jumlahPerubahan > 0 && (
-                <div className='d-flex gap-2'>
-                  <button type='button' className='btn btn-sm btn-outline-secondary' onClick={() => { setEdit({}); setPesan(''); }} disabled={menyimpan}>Batal</button>
-                  <button type='button' className='btn btn-sm btn-primary' onClick={simpan} disabled={menyimpan}>
-                    {menyimpan ? 'Menyimpan…' : 'Simpan semua'}
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
+          {(statusSimpan.status !== 'idle' || jumlahPerubahan > 0) && (() => {
+            const st = statusSimpan.status;
+            const menunggu = jumlahPerubahan > 0 && st !== 'menyimpan' && st !== 'gagal';
+            const teks = st === 'menyimpan' ? 'Menyimpan…'
+              : st === 'gagal' ? statusSimpan.pesan
+              : menunggu ? 'Menyimpan otomatis…'
+              : `Semua perubahan tersimpan · ${statusSimpan.waktu}`;
+            const warna = st === 'gagal' ? '#c0392b' : st === 'tersimpan' && !menunggu ? '#1e7e34' : '#555';
+            return (
+              <div role='status' aria-live='polite'
+                style={{ position: 'sticky', bottom: 'env(safe-area-inset-bottom, 0px)', marginTop: '12px', background: '#fff', border: `1px solid ${warna}`, color: warna, borderRadius: '10px', padding: '8px 14px', fontSize: '13px', zIndex: 5, width: 'fit-content', marginLeft: 'auto' }}>
+                {st === 'tersimpan' && !menunggu ? '✓ ' : ''}{teks}
+              </div>
+            );
+          })()}
         </>
       )}
 
@@ -442,7 +515,7 @@ const CekFinishingJok = () => {
                   </div>
                 ))}
               </div>
-              <div style={{ fontSize: '11px', color: '#6c757d', marginTop: '4px' }}>Perubahan di sini ikut tombol "Simpan semua" di bawah tabel.</div>
+              <div style={{ fontSize: '11px', color: '#6c757d', marginTop: '4px' }}>Tersimpan otomatis setelah selesai mengetik.</div>
             </Modal.Body>
           </>
         )}

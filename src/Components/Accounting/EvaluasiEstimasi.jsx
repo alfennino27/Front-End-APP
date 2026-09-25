@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Container, Dropdown, Spinner } from 'react-bootstrap';
+import AccountingMenu from './AccountingMenu';
 import { Link } from 'react-router-dom';
 import { DatePicker } from 'antd';
 import dayjs from 'dayjs';
@@ -120,61 +121,7 @@ const EvaluasiEstimasi = () => {
       <div className='mt-4 px-4'>
         <div className='row'>
           <div className="col d-flex justify-content-between align-items-center flex-wrap gap-2">
-            <Dropdown>
-              <Dropdown.Toggle variant="light" id="dropdown-basic" className="text-sm px-2 py-1" style={{ border: "1px solid blue", borderRadius: "5px", color: "blue" }}>
-                Evaluasi Estimasi
-              </Dropdown.Toggle>
-                <Dropdown.Menu>
-                  <Dropdown.Item as={Link} to="/accounting/akun" className="dropdown-link">
-                    Akun & Saldo Awal
-                  </Dropdown.Item>
-                  <Dropdown.Item as={Link} to="/accounting/customer" className="dropdown-link">
-                    Customer
-                  </Dropdown.Item>
-                  <Dropdown.Item as={Link} to="/accounting/supplier" className="dropdown-link">
-                    Supplier
-                  </Dropdown.Item>
-                  <Dropdown.Item as={Link} to="/accounting/aset" className="dropdown-link">
-                    Aset
-                  </Dropdown.Item>
-                  <Dropdown.Item as={Link} to="/accounting/buku-besar" className="dropdown-link">
-                    Buku Besar
-                  </Dropdown.Item>
-                  <Dropdown.Item as={Link} to="/accounting/neraca-saldo" className="dropdown-link">
-                    Neraca Saldo
-                  </Dropdown.Item>
-                  <Dropdown.Item as={Link} to="/accounting/laba-rugi-penjualan" className="dropdown-link">
-                    Laba - Rugi Penjualan
-                  </Dropdown.Item>
-                  <Dropdown.Item as={Link} to="/accounting/laba-rugi-cash" className="dropdown-link">
-                    Laba - Rugi Cash
-                  </Dropdown.Item>
-                  <Dropdown.Item as={Link} to="/accounting/laba-rugi-profit" className="dropdown-link">
-                    Laba - Rugi Profit
-                  </Dropdown.Item>
-                  <Dropdown.Item as={Link} to="/accounting/evaluasi-estimasi" className="dropdown-link" style={{ color: "blue" }}>
-                    Evaluasi Estimasi
-                  </Dropdown.Item>
-                  <Dropdown.Item as={Link} to="/accounting/jurnal" className="dropdown-link">
-                    Jurnal
-                  </Dropdown.Item>
-                  <Dropdown.Item as={Link} to="/accounting/balance-sheet" className="dropdown-link">
-                    Balance Sheet
-                  </Dropdown.Item>
-                  <Dropdown.Item as={Link} to="/accounting/jurnal-penyesuaian" className="dropdown-link">
-                    Jurnal Penyesuaian
-                  </Dropdown.Item>
-                  <Dropdown.Item as={Link} to="/accounting/cash-flow" className="dropdown-link">
-                    Cash Flow
-                  </Dropdown.Item>
-                  <Dropdown.Item as={Link} to="/accounting/piutang" className="dropdown-link">
-                    Piutang
-                  </Dropdown.Item>
-                  <Dropdown.Item as={Link} to="/accounting/hutang" className="dropdown-link">
-                    Hutang
-                  </Dropdown.Item>
-                </Dropdown.Menu>
-            </Dropdown>
+            <AccountingMenu />
 
             <div className='d-flex align-items-center gap-2'>
               <select

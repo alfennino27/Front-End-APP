@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Container, Modal, Spinner } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
+import AccountingMenu from './AccountingMenu';
 import { DatePicker, Image } from 'antd';
 import dayjs from 'dayjs';
 import { getApiBaseUrl } from '../../Config/APIurl';
@@ -302,7 +303,7 @@ const CekFinishingJok = () => {
     <Container fluid className='px-4 pb-5'>
       <div className='mt-4 d-flex justify-content-between align-items-center flex-wrap gap-2'>
         <div>
-          <Link to='/accounting' style={{ fontSize: '13px' }}>← Accounting</Link>
+          <div className='mb-2'><AccountingMenu /></div>
           <h4 className='fw-semibold mb-0' style={{ color: 'blue' }}>Cek Finishing &amp; Jok</h4>
           <div style={{ fontSize: '12px', color: '#6c757d' }}>
             Budget di halaman ini tidak mengubah gross profit invoice maupun laporan keuangan.

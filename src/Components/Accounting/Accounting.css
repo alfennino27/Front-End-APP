@@ -90,3 +90,17 @@ tbody tr:nth-child(even) {
 .button-effect:active {
     transform: scale(0.8) !important;
 }
+/* Grid menu /accounting: HP = 1 kolom urut; desktop = 3 kolom diisi per kolom
+   (urutan ACCOUNTING_MENU: data master | laporan | jurnal). */
+.accounting-menu-grid {
+  display: grid;
+  gap: 1.5rem;
+  grid-template-columns: 1fr;
+}
+@media (min-width: 768px) {
+  .accounting-menu-grid {
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(6, auto);
+    grid-auto-flow: column;
+  }
+}

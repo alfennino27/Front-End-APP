@@ -14,7 +14,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
         <ErrorBoundary>
           <App />
         </ErrorBoundary>
-      </ThemeProvider>,
+      </ThemeProvider>
     </HelmetProvider>
   </React.StrictMode>
 );

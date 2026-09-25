@@ -88,6 +88,7 @@ const DetailPekerjaan = () => {
   const [supplierBarangJadi, setSupplierBarangJadi] = useState('');
   const [supplierPengiriman, setSupplierPengiriman] = useState('');
   const [supplierTestimoni, setSupplierTestimoni] = useState('');
+  const [supplierGambarKerja, setSupplierGambarKerja] = useState('');
 
   const [productNameInformation, setProductNameInformation] = useState('');
   const [buyerNameInformation, setBuyerNameInformation] = useState('');
@@ -1099,6 +1100,7 @@ const DetailPekerjaan = () => {
       setSupplierBarangJadi(data.SupplierBarangJadi);
       setSupplierPengiriman(data.SupplierPengiriman);
       setSupplierTestimoni(data.SupplierTestimoni);
+      setSupplierGambarKerja(data.SupplierGambarKerja);
 
       setDataProjectFromDB([data]); // karena sebelumnya berbentuk array
     } catch (err) {
@@ -1238,6 +1240,7 @@ const DetailPekerjaan = () => {
         setSupplierBarangJadi(data.SupplierBarangJadi);
         setSupplierPengiriman(data.SupplierPengiriman);
         setSupplierTestimoni(data.SupplierTestimoni);
+        setSupplierGambarKerja(data.SupplierGambarKerja);
 
         if (categorySearch) {
           setCategory(categorySearch);
@@ -1409,6 +1412,14 @@ const DetailPekerjaan = () => {
 
   const handleConfirmPrintSPK = ({ coverImage, pages }) => {
     const project = dataProjectFromDB[0];
+    if (category === 'GambarKerja') {
+      setShowSPKImagePicker(false);
+      sessionStorage.setItem('cetakGambarKerja', JSON.stringify({
+        project, coverImage, pages, printDate: new Date().toISOString(),
+      }));
+      window.open('/cetakGambarKerja', '_blank');
+      return;
+    }
     const spkData = {
       project,
       category,
@@ -2184,7 +2195,7 @@ const DetailPekerjaan = () => {
 
 
 
-          {["Stainless", "Besi", "Kayu", "Jok", "Rotan", "Marmer", "Kaca", "Fiber", "Veneer", "Finishing", "Hardware", "BarangJadi", "Pengiriman", "Testimoni"]
+          {["Stainless", "Besi", "Kayu", "Jok", "Rotan", "Marmer", "Kaca", "Fiber", "Veneer", "Finishing", "Hardware", "BarangJadi", "GambarKerja", "Pengiriman", "Testimoni"]
             // Kategori "Kain" sudah DIHAPUS (kain sekarang masuk Jok). Tetap ditampilkan
             // di paling bawah HANYA untuk item lama yang terlanjur punya data Kain,
             // supaya riwayatnya tidak hilang. Item baru tidak akan pernah memunculkannya.
@@ -2786,8 +2797,9 @@ const DetailPekerjaan = () => {
             )}
             {category && dataProjectFromDB.length > 0 && (
               <button
-                title="Buat SPK"
-                onClick={(e) => { e.stopPropagation(); setShowSpkPrecheck(true); }}
+                title={category === 'GambarKerja' ? 'Cetak Gambar Kerja' : 'Buat SPK'}
+                // Gambar Kerja: tanpa cek AI, langsung pilih cover & layout.
+                onClick={(e) => { e.stopPropagation(); if (category === 'GambarKerja') handlePrintSPK(); else setShowSpkPrecheck(true); }}
                 className="no-active"
                 style={{
                   background: globalTheme === 'light' ? '#fff' : '#333',
@@ -2798,7 +2810,7 @@ const DetailPekerjaan = () => {
                   fontSize: '13px', fontWeight: '600',
                 }}
               >
-                <AiOutlinePrinter style={{ fontSize: '16px' }} /> Buat SPK
+                <AiOutlinePrinter style={{ fontSize: '16px' }} /> {category === 'GambarKerja' ? 'Cetak Gambar Kerja' : 'Buat SPK'}
               </button>
             )}
             {showSpkPrice && (
@@ -3001,6 +3013,10 @@ const DetailPekerjaan = () => {
       <SPKLayoutModal
         show={showSPKImagePicker}
         images={spkImages}
+        coverImages={category === 'GambarKerja'
+          ? [dataProjectFromDB[0]?.image1, ...spkImages].filter((v, i, a) => v && a.indexOf(v) === i)
+          : undefined}
+        coverTitle={category === 'GambarKerja' ? 'Pilih Cover Gambar Kerja (gambar produk utama)' : undefined}
         namaBarang={dataProjectFromDB[0]?.NamaBarang || ''}
         globalTheme={globalTheme}
         onClose={() => setShowSPKImagePicker(false)}

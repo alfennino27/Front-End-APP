@@ -10,6 +10,7 @@ import CetakLabelPage from './Pages/CetakLabelPage';
 import CetakLabelQCPage from './Pages/CetakLabelQCPage';
 import CetakLabelSupplierPage from './Pages/CetakLabelSupplierPage';
 import CetakSPKPage from './Pages/CetakSPKPage';
+import CetakGambarKerjaPage from './Pages/CetakGambarKerjaPage';
 import TestimoniLamaPage from './Pages/TestimoniLamaPage';
 import KLFAIPage from './Pages/KLFAIPage';
 import AccountingPage from './Pages/AccountingPage';
@@ -73,6 +74,7 @@ function App() {
         <Route path="/cetakLabelQC" element={<CetakLabelQCPage />} />
         <Route path="/cetakLabelSupplier" element={<CetakLabelSupplierPage />} />
         <Route path="/cetakSPK" element={<CetakSPKPage />} />
+        <Route path="/cetakGambarKerja" element={<CetakGambarKerjaPage />} />
         <Route path="/testimoni-lama" element={<TestimoniLamaPage />} />
         <Route path="/klf-ai" element={<KLFAIPage />} />
         <Route path="/accounting" element={<AccountingPage />} />

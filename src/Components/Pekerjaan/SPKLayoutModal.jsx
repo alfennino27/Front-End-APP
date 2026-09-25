@@ -10,7 +10,9 @@ import {
 //  1. Pilih gambar cover (tampil di halaman template SPK).
 //  2. Atur layout tiap halaman gambar: pilih template + assign gambar ke placeholder.
 // onConfirm({ coverImage, pages }) dengan pages = [{ template, slots: [img|null] }].
-const SPKLayoutModal = ({ show, images = [], namaBarang = '', globalTheme = 'light', onClose, onConfirm }) => {
+// coverImages (opsional) = pilihan cover berbeda dari gambar halaman (mis. Gambar Kerja: gambar produk utama).
+const SPKLayoutModal = ({ show, images = [], coverImages, coverTitle = 'Pilih Gambar Cover SPK', namaBarang = '', globalTheme = 'light', onClose, onConfirm }) => {
+  const coverList = coverImages || images;
   const dark = globalTheme !== 'light';
   const [step, setStep] = useState(1);
   const [cover, setCover] = useState(null);
@@ -95,7 +97,7 @@ const SPKLayoutModal = ({ show, images = [], namaBarang = '', globalTheme = 'lig
     <Modal show={show} onHide={onClose} size="xl" className={dark ? 'modalKLF' : 'modalKLFlight'} scrollable>
       <Modal.Header closeButton>
         <Modal.Title style={{ color: dark ? 'white' : 'black', fontSize: '16px' }}>
-          {step === 1 ? 'Pilih Gambar Cover SPK' : 'Atur Layout Halaman Gambar'}
+          {step === 1 ? coverTitle : 'Atur Layout Halaman Gambar'}
           <span style={{ marginLeft: 10, fontSize: 12, color: '#888', fontWeight: 'normal' }}>Langkah {step}/2</span>
         </Modal.Title>
       </Modal.Header>
@@ -106,11 +108,11 @@ const SPKLayoutModal = ({ show, images = [], namaBarang = '', globalTheme = 'lig
             <p style={{ color: txtMuted, fontSize: 13, marginBottom: 12 }}>
               Klik gambar yang ingin ditampilkan sebagai gambar utama di halaman cover SPK.
             </p>
-            {images.length === 0 ? (
+            {coverList.length === 0 ? (
               <p style={{ color: '#aaa', textAlign: 'center' }}>Tidak ada gambar tersedia.</p>
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 10 }}>
-                {images.map((img, i) => (
+                {coverList.map((img, i) => (
                   <div
                     key={i}
                     onClick={() => handlePickCover(img)}

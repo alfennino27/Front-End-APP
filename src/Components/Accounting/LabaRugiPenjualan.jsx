@@ -516,6 +516,9 @@ const Jurnal = () => {
         dataJurnal={dataJurnal}
         dataAkun={dataAkun}
         onHide={() => setAkunDipilih(null)}
+        onJurnalUpdated={(id, kodeAkunDebet, kodeAkunKredit) =>
+          setDataJurnal((prev) => prev.map((j) => ((j.id || j._id) === id ? { ...j, kodeAkunDebet, kodeAkunKredit } : j)))
+        }
       />
     </>
   );

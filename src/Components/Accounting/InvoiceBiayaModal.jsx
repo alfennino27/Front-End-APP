@@ -1,5 +1,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { Modal } from 'react-bootstrap';
+import { Image } from 'antd';
+import { getImageUrl } from '../../Utils/image';
 import { getApiBaseUrl } from '../../Config/APIurl';
 import {
   HPP_CATEGORIES,
@@ -21,6 +23,11 @@ import { persenGrossProfit } from '../../Utils/labaRugiReport';
 
 const rupiah = (n) => `Rp. ${Math.round(Number(n || 0)).toLocaleString('id-ID')}`;
 const angka = (str) => Number(String(str ?? '').replace(/[^\d]/g, '')) || 0;
+// Foto produk pertama yang ada (image1, image2, …) untuk thumbnail.
+const fotoProduk = (p) => {
+  for (let i = 1; i <= 10; i++) if (p[`image${i}`]) return p[`image${i}`];
+  return null;
+};
 const formatInput = (n) => (n ? Number(n).toLocaleString('id-ID') : '');
 
 const InvoiceBiayaModal = ({
@@ -204,9 +211,25 @@ const InvoiceBiayaModal = ({
 
           return (
             <div key={p.id} style={s.kartu}>
-              <div style={s.judulProduk}>{p.NamaBarang || '(tanpa nama)'}</div>
-              <div style={s.meta}>
-                {qty} × {rupiah(harga)} · HPP/unit {rupiah(hppUnit)} · GP {rupiah((harga - hppUnit) * qty)}
+              <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                {fotoProduk(p) ? (
+                  <Image
+                    src={getImageUrl(fotoProduk(p))}
+                    width={56}
+                    height={56}
+                    style={{ objectFit: 'cover', borderRadius: 8, border: '1px solid #eee' }}
+                  />
+                ) : (
+                  <div style={{ width: 56, height: 56, flexShrink: 0, borderRadius: 8, background: '#f1f1f1', color: '#aaa', fontSize: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
+                    tanpa foto
+                  </div>
+                )}
+                <div style={{ minWidth: 0 }}>
+                  <div style={s.judulProduk}>{p.NamaBarang || '(tanpa nama)'}</div>
+                  <div style={s.meta}>
+                    {qty} × {rupiah(harga)} · HPP/unit {rupiah(hppUnit)} · GP {rupiah((harga - hppUnit) * qty)}
+                  </div>
+                </div>
               </div>
 
               <div style={{ marginTop: 8 }}>

@@ -17,6 +17,11 @@ import noImageAvailable from '../../assets/images/noImageAvailable.png';
 const IZIN = ['fYpdHwXRDLhj5XGxM5FZIAvxp9E2', 'w4M5JJjgGQeHFbS2nkyoCfUBE532', '4WGPaHicKWYr0Ny84IUh8xb9Bo62', 'ANGTwgX8KxXQy5Ww3cwpLrG0tFT2', 'gwsOqUgVXSPyWFMMHr4bJteBoYs1', '6D4XVa5BSSOl1ugUlkDlTea2COX2', 'MjOCxfNdGtf0q12BPzj0EYAcVJD3', 'knydS6fIBdOwHS37dDm3ZDNQXKQ2', 'Q3LWLX4D7Ye8hMnQVF9fa7SZb953', 'ep15dsFMceTBAyZvpZDiAJ4kMME3'];
 const KATEGORI = ['Finishing', 'Jok'];
 const CAKUPAN_MINIMUM = 0.8;
+// Isi akun real per kategori, supaya jelas apa saja yang sudah terhitung
+const LABEL_REAL = {
+  Finishing: { bahan: 'bahan + gaji harian tukang finishing', tenaga: 'borongan Mad (mulai 21 Mei 2025)' },
+  Jok: { bahan: 'kain, busa, lem', tenaga: 'borongan Defid' },
+};
 const NAMA_BULAN = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
 
 const rp = (v) => `Rp ${Math.round(Number(v || 0)).toLocaleString('id-ID')}`;
@@ -206,8 +211,8 @@ const CekFinishingJok = () => {
           <tbody>
             <tr><td>Budget</td><td style={{ textAlign: 'right', fontWeight: 600 }}>{rp(r.budget)}</td></tr>
             <tr><td>Real</td><td style={{ textAlign: 'right', fontWeight: 600 }}>{rp(r.real)}</td></tr>
-            <tr style={{ color: '#6c757d', fontSize: '12px' }}><td style={{ paddingLeft: '12px' }}>bahan (akun {data.akun[k].akunBahan.join(', ')})</td><td style={{ textAlign: 'right' }}>{rp(r.real_bahan)}</td></tr>
-            <tr style={{ color: '#6c757d', fontSize: '12px' }}><td style={{ paddingLeft: '12px' }}>ongkos tenaga (akun {data.akun[k].akunTenaga.join(', ')})</td><td style={{ textAlign: 'right' }}>{rp(r.real_tenaga)}</td></tr>
+            <tr style={{ color: '#6c757d', fontSize: '12px' }}><td style={{ paddingLeft: '12px' }}>{LABEL_REAL[k].bahan} (akun {data.akun[k].akunBahan.join(', ')})</td><td style={{ textAlign: 'right' }}>{rp(r.real_bahan)}</td></tr>
+            <tr style={{ color: '#6c757d', fontSize: '12px' }}><td style={{ paddingLeft: '12px' }}>{LABEL_REAL[k].tenaga} (akun {data.akun[k].akunTenaga.join(', ')})</td><td style={{ textAlign: 'right' }}>{rp(r.real_tenaga)}</td></tr>
             <tr style={{ borderTop: '1px solid #ddd' }}><td className='pt-1'>Selisih (real − budget)</td><td className='pt-1' style={{ textAlign: 'right', fontWeight: 700, color: r.selisih > 0 ? '#c0392b' : '#1e7e34' }}>{r.selisih > 0 ? '+' : ''}{rp(r.selisih)}</td></tr>
           </tbody>
         </table>

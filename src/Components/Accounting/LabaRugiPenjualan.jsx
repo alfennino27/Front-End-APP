@@ -8,6 +8,7 @@ import { FaPaste } from 'react-icons/fa';
 import { DatePicker, Space } from 'antd';
 import { hitungFinansialInvoice, ambilSpkTenagaIds } from '../../Utils/invoiceFinancial';
 import ExportLabaRugiPdf from './ExportLabaRugiPdf';
+import RincianAkunModal from './RincianAkunModal';
 import { buatLaporanPenjualan, persenGrossProfit } from '../../Utils/labaRugiReport';
 
 const Jurnal = () => {
@@ -49,7 +50,7 @@ const Jurnal = () => {
     marginLeft: '20px',
     marginRight: '20px',
     marginTop: '-10px',
-    overflow: 'hidden',
+    overflowX: 'auto',
     borderRadius: '10px',
     border: '1px solid #dddddd',
   };
@@ -167,6 +168,8 @@ const Jurnal = () => {
   }, []);
 
   const [filterDate, setFilterDate] = useState(null);
+  // Akun yang diklik di tabel Pengeluaran → popup rincian jurnalnya.
+  const [akunDipilih, setAkunDipilih] = useState(null);
 
   const handleDateChange = (date, dateString) => {
     setFilterDate(dateString); // Format dateString: "YYYY-MM"
@@ -237,7 +240,7 @@ const Jurnal = () => {
       <Container>
         <div className='mt-4 px-4'>
           <div className='row'>
-            <div className="col d-flex justify-content-between align-items-center">
+            <div className="col d-flex flex-wrap justify-content-between align-items-center gap-2">
               <Dropdown>
                 <Dropdown.Toggle variant="light" id="dropdown-basic" className="text-sm px-2 py-1" style={{ border: "1px solid blue", borderRadius: "5px", color: "blue" }}>
                   Laba Rugi Penjualan
@@ -294,7 +297,7 @@ const Jurnal = () => {
                 </Dropdown.Menu>
               </Dropdown>
 
-              <div className="d-flex align-items-center gap-2">
+              <div className="d-flex flex-wrap align-items-center gap-2">
                 <ExportLabaRugiPdf bulanAktif={filterDate} buatLaporan={buatLaporanPdf} />
                 <DatePicker picker="month" style={{ borderColor: 'blue', color: 'blue' }} onChange={handleDateChange} />
               </div>
@@ -381,7 +384,7 @@ const Jurnal = () => {
 
           </div>
 
-          <p className='fw-semibold px-4 mt-4'>Pengeluaran (Operasional)</p>
+          <p className='fw-semibold px-4 mt-4 mb-2'>Pengeluaran (Operasional) <span className='fw-normal text-muted' style={{ fontSize: 12 }}>· klik akun untuk lihat rincian</span></p>
           <div style={{ ...tableContainerStyle, maxHeight: '60vh', overflowY: 'auto' }}>
             <table style={tableStyle}>
               <thead>
@@ -440,13 +443,16 @@ const Jurnal = () => {
                       return (
                         <tr
                           key={index}
-                          style={index % 2 === 0 ? tbodyTrEvenStyle : tbodyTrOddStyle}
+                          className='tr-hover-effect'
+                          onClick={() => setAkunDipilih(item)}
+                          title='Klik untuk lihat rincian'
+                          style={{ ...(index % 2 === 0 ? tbodyTrEvenStyle : tbodyTrOddStyle), cursor: 'pointer' }}
                         >
                           <td style={thTdStyle} className="text-center">
                             {index + 1}
                           </td>
                           <td style={thTdStyle}>{item.kodeAkun}</td>
-                          <td style={thTdStyle}>{item.namaAkun}</td>
+                          <td style={thTdStyle}><span style={{ color: 'blue' }}>{item.namaAkun} ›</span></td>
                           <td style={thTdStyle}>
                             Rp. {saldoAkhir.toLocaleString('id-ID')}
                           </td>
@@ -503,6 +509,14 @@ const Jurnal = () => {
         </div>
 
       </Container>
+
+      <RincianAkunModal
+        akun={akunDipilih}
+        filterDate={filterDate}
+        dataJurnal={dataJurnal}
+        dataAkun={dataAkun}
+        onHide={() => setAkunDipilih(null)}
+      />
     </>
   );
 };

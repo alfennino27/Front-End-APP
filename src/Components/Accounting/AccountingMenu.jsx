@@ -26,6 +26,7 @@ export const ACCOUNTING_MENU = [
   { label: 'Jurnal Penyesuaian', to: '/accounting/jurnal-penyesuaian' },
   { label: 'Cash Flow', to: '/accounting/cash-flow' },
   { label: 'Hutang', to: '/accounting/hutang' },
+  { label: 'Temuan Koreksi', to: '/accounting/temuan-koreksi' },
 ];
 
 // Dropdown navigasi antar halaman accounting. Label tombol = halaman aktif.

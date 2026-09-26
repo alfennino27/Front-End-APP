@@ -27,6 +27,7 @@ import AccountingLabaRugiCashPage from './Pages/AccountingLabaRugiCashPage';
 import AccountingLabaRugiProfitPage from './Pages/AccountingLabaRugiProfitPage';
 import AccountingEvaluasiEstimasiPage from './Pages/AccountingEvaluasiEstimasiPage';
 import AccountingCekFinishingJokPage from './Pages/AccountingCekFinishingJokPage';
+import AccountingTemuanKoreksiPage from './Pages/AccountingTemuanKoreksiPage';
 import AccountingCashFlowPage from './Pages/AccountingCashFlowPage';
 import AccountingBalanceSheetPage from './Pages/AccountingBalanceSheetPage';
 import BooksPage from './Pages/BooksPage';
@@ -91,6 +92,7 @@ function App() {
         <Route path="/accounting/laba-rugi-profit" element={<AccountingLabaRugiProfitPage />} />
         <Route path="/accounting/evaluasi-estimasi" element={<AccountingEvaluasiEstimasiPage />} />
         <Route path="/accounting/cek-finishing-jok" element={<AccountingCekFinishingJokPage />} />
+        <Route path="/accounting/temuan-koreksi" element={<AccountingTemuanKoreksiPage />} />
         <Route path="/accounting/cash-flow" element={<AccountingCashFlowPage />} />
         <Route path="/accounting/balance-sheet" element={<AccountingBalanceSheetPage />} />
         <Route path="/spk" element={<SpkPage />} />

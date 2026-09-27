@@ -24,6 +24,9 @@ const { Option } = Select;
 const { TextArea } = Input;
 
 //tes
+// Rekening pembayar supplier (mirror REKENING_PEMBAYAR di server utils/jurnalPembayaran.js).
+const REKENING_PEMBAYAR = { '1120': 'BCA (a.n. Alfennino)', '1125': 'Rek CV Karya Logam Furindo' };
+
 const Spk = () => {
   const baseUrl = getApiBaseUrl();
   const { globalTheme } = useTheme();
@@ -78,6 +81,10 @@ const Spk = () => {
   const [paymentDetail, setPaymentDetail] = useState('');
   const [paymentTanggal, setPaymentTanggal] = useState('');
   const [paymentJumlah, setPaymentJumlah] = useState('');
+  // Jurnal otomatis pembayaran SPK: Dr Beban SUP-supplier / Cr rekening pembayar (server).
+  const [paymentAkunSumber, setPaymentAkunSumber] = useState('');
+  const [paymentAkunBeban, setPaymentAkunBeban] = useState('');
+  const [opsiAkunBeban, setOpsiAkunBeban] = useState([]); // diisi kalau server tidak bisa menebak akun beban
   const [dataSPKpaymentFromDB, setDataSPKpaymentFromDB] = useState([]);
 
   const [dataSupplierFromDB, setDataSupplierFromDB] = useState([]);
@@ -133,16 +140,20 @@ const Spk = () => {
   const [detailEdit, setDetailEdit] = useState('');
   const [tanggalEdit, setTanggalEdit] = useState('');
   const [jumlahEdit, setJumlahEdit] = useState('');
+  const [akunSumberEdit, setAkunSumberEdit] = useState('');
+  const [jurnalOtomatisEdit, setJurnalOtomatisEdit] = useState(false);
   const [paymentImageEdit, setPaymentImageEdit] = useState('');
   const [paymentImageDelete, setPaymentImageDelete] = useState(false);
   const [showEditPaymentModal, setShowEditPaymentModal] = useState(false);
   const [showDeletePaymentModal, setShowDeletePaymentModal] = useState(false);
-  const handleEditPayment = (id, detail, tanggal, jumlah, image) => {
+  const handleEditPayment = (id, detail, tanggal, jumlah, image, akunSumber, jurnalOtomatis) => {
     refreshState();
     setIdPaymentEdit(id);
     setDetailEdit(detail);
     setTanggalEdit(tanggal);
     setJumlahEdit(jumlah);
+    setAkunSumberEdit(akunSumber || '');
+    setJurnalOtomatisEdit(!!jurnalOtomatis);
     setPaymentImageEdit(image);
     setPaymentImageDelete(false);
     setShowEditPaymentModal(true);
@@ -672,6 +683,7 @@ useEffect(() => {
       formData.append('detail', detailEdit);
       formData.append('tanggal', tanggalEdit);
       formData.append('jumlah', jumlahEdit);
+      if (jurnalOtomatisEdit && akunSumberEdit) formData.append('akunSumber', akunSumberEdit);
       formData.append('paymentImageDelete', paymentImageDelete ? 'true' : 'false');
 
       if (fileToUploadPaymentEdit) {
@@ -689,6 +701,7 @@ useEffect(() => {
         console.log('Update berhasil:', data);
       } else {
         console.error('Update gagal:', data.message);
+        alert(`Gagal update payment: ${data.message}`);
       }
     } catch (e) {
       console.error('Error submitting update:', e);
@@ -722,6 +735,10 @@ useEffect(() => {
 
 
   const handleSubmitPayment = async () => {
+    if (!paymentAkunSumber) {
+      alert('Pilih rekening pembayar (BCA / Rek CV) — dipakai untuk jurnal otomatis');
+      return;
+    }
     setShowPaymentModal(false);
 
     try {
@@ -732,6 +749,8 @@ useEffect(() => {
       formData.append('detail', paymentDetail);
       formData.append('tanggal', paymentTanggal);
       formData.append('jumlah', paymentJumlah);
+      formData.append('akunSumber', paymentAkunSumber);
+      if (paymentAkunBeban) formData.append('akunBeban', paymentAkunBeban);
 
       // Tambahkan file jika ada
       if (paymentFileToUpload) {
@@ -744,9 +763,16 @@ useEffect(() => {
         body: formData,
       });
 
-      if (!response.ok) throw new Error('Gagal mengirim pembayaran');
-
       const data = await response.json();
+      if (!response.ok) {
+        // Akun beban supplier tidak bisa ditebak otomatis → minta user memilih lalu submit ulang.
+        if (Array.isArray(data.candidates) && data.candidates.length) {
+          setOpsiAkunBeban(data.candidates);
+          setShowPaymentModal(true);
+        }
+        alert(`Gagal menyimpan payment: ${data.message}`);
+        return;
+      }
       console.log('Berhasil:', data);
 
       // Reset state
@@ -754,6 +780,9 @@ useEffect(() => {
       setPaymentDetail('');
       setPaymentTanggal('');
       setPaymentJumlah('');
+      setPaymentAkunSumber('');
+      setPaymentAkunBeban('');
+      setOpsiAkunBeban([]);
 
       fetchDataPayment(); // refresh data
     } catch (err) {
@@ -1574,7 +1603,7 @@ useEffect(() => {
                     <tbody>
 
                       {dataSPKpaymentFromDB.map((payment, index) => (
-                        <tr className={`tr-hover-effect tema-${globalTheme}`} key={index} onClick={() => handleEditPayment(payment.id, payment.detail, payment.tanggal, payment.jumlah, payment.image)}>
+                        <tr className={`tr-hover-effect tema-${globalTheme}`} key={index} onClick={() => handleEditPayment(payment.id, payment.detail, payment.tanggal, payment.jumlah, payment.image, payment.akunSumber, payment.jurnalOtomatis)}>
                           <td className='tableStyle text-center'>{index + 1}</td>
                           <td className='tableStyle text-center'>
                             {/* <img style={{ width: "100px" }} src={payment.image} /> */}
@@ -2226,6 +2255,19 @@ useEffect(() => {
               />
             </div>
           </div>
+          <label className='mt-2 mb-1 fw-semibold'>Dibayar dari :</label>
+          <Select className='w-100' placeholder='Pilih rekening pembayar' value={paymentAkunSumber || undefined}
+            onChange={setPaymentAkunSumber} getPopupContainer={(trigger) => trigger.parentNode}
+            options={Object.entries(REKENING_PEMBAYAR).map(([value, label]) => ({ value, label }))} />
+          {opsiAkunBeban.length > 0 && (
+            <>
+              <label className='mt-2 mb-1 fw-semibold'>Akun beban supplier :</label>
+              <Select className='w-100' placeholder='Pilih akun beban' value={paymentAkunBeban || undefined}
+                onChange={setPaymentAkunBeban} getPopupContainer={(trigger) => trigger.parentNode} showSearch optionFilterProp='label'
+                options={opsiAkunBeban.map((a) => ({ value: a.kodeAkun, label: `${a.kodeAkun} ${a.namaAkun}` }))} />
+            </>
+          )}
+          <small className='d-block mt-1' style={{ opacity: 0.7 }}>Jurnal (Dr Beban supplier / Cr rekening) dibuat otomatis — tidak perlu input jurnal manual.</small>
 
         </Modal>
         {/* End Modal */}
@@ -2330,6 +2372,15 @@ useEffect(() => {
               />
             </div>
           </div>
+          {jurnalOtomatisEdit && (
+            <>
+              <label className='mt-2 mb-1 fw-semibold'>Dibayar dari :</label>
+              <Select className='w-100' value={akunSumberEdit || undefined} onChange={setAkunSumberEdit}
+                getPopupContainer={(trigger) => trigger.parentNode}
+                options={Object.entries(REKENING_PEMBAYAR).map(([value, label]) => ({ value, label }))} />
+              <small className='d-block mt-1' style={{ opacity: 0.7 }}>Jurnal otomatis ikut diperbarui.</small>
+            </>
+          )}
         </Modal>
         {/* End Modal */}
 

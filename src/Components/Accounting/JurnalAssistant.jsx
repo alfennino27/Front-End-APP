@@ -179,6 +179,7 @@ const JurnalAssistant = () => {
   const [ref, setRef] = useState({ akun: [], invoice: [], spk: [] });
   const [files, setFiles] = useState([]);
   const [mengunggah, setMengunggah] = useState(false);
+  const [progresUpload, setProgresUpload] = useState('');
   const [tab, setTab] = useState('perlu_cek');
   const [cari, setCari] = useState('');
   const [pilih, setPilih] = useState({});
@@ -221,21 +222,38 @@ const JurnalAssistant = () => {
     return () => clearTimeout(poll.current);
   }, [batchId]);
 
+  // Server membatasi satu request 50 MB (petty cash ±4 MB/file) → kirim bertahap per ±40 MB
+  // ke batch yang sama, lalu minta diproses.
   const unggah = async () => {
     if (!files.length) { message.warning('Pilih PDF dulu'); return; }
+    const BATAS = 40 * 1024 * 1024;
+    const grup = [];
+    files.forEach((f) => {
+      const g = grup[grup.length - 1];
+      if (g && g.size + f.size <= BATAS) { g.files.push(f); g.size += f.size; } else grup.push({ files: [f], size: f.size });
+    });
     setMengunggah(true);
     try {
-      const fd = new FormData();
-      files.forEach((f) => fd.append('files', f));
-      fd.append('uid', uid);
-      const res = await fetch(`${baseUrl}/jurnal-assistant/upload`, { method: 'POST', body: fd });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.message || 'Upload gagal');
-      const gagal = (json.files || []).filter((f) => f.error);
+      let id = null;
+      let gagal = [];
+      for (let i = 0; i < grup.length; i++) {
+        setProgresUpload(grup.length > 1 ? `Mengunggah ${i + 1}/${grup.length}…` : '');
+        const fd = new FormData();
+        grup[i].files.forEach((f) => fd.append('files', f));
+        fd.append('uid', uid);
+        if (id) fd.append('batchId', id);
+        else if (grup.length > 1) fd.append('tunda', '1');
+        const res = await fetch(`${baseUrl}/jurnal-assistant/upload`, { method: 'POST', body: fd });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(json.message || (res.status === 413 ? 'File terlalu besar' : 'Upload gagal'));
+        id = id || json.id;
+        gagal = gagal.concat((json.files || []).filter((f) => f.error));
+      }
+      if (grup.length > 1) await kirim(`/jurnal-assistant/batch/${id}/proses`, 'POST', {});
       if (gagal.length) message.warning(`${gagal.length} file tidak terbaca: ${gagal.map((f) => f.nama).join(', ')}`);
       setFiles([]);
-      setParams({ batch: json.id });
-    } catch (e) { message.error(e.message); } finally { setMengunggah(false); }
+      setParams({ batch: id });
+    } catch (e) { message.error(e.message); } finally { setMengunggah(false); setProgresUpload(''); }
   };
 
   const gantiBaris = (row) => setBatch((b) => ({ ...b, rows: b.rows.map((x) => (x.no === row.no ? row : x)) }));
@@ -298,7 +316,7 @@ const JurnalAssistant = () => {
           <p style={{ margin: 0, fontSize: 12, color: '#888' }}>Rekening koran BCA & Rek CV, laporan petty cash harian</p>
         </Upload.Dragger>
         <Button type="primary" block={mobile} loading={mengunggah} disabled={!files.length} onClick={unggah} style={{ marginTop: 10 }}>
-          Analisa {files.length ? `${files.length} PDF` : ''}
+          {progresUpload || `Analisa ${files.length ? `${files.length} PDF` : ''}`}
         </Button>
         {batches.length > 0 && (
           <div style={{ marginTop: 12 }}>
@@ -310,7 +328,7 @@ const JurnalAssistant = () => {
               onChange={(v) => setParams({ batch: v })}
               options={batches.map((b) => ({
                 value: b.id,
-                label: `${tglPendek(b.dibuat?.slice(0, 10))} · ${(b.files || []).map((f) => f.label || f.nama).join(', ')} · ${b.via === 'hermes' ? 'Hermes · ' : ''}${b.status === 'proses' ? 'diproses' : `${b.ringkasan?.perlu_cek || 0} perlu cek, ${b.ringkasan?.siap || 0} siap`}`,
+                label: `${tglPendek(b.dibuat?.slice(0, 10))} · ${(b.files || []).map((f) => f.label || f.nama).join(', ')} · ${b.via === 'hermes' ? 'Hermes · ' : ''}${b.status === 'proses' ? 'diproses' : b.status === 'upload' ? 'upload belum selesai' : `${b.ringkasan?.perlu_cek || 0} perlu cek, ${b.ringkasan?.siap || 0} siap`}`,
               }))}
             />
           </div>

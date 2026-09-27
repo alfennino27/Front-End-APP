@@ -701,6 +701,9 @@ const Invoice = () => {
         alert(`Gagal menyimpan payment: ${errorData.message}`);
         return;
       }
+      // Payment sudah tercatat dari mutasi bank (Jurnal Assistant) → server hanya menempel bukti.
+      const hasilPayment = await res.json().catch(() => ({}));
+      if (hasilPayment.buktiDitempel) alert(hasilPayment.message);
 
       setPaymentFileToUpload(null);
       setPaymentDetail('');

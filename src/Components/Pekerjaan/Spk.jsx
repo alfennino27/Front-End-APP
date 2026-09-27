@@ -773,6 +773,8 @@ useEffect(() => {
         alert(`Gagal menyimpan payment: ${data.message}`);
         return;
       }
+      // Pembayaran sudah tercatat dari mutasi bank (Jurnal Assistant) → server hanya menempel bukti.
+      if (data.buktiDitempel) alert(data.message);
       console.log('Berhasil:', data);
 
       // Reset state

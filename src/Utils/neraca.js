@@ -183,3 +183,82 @@ export function rincianTerbuka(headers, items, payments, idField, bulan) {
     .filter((r) => r.tanggal && r.tanggal <= akhir && Math.abs(r.sisa) >= 1)
     .sort((a, b) => a.tanggal.localeCompare(b.tanggal));
 }
+
+/**
+ * Neraca Saldo (trial balance) per bulan — pengganti "tutup buku".
+ * Tiap akun: saldo awal (posisi sebelum tanggal 1 bulan itu), mutasi debit/kredit bulan itu,
+ * saldo akhir. Akun neraca = kumulatif sejak saldo pembukaan; akun Laba Rugi = sejak 1 Januari
+ * tahun berjalan (laba tahun-tahun sebelumnya dipindah ke baris "Laba ditahan").
+ * Total debit = total kredit SELALU (tiap sisi jurnal tercatat di satu baris); jurnal yang
+ * akunnya kosong / tidak terdaftar dikumpulkan di baris khusus supaya kelihatan.
+ * Konvensi angka: saldo = debit − kredit.
+ */
+export function hitungNeracaSaldo(dataAkun, dataJurnal, bulan) {
+  const awalBulan = `${bulan}-01`;
+  const akhir = `${bulan}-31`;
+  const awalTahun = `${bulan.slice(0, 4)}-01-01`;
+
+  const baris = new Map();
+  dataAkun.forEach((a) => {
+    if (!a.kodeAkun) return;
+    const pos = posNeraca(a);
+    baris.set(String(a.kodeAkun), {
+      kodeAkun: String(a.kodeAkun), namaAkun: a.namaAkun, jenisAkun: a.jenisAkun, pos,
+      awal: pos === POS.LABA_RUGI ? 0 : saldoPembukaan(a), debit: 0, kredit: 0,
+    });
+  });
+  let labaDitahan = 0; // D−K akun L/R sebelum tahun berjalan (termasuk saldo pembukaan L/R)
+  dataAkun.forEach((a) => { if (a.kodeAkun && posNeraca(a) === POS.LABA_RUGI) labaDitahan += saldoPembukaan(a); });
+  const suspense = { kodeAkun: '—', namaAkun: 'Jurnal akun kosong / tidak terdaftar (lihat Temuan Koreksi)', jenisAkun: '', pos: 'suspense', awal: 0, debit: 0, kredit: 0 };
+
+  const catat = (kode, d, k, tgl) => {
+    const k0 = kodeBersih(kode);
+    const b = (k0 && baris.get(k0)) || suspense;
+    if (b.pos === POS.LABA_RUGI && tgl < awalTahun) { labaDitahan += d - k; return; }
+    if (tgl < awalBulan) b.awal += d - k;
+    else { b.debit += d; b.kredit += k; }
+  };
+  dataJurnal.forEach((j) => {
+    const tgl = tglValid(j.tanggal);
+    if (!tgl || tgl < `${SALDO_AWAL_BULAN}-01` || tgl > akhir) return;
+    catat(j.kodeAkunDebet, num(j.nominalDebet), 0, tgl);
+    catat(j.kodeAkunKredit, 0, num(j.nominalKredit), tgl);
+  });
+
+  const rows = [...baris.values()].sort((a, b) => a.kodeAkun.localeCompare(b.kodeAkun));
+  rows.push({ kodeAkun: '—', namaAkun: `Laba ditahan (s/d Des ${Number(bulan.slice(0, 4)) - 1})`, jenisAkun: 'Ekuitas', pos: 'labaDitahan', awal: labaDitahan, debit: 0, kredit: 0 });
+  if (Math.abs(suspense.awal) >= 1 || suspense.debit || suspense.kredit) rows.push(suspense);
+  rows.forEach((r) => { r.akhir = r.awal + r.debit - r.kredit; });
+
+  const total = rows.reduce((t, r) => {
+    t.debit += r.debit; t.kredit += r.kredit;
+    if (r.akhir > 0) t.akhirDebit += r.akhir; else t.akhirKredit -= r.akhir;
+    return t;
+  }, { debit: 0, kredit: 0, akhirDebit: 0, akhirKredit: 0 });
+  return { rows, total, suspense };
+}
+
+/**
+ * Saldo satu akun per akhir `bulan` dan sebelum awal `bulan` — pengganti
+ * `saldoAwalDebit/Kredit[bulan]` untuk halaman Buku Besar, Rincian Akun, Cash Flow.
+ * @returns {{ awal:number, akhir:number }} dalam konvensi debit − kredit
+ */
+export function saldoAkunBulan(akun, dataJurnal, bulan) {
+  const kode = String(akun.kodeAkun);
+  const awalBulan = `${bulan}-01`;
+  const akhir = `${bulan}-31`;
+  const lr = posNeraca(akun) === POS.LABA_RUGI;
+  const mulai = lr ? `${bulan.slice(0, 4)}-01-01` : `${SALDO_AWAL_BULAN}-01`;
+  let awal = lr ? 0 : saldoPembukaan(akun);
+  let mutasi = 0;
+  dataJurnal.forEach((j) => {
+    const tgl = tglValid(j.tanggal);
+    if (!tgl || tgl < mulai || tgl > akhir) return;
+    let v = 0;
+    if (kodeBersih(j.kodeAkunDebet) === kode) v += num(j.nominalDebet);
+    if (kodeBersih(j.kodeAkunKredit) === kode) v -= num(j.nominalKredit);
+    if (!v) return;
+    if (tgl < awalBulan) awal += v; else mutasi += v;
+  });
+  return { awal, akhir: awal + mutasi };
+}

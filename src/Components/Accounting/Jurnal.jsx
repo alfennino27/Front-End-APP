@@ -287,6 +287,13 @@ const Jurnal = () => {
   }, [searchInvoiceSPK, dataSPK, kodeCustomerSupplier]);
 
   const handleSubmitTambahData = async () => {
+    // Penerimaan customer sekarang dijurnal OTOMATIS dari input pembayaran invoice (ERP / Hermes).
+    // Kredit Piutang Penjualan manual hampir pasti dobel → minta konfirmasi.
+    if (kodeAkunKredit === '1130' && !window.confirm(
+      'Pembayaran customer sekarang dijurnal OTOMATIS saat diinput di halaman Invoice / Hermes.\n\n' +
+      'Kalau jurnal ini untuk pembayaran customer, batalkan dan input lewat pembayaran invoice supaya tidak dobel.\n\n' +
+      'Tetap simpan jurnal manual ke Piutang Penjualan (1130)?'
+    )) return;
     setShowTambahDataModal(false);
 
     try {

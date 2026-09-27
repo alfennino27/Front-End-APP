@@ -7,6 +7,7 @@ import { getApiBaseUrl } from '../../Config/APIurl';
 import { useNavigate } from 'react-router-dom';
 import { FaPaste } from 'react-icons/fa';
 import { DatePicker, Space } from 'antd';
+import { POS, posNeraca, saldoAkunBulan } from '../../Utils/neraca';
 
 const CashFlow = () => {
   const baseUrl = getApiBaseUrl();
@@ -37,6 +38,10 @@ const CashFlow = () => {
   const [dataProject, setDataProject] = useState([]);
   const [dataSPKProduct, setDataSPKProduct] = useState([]);
   const [dataJurnal, setDataJurnal] = useState([]);
+  // Saldo awal bulan: akun laba rugi = 0 (arus kas = mutasi bulan itu); akun neraca (mis. Hold Tokped)
+  // dihitung dari jurnal — pengganti isian "tutup buku" saldoAwalDebit/Kredit[bulan].
+  const saldoAwalCF = (item) => (!filterDate || posNeraca(item) === POS.LABA_RUGI
+    ? 0 : saldoAkunBulan(item, dataJurnal, filterDate).awal);
   const [dataAkun, setDataAkun] = useState([]);
   const [dataInvoicePayment, setDataInvoicePayment] = useState([]);
   const [dataPiutangPayment, setDataPiutangPayment] = useState([]);
@@ -246,7 +251,7 @@ const CashFlow = () => {
     - dataAkun
       .filter((item) => ["Operasional", "HPP", "Aset"].includes(item.jenisAkun))
       .reduce((total, item) => {
-        const saldoAwal = Number(item.saldoAwalDebit?.[filterDate] || 0) || Number(item.saldoAwalKredit?.[filterDate] || 0);
+        const saldoAwal = saldoAwalCF(item);
         const saldoAkhir = dataJurnal
           .filter(jurnal => {
             const isKodeAkunMatched =
@@ -339,7 +344,7 @@ const CashFlow = () => {
                     };
 
                     // Hitung saldo awal
-                    const saldoAwal = getSaldoAwal(item.saldoAwalDebit?.[filterDate], item.saldoAwalKredit?.[filterDate]);
+                    const saldoAwal = saldoAwalCF(item);
 
                     // Hitung saldo akhir untuk akun ini
                     const saldoAkhir = calculateSaldoAkhir(item.kodeAkun, saldoAwal);
@@ -374,7 +379,7 @@ const CashFlow = () => {
                       : dataAkun
                         .filter((item) => item.jenisAkun === "Pemasukan")
                         .reduce((total, item) => {
-                          const saldoAwal = Number(item.saldoAwalDebit?.[filterDate] || 0) || Number(item.saldoAwalKredit?.[filterDate] || 0);
+                          const saldoAwal = saldoAwalCF(item);
                           const saldoAkhir = dataJurnal
                             .filter((jurnal) => {
                               const isKodeAkunMatched =
@@ -558,7 +563,7 @@ const CashFlow = () => {
                     };
 
                     // Hitung saldo awal
-                    const saldoAwal = getSaldoAwal(item.saldoAwalDebit?.[filterDate], item.saldoAwalKredit?.[filterDate]);
+                    const saldoAwal = saldoAwalCF(item);
 
                     // Hitung saldo akhir untuk akun ini
                     const saldoAkhir = calculateSaldoAkhir(item.kodeAkun, saldoAwal);
@@ -593,7 +598,7 @@ const CashFlow = () => {
                       : dataAkun
                         .filter((item) => ["Operasional", "HPP", "Aset"].includes(item.jenisAkun))
                         .reduce((total, item) => {
-                          const saldoAwal = Number(item.saldoAwalDebit?.[filterDate] || 0) || Number(item.saldoAwalKredit?.[filterDate] || 0);
+                          const saldoAwal = saldoAwalCF(item);
                           const saldoAkhir = dataJurnal
                             .filter((jurnal) => {
                               const isKodeAkunMatched =

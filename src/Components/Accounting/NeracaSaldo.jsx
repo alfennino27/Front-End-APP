@@ -1,758 +1,148 @@
-import React, { useRef, useEffect, useState } from 'react';
-import { Col, Row, Modal, Button, Container, Dropdown, OverlayTrigger, Tooltip } from 'react-bootstrap';
-import AccountingMenu from './AccountingMenu';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Container, Spinner } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
-import { useParams } from 'react-router-dom';
+import { DatePicker, Checkbox } from 'antd';
+import dayjs from 'dayjs';
+import AccountingMenu from './AccountingMenu';
 import { getApiBaseUrl } from '../../Config/APIurl';
-import { useNavigate } from 'react-router-dom';
-import { MdFormatListBulletedAdd } from "react-icons/md";
-import { DatePicker, Input, message } from 'antd';
-import { LuWorkflow } from "react-icons/lu";
-import moment from "moment";
+import { SALDO_AWAL_BULAN, hitungNeracaSaldo } from '../../Utils/neraca';
 
-const Jurnal = () => {
+// Neraca Saldo per bulan — dihitung langsung dari jurnal (Utils/neraca.js).
+// Pengganti tombol "tutup buku": saldo awal tiap bulan tidak lagi diisi/di-generate
+// manual, jadi selalu mutakhir dan tidak bisa diedit tangan.
+
+const IZIN = ['fYpdHwXRDLhj5XGxM5FZIAvxp9E2', 'w4M5JJjgGQeHFbS2nkyoCfUBE532', '4WGPaHicKWYr0Ny84IUh8xb9Bo62', 'ANGTwgX8KxXQy5Ww3cwpLrG0tFT2', 'gwsOqUgVXSPyWFMMHr4bJteBoYs1', '6D4XVa5BSSOl1ugUlkDlTea2COX2', 'MjOCxfNdGtf0q12BPzj0EYAcVJD3', 'knydS6fIBdOwHS37dDm3ZDNQXKQ2', 'Q3LWLX4D7Ye8hMnQVF9fa7SZb953', 'ep15dsFMceTBAyZvpZDiAJ4kMME3'];
+const NAMA_BULAN = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+
+const rp = (v) => (Math.abs(v) < 1 ? '-' : `Rp ${Math.round(v).toLocaleString('id-ID')}`);
+const labelBulan = (b) => `${NAMA_BULAN[Number(b.slice(5, 7)) - 1]} ${b.slice(0, 4)}`;
+
+const tableContainerStyle = { marginTop: '10px', overflow: 'auto', maxHeight: '72vh', borderRadius: '10px', border: '1px solid #dddddd' };
+const tableStyle = { width: '100%', borderCollapse: 'separate', borderSpacing: 0 };
+const tdStyle = { border: '1px solid #c2c2c2', textAlign: 'left', padding: '6px 8px', fontSize: '12px' };
+const tdNum = { ...tdStyle, textAlign: 'right', whiteSpace: 'nowrap' };
+const thStyle = { ...tdStyle, backgroundColor: 'blue', textAlign: 'center', color: 'white', position: 'sticky', top: 0, zIndex: 1 };
+const rowTotal = { backgroundColor: '#E7E7E8', fontWeight: 600 };
+
+const NeracaSaldo = () => {
   const baseUrl = getApiBaseUrl();
-  const [messageApi, contextHolder] = message.useMessage();
-
-  const [showTambahDataModal, setShowTambahDataModal] = useState(false);
-  const [showEditDataModal, setShowEditDataModal] = useState(false);
-  const [kodeAkun, setKodeAkun] = useState('');
-  const [namaAkun, setNamaAkun] = useState('');
-  const [jenisAkun, setJenisAkun] = useState('');
-  const [saldoAwalDebit, setSaldoAwalDebit] = useState('');
-  const [saldoAwalKredit, setSaldoAwalKredit] = useState('');
-  const [idDataEdit, setIdDataEdit] = useState('');
-  const [dataAkun, setDataAkun] = useState([]);
-  const [dataJurnal, setDataJurnal] = useState([]);
-  const [filterDate, setFilterDate] = useState(null);
-  const [showGenerateSaldoAwalModal, setShowGenerateSaldoAwalModal] = useState(false);
-
   const userData = localStorage.getItem('user');
   const user = userData ? JSON.parse(userData) : null;
-  useEffect(() => {
-    const cekLogin = () => {
-      if (user == null) {
-        window.location.replace('/login');
-      }
-      if (user.uid === 'fYpdHwXRDLhj5XGxM5FZIAvxp9E2' || user.uid === 'w4M5JJjgGQeHFbS2nkyoCfUBE532' || user.uid === '4WGPaHicKWYr0Ny84IUh8xb9Bo62' || user.uid === 'ANGTwgX8KxXQy5Ww3cwpLrG0tFT2' || user.uid === 'gwsOqUgVXSPyWFMMHr4bJteBoYs1' || user.uid === '6D4XVa5BSSOl1ugUlkDlTea2COX2' || user.uid === 'MjOCxfNdGtf0q12BPzj0EYAcVJD3' || user.uid === 'knydS6fIBdOwHS37dDm3ZDNQXKQ2' || user.uid === 'Q3LWLX4D7Ye8hMnQVF9fa7SZb953' || user.uid === 'ep15dsFMceTBAyZvpZDiAJ4kMME3') {
-        console.log('success');
-      } else {
-        window.location.replace('/accounting');
-      }
-    };
 
-    cekLogin();
+  useEffect(() => {
+    if (user == null) { window.location.replace('/login'); return; }
+    if (!IZIN.includes(user.uid)) window.location.replace('/accounting');
   }, []);
 
-  const tableContainerStyle = {
-    marginLeft: '20px',
-    marginRight: '20px',
-    marginTop: '10px',
-    overflow: 'hidden',
-    borderRadius: '10px',
-    border: '1px solid #dddddd',
-  };
-
-  const tableStyle = {
-    width: '100%',
-    borderCollapse: 'separate',
-    borderSpacing: '0',
-  };
-
-  const thTdStyle = {
-    border: '1px solid #c2c2c2',
-    textAlign: 'left',
-    padding: '8px',
-    fontSize: '12px',
-  };
-
-  const thStyle = {
-    ...thTdStyle,
-    backgroundColor: 'blue',
-    textAlign: 'center',
-    color: 'white',
-    position: 'sticky',
-    top: 0,
-    zIndex: 1
-  };
-
-  const tbodyTrOddStyle = {
-    backgroundColor: '#ffffff',
-  };
-
-  const tbodyTrEvenStyle = {
-    backgroundColor: '#F4F4F4',
-  };
-
-  const tbodyTrLastChildTdFirstChildStyle = {
-    borderBottomLeftRadius: '10px',
-  };
-
-  const tbodyTrLastChildTdLastChildStyle = {
-    borderBottomRightRadius: '10px',
-  };
-
-
-
-  const fetchDataAkun = async () => {
-    try {
-      const res = await fetch(`${baseUrl}/accounting/akun/get`);
-      const data = await res.json();
-      setDataAkun(data);
-    } catch (err) {
-      console.error('Gagal mengambil data Akun:', err);
-    }
-  };
-
-  const fetchDataJurnal = async () => {
-    try {
-      const res = await fetch(`${baseUrl}/accounting/jurnal/get`);
-      const data = await res.json();
-      setDataJurnal(data);
-    } catch (err) {
-      console.error('Gagal mengambil data Jurnal:', err);
-    }
-  };
+  const [data, setData] = useState(null);
+  const [error, setError] = useState('');
+  const [bulan, setBulan] = useState(dayjs().format('YYYY-MM'));
+  const [tampilNol, setTampilNol] = useState(false);
 
   useEffect(() => {
-    fetchDataAkun();
-    fetchDataJurnal();
+    (async () => {
+      try {
+        const [akun, jurnal] = await Promise.all(['/accounting/akun/get', '/accounting/jurnal/get'].map(async (p) => {
+          const res = await fetch(`${baseUrl}${p}`);
+          if (!res.ok) throw new Error(`Gagal ambil ${p}`);
+          return res.json();
+        }));
+        setData({ akun, jurnal });
+      } catch (err) {
+        console.error('Gagal mengambil data neraca saldo:', err);
+        setError(err.message);
+      }
+    })();
   }, []);
 
-
-  const [isSaldoAkhir, setIsSaldoAkhir] = useState(true);
-  const [animasiSaldoAwal, setAnimasiSaldoAwal] = useState(true); // untuk status animasi
-  const [animasiDebitKredit, setAnimasiDebitKredit] = useState(false); // untuk status animasi
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (isSaldoAkhir) {
-        setAnimasiSaldoAwal(false);
-
-        setTimeout(() => {
-          setIsSaldoAkhir(false);
-        }, 500);
-
-        setTimeout(() => {
-          setAnimasiDebitKredit(true);
-        }, 550);
-      } else {
-        setAnimasiDebitKredit(false);
-
-        setTimeout(() => {
-          setIsSaldoAkhir(true);
-        }, 500);
-
-        setTimeout(() => {
-          setAnimasiSaldoAwal(true);
-        }, 550);
-      }
-    }, 3000); // Ubah setiap 3 detik (3000ms)
-
-    return () => clearInterval(interval); // Membersihkan interval saat komponen dibersihkan
-  }, [isSaldoAkhir]);
-
-  // const totalSaldoDebit = dataAkun.reduce((total, item) => {
-  //   const saldoAkhirAkun = dataJurnal
-  //     .filter(
-  //       (jurnal) =>
-  //         jurnal.kodeAkunDebet === item.kodeAkun || jurnal.kodeAkunKredit === item.kodeAkun
-  //     )
-  //     .reduce((saldo, jurnal) => {
-  //       const adjustedNominalDebet =
-  //         jurnal.kodeAkunKredit === item.kodeAkun ? 0 : Number(jurnal.nominalDebet || 0);
-  //       const adjustedNominalKredit =
-  //         jurnal.kodeAkunDebet === item.kodeAkun ? 0 : Number(jurnal.nominalKredit || 0);
-  //       return saldo + adjustedNominalDebet - adjustedNominalKredit;
-  //     }, Number(item.saldoAwal || 0));
-
-  //   return total + (item.saldoAwalDebit?.[filterDate] == 0 ? 0 : Number(saldoAkhirAkun) + Number(item.saldoAwalDebit?.[filterDate]));
-  // }, 0);
-
-  // const totalSaldoKredit = dataAkun.reduce((total, item) => {
-  //   const saldoAkhirAkun = dataJurnal
-  //     .filter(
-  //       (jurnal) =>
-  //         jurnal.kodeAkunDebet === item.kodeAkun || jurnal.kodeAkunKredit === item.kodeAkun
-  //     )
-  //     .reduce((saldo, jurnal) => {
-  //       const adjustedNominalDebet =
-  //         jurnal.kodeAkunKredit === item.kodeAkun ? 0 : Number(jurnal.nominalDebet || 0);
-  //       const adjustedNominalKredit =
-  //         jurnal.kodeAkunDebet === item.kodeAkun ? 0 : Number(jurnal.nominalKredit || 0);
-  //       return saldo + adjustedNominalDebet - adjustedNominalKredit;
-  //     }, Number(item.saldoAwal || 0));
-
-  //   return total + (item.saldoAwalKredit?.[filterDate] == 0 ? 0 : Math.abs(Number(saldoAkhirAkun) - Number(item.saldoAwalKredit?.[filterDate])));
-  // }, 0);
-
-  const totalSaldoDebit = dataAkun.reduce((total, item) => {
-    const saldoAkhirAkun = dataJurnal
-      .filter(
-        (jurnal) =>
-          (jurnal.kodeAkunDebet === item.kodeAkun || jurnal.kodeAkunKredit === item.kodeAkun)
-          && (!filterDate || jurnal.tanggal.startsWith(filterDate))
-      )
-      .reduce((saldo, jurnal) => {
-        const adjustedNominalDebet =
-          jurnal.kodeAkunKredit === item.kodeAkun ? 0 : Number(jurnal.nominalDebet || 0);
-        const adjustedNominalKredit =
-          jurnal.kodeAkunDebet === item.kodeAkun ? 0 : Number(jurnal.nominalKredit || 0);
-        return saldo + adjustedNominalDebet - adjustedNominalKredit;
-      }, Number(item.saldoAwal || 0));
-
-    const saldoDebit = (!item.saldoAwalDebit?.[filterDate] && !item.saldoAwalKredit?.[filterDate])
-      ? saldoAkhirAkun >= 0 ? saldoAkhirAkun : 0
-      : (!item.saldoAwalDebit?.[filterDate] ? 0 : (saldoAkhirAkun + Number(item.saldoAwalDebit?.[filterDate])));
-
-    return total + saldoDebit;
-  }, 0);
-
-  const totalSaldoKredit = dataAkun.reduce((total, item) => {
-    const saldoAkhirAkun = dataJurnal
-      .filter(
-        (jurnal) =>
-          (jurnal.kodeAkunDebet === item.kodeAkun || jurnal.kodeAkunKredit === item.kodeAkun)
-          && (!filterDate || jurnal.tanggal.startsWith(filterDate))
-      )
-      .reduce((saldo, jurnal) => {
-        const adjustedNominalDebet =
-          jurnal.kodeAkunKredit === item.kodeAkun ? 0 : Number(jurnal.nominalDebet || 0);
-        const adjustedNominalKredit =
-          jurnal.kodeAkunDebet === item.kodeAkun ? 0 : Number(jurnal.nominalKredit || 0);
-        return saldo + adjustedNominalDebet - adjustedNominalKredit;
-      }, Number(item.saldoAwal || 0));
-
-    const saldoKredit = (!item.saldoAwalDebit?.[filterDate] && !item.saldoAwalKredit?.[filterDate])
-      ? saldoAkhirAkun < 0 ? saldoAkhirAkun * -1 : 0
-      : (!item.saldoAwalKredit?.[filterDate] ? 0 : ((saldoAkhirAkun - Number(item.saldoAwalKredit?.[filterDate])) * -1));
-
-    return total + saldoKredit;
-  }, 0);
-
-  // const updateSaldoAwal = async () => {
-  //   for (const item of dataAkun) {
-  //     // Menghitung saldoAkhirAkun untuk setiap item berdasarkan jurnal
-  //     const saldoAkhirAkun = dataJurnal
-  //       .filter(
-  //         (jurnal) =>
-  //           (jurnal.kodeAkunDebet === item.kodeAkun || jurnal.kodeAkunKredit === item.kodeAkun) &&
-  //           (!filterDate || jurnal.tanggal.startsWith(filterDate)) // Filter berdasarkan tanggal
-  //       )
-  //       .reduce((saldo, jurnal) => {
-  //         const adjustedNominalDebet =
-  //           jurnal.kodeAkunKredit === item.kodeAkun ? 0 : Number(jurnal.nominalDebet || 0);
-  //         const adjustedNominalKredit =
-  //           jurnal.kodeAkunDebet === item.kodeAkun ? 0 : Number(jurnal.nominalKredit || 0);
-  //         return saldo + adjustedNominalDebet - adjustedNominalKredit;
-  //       }, Number(item.saldoAwal || 0)); // saldoAwal
-
-  //     // Menghitung saldo baru untuk bulan berikutnya
-  //     const saldoDebitNextMonth = !item.saldoAwalDebit?.[filterDate]
-  //       ? saldoAkhirAkun
-  //       : Number(saldoAkhirAkun) + Number(item.saldoAwalDebit?.[filterDate]);
-  //     const saldoKreditNextMonth = !item.saldoAwalKredit?.[filterDate]
-  //       ? saldoAkhirAkun * -1
-  //       : (Number(saldoAkhirAkun) - Number(item.saldoAwalKredit?.[filterDate])) * -1;
-
-  //     // Update saldoAwalDebit["2025-03"] dan saldoAwalKredit["2025-03"] di koleksi Akun
-  //     try {
-  //       await updateDoc(doc(db, 'Akun', item.id), {
-  //         [`saldoAwalDebit.${moment(filterDate, 'YYYY-MM').add(1, 'months').format('YYYY-MM')}`]: saldoDebitNextMonth,
-  //         [`saldoAwalKredit.${moment(filterDate, 'YYYY-MM').add(1, 'months').format('YYYY-MM')}`]: saldoKreditNextMonth,
-  //       });
-  //     } catch (error) {
-  //       console.error('Error updating saldo:', error);
-  //     }
-  //   }
-  // };
-
-  // const updateSaldoAwal = async () => {
-  //   const nextMonth = moment(filterDate, "YYYY-MM").add(1, "months").format("YYYY-MM"); // Bulan berikutnya
-
-  //   for (const item of dataAkun) {
-  //     // Menghitung saldoAkhirAkun berdasarkan jurnal yang terkait dengan akun
-  //     const saldoAkhirAkun = dataJurnal
-  //       .filter(
-  //         (jurnal) =>
-  //           (jurnal.kodeAkunDebet === item.kodeAkun || jurnal.kodeAkunKredit === item.kodeAkun) &&
-  //           (!filterDate || jurnal.tanggal.startsWith(filterDate))
-  //       )
-  //       .reduce((saldo, jurnal) => {
-  //         const adjustedNominalDebet =
-  //           jurnal.kodeAkunKredit === item.kodeAkun ? 0 : Number(jurnal.nominalDebet || 0);
-  //         const adjustedNominalKredit =
-  //           jurnal.kodeAkunDebet === item.kodeAkun ? 0 : Number(jurnal.nominalKredit || 0);
-  //         return saldo + adjustedNominalDebet - adjustedNominalKredit;
-  //       }, Number(item.saldoAwal || 0)); // Gunakan saldoAwal sebagai saldo awal perhitungan
-
-  //     // Menghitung saldoAwalDebit dan saldoAwalKredit untuk bulan berikutnya
-  //     const saldoAwalDebitNext =
-  //       !item.saldoAwalDebit?.[filterDate] && !item.saldoAwalKredit?.[filterDate]
-  //         ? saldoAkhirAkun >= 0
-  //           ? saldoAkhirAkun
-  //           : 0
-  //         : Number(saldoAkhirAkun) + Number(item.saldoAwalDebit?.[filterDate] || 0);
-
-  //     const saldoAwalKreditNext =
-  //       !item.saldoAwalDebit?.[filterDate] && !item.saldoAwalKredit?.[filterDate]
-  //         ? saldoAkhirAkun < 0
-  //           ? saldoAkhirAkun * -1
-  //           : 0
-  //         : (Number(saldoAkhirAkun) - Number(item.saldoAwalKredit?.[filterDate] || 0)) * -1;
-
-  //     // Update Firestore
-  //     try {
-  //       await updateDoc(doc(db, "Akun", item.id), {
-  //         [`saldoAwalDebit.${nextMonth}`]: saldoAwalDebitNext,
-  //         [`saldoAwalKredit.${nextMonth}`]: saldoAwalKreditNext,
-  //       });
-  //       console.log(`Saldo awal akun ${item.kodeAkun} berhasil diperbarui.`);
-  //     } catch (error) {
-  //       console.error(`Gagal memperbarui saldo awal akun ${item.kodeAkun}:`, error);
-  //     }
-  //   }
-  // };
-
-  // const updateSaldoAwal = async () => {
-  //   const nextMonth = moment(filterDate, "YYYY-MM").add(1, "months").format("YYYY-MM");
-
-  //   for (const item of dataAkun) {
-  //     // Menghitung saldoAkhirAkun berdasarkan jurnal
-  //     const saldoAkhirAkun = dataJurnal
-  //       .filter(
-  //         (jurnal) =>
-  //           (jurnal.kodeAkunDebet === item.kodeAkun || jurnal.kodeAkunKredit === item.kodeAkun) &&
-  //           (!filterDate || jurnal.tanggal.startsWith(filterDate))
-  //       )
-  //       .reduce((saldo, jurnal) => {
-  //         const adjustedNominalDebet =
-  //           jurnal.kodeAkunKredit === item.kodeAkun ? 0 : Number(jurnal.nominalDebet || 0);
-  //         const adjustedNominalKredit =
-  //           jurnal.kodeAkunDebet === item.kodeAkun ? 0 : Number(jurnal.nominalKredit || 0);
-  //         return saldo + adjustedNominalDebet - adjustedNominalKredit;
-  //       }, Number(item.saldoAwal || 0));
-
-  //     // Mengecek apakah saldoAwalDebit dan saldoAwalKredit bulan ini ada
-  //     const hasSaldoAwal = item.saldoAwalDebit?.[filterDate] || item.saldoAwalKredit?.[filterDate];
-
-  //     // Menentukan saldoAwalDebit bulan berikutnya
-  //     const saldoAwalDebitNext = !hasSaldoAwal
-  //       ? saldoAkhirAkun >= 0
-  //         ? saldoAkhirAkun
-  //         : 0
-  //       : (Number(saldoAkhirAkun) + Number(item.saldoAwalDebit?.[filterDate] || 0));
-
-  //     // Menentukan saldoAwalKredit bulan berikutnya
-  //     const saldoAwalKreditNext = !hasSaldoAwal
-  //       ? saldoAkhirAkun < 0
-  //         ? saldoAkhirAkun * -1
-  //         : 0
-  //       : (Number(saldoAkhirAkun) - Number(item.saldoAwalKredit?.[filterDate] || 0)) * -1;
-
-  //     // Update Firestore
-  //     try {
-  //       await updateDoc(doc(db, "Akun", item.id), {
-  //         [`saldoAwalDebit.${nextMonth}`]: saldoAwalDebitNext,
-  //         [`saldoAwalKredit.${nextMonth}`]: saldoAwalKreditNext,
-  //       });
-  //       console.log(`Saldo awal akun ${item.kodeAkun} berhasil diperbarui untuk ${nextMonth}`);
-  //     } catch (error) {
-  //       console.error(`Gagal memperbarui saldo awal akun ${item.kodeAkun}:`, error);
-  //     }
-  //   }
-  // };
-
-
-
-  // const updateSaldoAwal = async () => {
-  //   const nextMonth = moment(filterDate, "YYYY-MM").add(1, "months").format("YYYY-MM");
-
-  //   for (const item of dataAkun) {
-  //     // Hitung saldoAkhirAkun berdasarkan transaksi jurnal
-  //     const saldoAkhirAkun = dataJurnal
-  //       .filter(
-  //         (jurnal) =>
-  //           (jurnal.kodeAkunDebet === item.kodeAkun || jurnal.kodeAkunKredit === item.kodeAkun) &&
-  //           (!filterDate || jurnal.tanggal.startsWith(filterDate))
-  //       )
-  //       .reduce((saldo, jurnal) => {
-  //         const adjustedNominalDebet =
-  //           jurnal.kodeAkunKredit === item.kodeAkun ? 0 : Number(jurnal.nominalDebet || 0);
-  //         const adjustedNominalKredit =
-  //           jurnal.kodeAkunDebet === item.kodeAkun ? 0 : Number(jurnal.nominalKredit || 0);
-  //         return saldo + adjustedNominalDebet - adjustedNominalKredit;
-  //       }, Number(item.saldoAwal || 0));
-
-  //     // Hitung saldo awal bulan berikutnya
-  //     let saldoAwalDebitNext = 0;
-  //     let saldoAwalKreditNext = 0;
-
-  //     if (saldoAkhirAkun >= 0) {
-  //       saldoAwalDebitNext = saldoAkhirAkun; // Hanya isi debit jika positif
-  //       saldoAwalKreditNext = 0;
-  //     } else {
-  //       saldoAwalDebitNext = 0;
-  //       saldoAwalKreditNext = Math.abs(saldoAkhirAkun); // Hanya isi kredit jika negatif
-  //     }
-
-  //     // Update Firestore
-  //     try {
-  //       await updateDoc(doc(db, "Akun", item.id), {
-  //         [`saldoAwalDebit.${nextMonth}`]: saldoAwalDebitNext,
-  //         [`saldoAwalKredit.${nextMonth}`]: saldoAwalKreditNext,
-  //       });
-  //       console.log(`Saldo awal akun ${item.kodeAkun} berhasil diperbarui untuk ${nextMonth}`);
-  //     } catch (error) {
-  //       console.error(`Gagal memperbarui saldo awal akun ${item.kodeAkun}:`, error);
-  //     }
-  //   }
-  // };
-
-
-  // const updateSaldoAwal = async () => {
-  //   const nextMonth = moment(filterDate, "YYYY-MM").add(1, "months").format("YYYY-MM");
-
-  //   for (const item of dataAkun) {
-  //     // Ambil saldo awal dari bulan sebelumnya (filterDate)
-  //     const saldoAwalDebit = Number(item.saldoAwalDebit?.[filterDate] || 0);
-  //     const saldoAwalKredit = Number(item.saldoAwalKredit?.[filterDate] || 0);
-
-  //     // Hitung saldoAkhirAkun berdasarkan transaksi jurnal
-  //     const saldoAkhirAkun = dataJurnal
-  //       .filter(
-  //         (jurnal) =>
-  //           (jurnal.kodeAkunDebet === item.kodeAkun || jurnal.kodeAkunKredit === item.kodeAkun) &&
-  //           (!filterDate || jurnal.tanggal.startsWith(filterDate))
-  //       )
-  //       .reduce((saldo, jurnal) => {
-  //         const adjustedNominalDebet =
-  //           jurnal.kodeAkunKredit === item.kodeAkun ? 0 : Number(jurnal.nominalDebet || 0);
-  //         const adjustedNominalKredit =
-  //           jurnal.kodeAkunDebet === item.kodeAkun ? 0 : Number(jurnal.nominalKredit || 0);
-  //         return saldo + adjustedNominalDebet - adjustedNominalKredit;
-  //       }, saldoAwalDebit - saldoAwalKredit);
-
-  //     // Perhitungan sesuai tabel:
-  //     let saldoAwalDebitNext = saldoAkhirAkun >= 0
-  //       ? saldoAkhirAkun + saldoAwalDebit
-  //       : 0;
-
-  //     let saldoAwalKreditNext = saldoAkhirAkun < 0
-  //       ? Math.abs(saldoAkhirAkun - saldoAwalKredit)
-  //       : 0;
-
-  //     // Update Firestore
-  //     try {
-  //       await updateDoc(doc(db, "Akun", item.id), {
-  //         [`saldoAwalDebit.${nextMonth}`]: saldoAwalDebitNext,
-  //         [`saldoAwalKredit.${nextMonth}`]: saldoAwalKreditNext,
-  //       });
-  //       console.log(`Saldo awal akun ${item.kodeAkun} berhasil diperbarui untuk ${nextMonth}`);
-  //     } catch (error) {
-  //       console.error(`Gagal memperbarui saldo awal akun ${item.kodeAkun}:`, error);
-  //     }
-  //   }
-  // };
-
-
-  // const updateSaldoAwal = async () => {
-  //   if (!filterDate) return;
-
-  //   const nextMonth = moment(filterDate, "YYYY-MM").add(1, "months").format("YYYY-MM");
-
-  //   try {
-  //     for (const item of dataAkun) {
-  //       // Hitung saldoAkhirAkun dengan cara yang SAMA PERSIS seperti tabel
-  //       const saldoAkhirAkun = dataJurnal
-  //         .filter(
-  //           (jurnal) =>
-  //             (jurnal.kodeAkunDebet === item.kodeAkun || jurnal.kodeAkunKredit === item.kodeAkun) &&
-  //             jurnal.tanggal.startsWith(filterDate)
-  //         )
-  //         .reduce((saldo, jurnal) => {
-  //           const adjustedNominalDebet =
-  //             jurnal.kodeAkunKredit === item.kodeAkun ? 0 : Number(jurnal.nominalDebet || 0);
-  //           const adjustedNominalKredit =
-  //             jurnal.kodeAkunDebet === item.kodeAkun ? 0 : Number(jurnal.nominalKredit || 0);
-  //           return saldo + adjustedNominalDebet - adjustedNominalKredit;
-  //         }, Number(item.saldoAwal || 0));
-
-  //       // **Pastikan hanya 1 yang terisi (debit/kredit)**
-  //       let saldoBaruDebit = 0;
-  //       let saldoBaruKredit = 0;
-
-  //       if (!item.saldoAwalDebit?.[filterDate] && !item.saldoAwalKredit?.[filterDate]) {
-  //         if (saldoAkhirAkun >= 0) {
-  //           saldoBaruDebit = saldoAkhirAkun;
-  //         } else {
-  //           saldoBaruKredit = saldoAkhirAkun * -1;
-  //         }
-  //       } else {
-  //         saldoBaruDebit = item.saldoAwalDebit?.[filterDate]
-  //           ? saldoAkhirAkun + Number(item.saldoAwalDebit?.[filterDate])
-  //           : 0;
-  //         saldoBaruKredit = item.saldoAwalKredit?.[filterDate]
-  //           ? (saldoAkhirAkun - Number(item.saldoAwalKredit?.[filterDate])) * -1
-  //           : 0;
-  //       }
-
-  //       // **Update Firestore dengan format yang SAMA seperti tabel**
-  //       const akunRef = doc(db, "Akun", item.id);
-  //       await updateDoc(akunRef, {
-  //         [`saldoAwalDebit.${nextMonth}`]: saldoBaruDebit || 0,
-  //         [`saldoAwalKredit.${nextMonth}`]: saldoBaruKredit || 0,
-  //       });
-  //       console.log(`Saldo awal akun ${item.kodeAkun} berhasil diperbarui untuk ${nextMonth}`);
-  //     }
-
-  //     alert("Saldo awal berhasil diperbarui!");
-  //   } catch (error) {
-  //     console.error("Error updating saldo awal:", error);
-  //     alert("Terjadi kesalahan saat update saldo awal.");
-  //   }
-  // };
-
-  const updateSaldoAwal = async () => {
-    if (!filterDate) return;
-
-    messageApi.open({
-      type: 'loading',
-      content: 'Sedang mengupdate saldo awal...',
-      duration: 0,
-      key: 'saldoAwalUpdate',
-    });
-
-    try {
-      const response = await fetch(`${baseUrl}/akun/updateSaldoAwal`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filterDate }), // hanya kirim filterDate
-      });
-
-      const result = await response.json();
-
-      if (response.ok) {
-        messageApi.success({
-          content: result.message,
-          key: 'saldoAwalUpdate',
-        });
-      } else {
-        messageApi.error({
-          content: result.message || 'Gagal update saldo awal',
-          key: 'saldoAwalUpdate',
-        });
-      }
-    } catch (error) {
-      console.error(error);
-      messageApi.error({
-        content: 'Terjadi kesalahan saat update saldo awal.',
-        key: 'saldoAwalUpdate',
-      });
-    }
-  };
-
-
-
+  const ns = useMemo(() => (data ? hitungNeracaSaldo(data.akun, data.jurnal, bulan) : null), [data, bulan]);
+  const rows = ns ? ns.rows.filter((r) => tampilNol || Math.abs(r.awal) >= 1 || r.debit || r.kredit) : [];
 
   return (
-    <>
-      {contextHolder}
-      <Container>
-        <div className='mt-4 px-4'>
-          <div className='row'>
-            <div className='col d-flex justify-content-between'>
-              <AccountingMenu />
-
-              <div>
-                <DatePicker picker="month" style={{ borderColor: 'blue', color: 'blue' }}
-                  onChange={(date) => setFilterDate(date ? date.format("YYYY-MM") : null)}
-                />
-                <button className="btn btn-primary btn-sm rounded-pill" style={{ marginLeft: "5px" }}
-                  onClick={() => {
-                    if (!filterDate) {
-                      // alert("Silakan pilih bulan terlebih dahulu")
-                      messageApi.error(`Silakan pilih bulan terlebih dahulu`);
-                    } else {
-                      setShowGenerateSaldoAwalModal(true);
-                    }
-                  }}>
-                  <LuWorkflow size={17} />
-                </button>
-
-              </div>
-              {/* <MdFormatListBulletedAdd size={25} onClick={() => { setShowTambahDataModal(true); refreshData(); }} /> */}
-            </div>
+    <Container>
+      <div className='mt-4 px-4'>
+        <div className='d-flex justify-content-between align-items-center flex-wrap' style={{ gap: '10px' }}>
+          <AccountingMenu />
+          <div className='d-flex align-items-center' style={{ gap: '12px' }}>
+            <Checkbox checked={tampilNol} onChange={(e) => setTampilNol(e.target.checked)}>Tampilkan akun tanpa saldo</Checkbox>
+            <DatePicker
+              picker='month'
+              allowClear={false}
+              value={dayjs(bulan, 'YYYY-MM')}
+              onChange={(d) => d && setBulan(d.format('YYYY-MM'))}
+              disabledDate={(d) => d.format('YYYY-MM') < SALDO_AWAL_BULAN}
+              style={{ borderColor: 'blue', color: 'blue' }}
+            />
           </div>
         </div>
 
+        {error && <p className='mt-4 text-danger'>Gagal memuat data: {error}</p>}
+        {!ns && !error && <div className='mt-5 text-center'><Spinner animation='border' size='sm' /> Memuat neraca saldo…</div>}
 
-        <div style={{ ...tableContainerStyle, maxHeight: '75vh', overflowY: 'auto' }}>
-          <table style={tableStyle}>
-            <thead>
-              <tr>
-                <th style={thStyle}>No</th>
-                <th style={thStyle}>Kode Akun</th>
-                <th style={thStyle}>Nama Akun</th>
-                <th style={thStyle}>Jenis Akun</th>
-                <th style={thStyle}>JP</th>
-
-                {/* Kolom Saldo Awal */}
-                {isSaldoAkhir && (
-                  <th colSpan={2} style={thStyle}>
-                    <div
-                      style={{
-                        opacity: animasiSaldoAwal ? 1 : 0, // Fade-in animasi
-                        visibility: animasiSaldoAwal ? 'visible' : 'hidden',
-                        transition: 'opacity 0.5s ease, visibility 0.5s ease',
-                      }}>
-                      Saldo Akhir
-                    </div>
-                  </th>
-                )}
-
-                {/* Kolom Debit dan Kredit */}
-                {!isSaldoAkhir && (
-                  <>
-                    <th style={thStyle}>
-                      <div
-                        style={{
-                          opacity: animasiDebitKredit ? 1 : 0, // Fade-in animasi
-                          visibility: animasiDebitKredit ? 'visible' : 'hidden',
-                          transition: 'opacity 0.5s ease, visibility 0.5s ease',
-                        }}>
-                        Debit
-                      </div>
-                    </th>
-                    <th style={thStyle}>
-                      <div
-                        style={{
-                          opacity: animasiDebitKredit ? 1 : 0, // Fade-in animasi
-                          visibility: animasiDebitKredit ? 'visible' : 'hidden',
-                          transition: 'opacity 0.5s ease, visibility 0.5s ease',
-                        }}>
-                        Kredit
-                      </div>
-                    </th>
-                  </>
-                )}
-              </tr>
-
-            </thead>
-            <tbody style={{ display: filterDate ? "none" : "" }}>
-              <tr style={{ backgroundColor: '#ffffff' }} className='fw-semibold'>
-                <td style={thTdStyle} colSpan={5}>Total : </td>
-                <td style={thTdStyle}>Rp. {(0).toLocaleString('id-ID')}{'\u00a0\u00a0\u00a0\u00a0'}</td>
-                <td style={thTdStyle}>Rp. {(0).toLocaleString('id-ID')}{'\u00a0\u00a0\u00a0\u00a0'}</td>
-              </tr>
-            </tbody>
-
-            <tbody style={{ display: filterDate ? "" : "none" }}>
-              {dataAkun.map((item, index) => {
-                const saldoAkhirAkun = dataJurnal
-                  .filter(
-                    (jurnal) =>
-                      (jurnal.kodeAkunDebet === item.kodeAkun || jurnal.kodeAkunKredit === item.kodeAkun)
-                      && (!filterDate || jurnal.tanggal.startsWith(filterDate)) // Tambahkan filter tanggal jika filterDate ada
-                  )
-                  .reduce((saldo, jurnal) => {
-                    const adjustedNominalDebet =
-                      jurnal.kodeAkunKredit === item.kodeAkun ? 0 : Number(jurnal.nominalDebet || 0);
-                    const adjustedNominalKredit =
-                      jurnal.kodeAkunDebet === item.kodeAkun ? 0 : Number(jurnal.nominalKredit || 0);
-                    return saldo + adjustedNominalDebet - adjustedNominalKredit;
-                  }, Number(item.saldoAwal || 0)); // Pastikan setiap akun punya saldoAwal
-
-                return (
-                  <tr key={index} style={index % 2 === 0 ? tbodyTrEvenStyle : tbodyTrOddStyle}>
-                    <td style={thTdStyle} className='text-center'>{index + 1}</td>
-                    <td style={thTdStyle}>{item.kodeAkun}</td>
-                    <td style={thTdStyle}>{item.namaAkun}</td>
-                    <td style={thTdStyle}>{item.jenisAkun}</td>
-                    <td style={thTdStyle} className="text-center">{item.jurnalPenutup}</td>
-                    {/* <td style={thTdStyle}>
-                      Rp. {item.saldoAwalDebit?.[filterDate] == 0 ? '0' : (Number(saldoAkhirAkun) + Number(item.saldoAwalDebit?.[filterDate])).toLocaleString('id-ID')}
-                    </td>
-                    <td style={thTdStyle}>
-                      Rp. {item.saldoAwalKredit?.[filterDate] == 0 ? '0' : ((Number(saldoAkhirAkun) - Number(item.saldoAwalKredit?.[filterDate]))*-1).toLocaleString('id-ID')}
-                    </td> */}
-                    <td style={thTdStyle}>
-                      {(!item.saldoAwalDebit?.[filterDate] && !item.saldoAwalKredit?.[filterDate]) ? (
-                        saldoAkhirAkun >= 0 ? `Rp. ${Number(saldoAkhirAkun).toLocaleString('id-ID')}` : 'Rp. 0'
-                      ) : (
-                        `Rp. ${(!item.saldoAwalDebit?.[filterDate] ? '0' : (Number(saldoAkhirAkun) + Number(item.saldoAwalDebit?.[filterDate]))).toLocaleString('id-ID')}`
-                      )}
-                    </td>
-                    <td style={thTdStyle}>
-                      {(!item.saldoAwalDebit?.[filterDate] && !item.saldoAwalKredit?.[filterDate]) ? (
-                        saldoAkhirAkun < 0 ? `Rp. ${(Number(saldoAkhirAkun) * -1).toLocaleString('id-ID')}` : 'Rp. 0'
-                      ) : (
-                        `Rp. ${(!item.saldoAwalKredit?.[filterDate] ? '0' : ((Number(saldoAkhirAkun) - Number(item.saldoAwalKredit?.[filterDate])) * -1)).toLocaleString('id-ID')}`
-                      )}
-                    </td>
-
-
-                    {/* <td style={thTdStyle}>
-                      Rp. {(Number(saldoAkhirAkun) + Number(item.saldoAwalDebit?.[filterDate])).toLocaleString('id-ID')}
-                    </td>
-                    <td style={thTdStyle}>
-                      Rp. {(Number(saldoAkhirAkun) + Number(item.saldoAwalKredit?.[filterDate])).toLocaleString('id-ID')}
-                    </td> */}
-                  </tr>
-                );
-              })}
-
-              <tr style={{ backgroundColor: '#E7E7E8' }} className='fw-semibold'>
-                <td style={thTdStyle} colSpan={5}>Total : </td>
-                <td style={thTdStyle}>Rp. {totalSaldoDebit.toLocaleString('id-ID')}</td>
-                <td style={thTdStyle}>Rp. {totalSaldoKredit.toLocaleString('id-ID')}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        {/* Modal */}
-        <Modal show={showGenerateSaldoAwalModal} onHide={() => setShowGenerateSaldoAwalModal(false)}>
-          <Modal.Header closeButton>
-            <Modal.Title>Generate Saldo Awal</Modal.Title>
-          </Modal.Header>
-          <Modal.Body>
-            <p>
-              Apakah Anda yakin ingin menggenerate saldo awal untuk bulan{" "}
-              <strong>{moment(filterDate, "YYYY-MM").add(1, "months").format("MMMM YYYY")}</strong>?
+        {ns && (
+          <>
+            <p className='mt-3 mb-1 fw-semibold' style={{ fontSize: '16px' }}>Neraca Saldo {labelBulan(bulan)}</p>
+            <p className='mb-1' style={{ fontSize: '12px', color: '#666' }}>
+              Dihitung langsung dari jurnal — tidak perlu "tutup buku". Akun neraca: kumulatif sejak saldo pembukaan {labelBulan(SALDO_AWAL_BULAN)};
+              akun laba rugi: sejak 1 Januari {bulan.slice(0, 4)}.
             </p>
-          </Modal.Body>
-          <Modal.Footer>
-            <Button
-              variant="primary"
-              // disabled={user.uid !== "fYpdHwXRDLhj5XGxM5FZIAvxp9E2"}
-              onClick={() => {
-                setShowGenerateSaldoAwalModal(false);
+            {Math.abs(ns.suspense.awal + ns.suspense.debit - ns.suspense.kredit) >= 1 && (
+              <p className='mb-1' style={{ fontSize: '12px', color: '#cf1322' }}>
+                ⚠ Ada jurnal yang akunnya kosong / tidak terdaftar — neraca tidak seimbang sampai diperbaiki di <Link to='/accounting/temuan-koreksi'>Temuan Koreksi</Link>.
+              </p>
+            )}
 
-                const allowedUIDs = [
-                  "fYpdHwXRDLhj5XGxM5FZIAvxp9E2",
-                  "w4M5JJjgGQeHFbS2nkyoCfUBE532",
-                ];
-
-                if (!allowedUIDs.includes(user.uid)) {
-                  messageApi.error(`Anda tidak memiliki hak untuk menggenerate saldo awal`);
-                } else {
-                  updateSaldoAwal();
-                }
-              }}
-
-            >
-              Generate
-            </Button>
-          </Modal.Footer>
-        </Modal>
-
-
-        {/* End Modal */}
-
-      </Container>
-    </>
+            <div style={tableContainerStyle}>
+              <table style={tableStyle}>
+                <thead>
+                  <tr>
+                    <th style={thStyle} rowSpan={2}>Kode</th>
+                    <th style={thStyle} rowSpan={2}>Nama Akun</th>
+                    <th style={thStyle} rowSpan={2}>Jenis</th>
+                    <th style={thStyle} colSpan={2}>Saldo Awal</th>
+                    <th style={thStyle} colSpan={2}>Mutasi {NAMA_BULAN[Number(bulan.slice(5, 7)) - 1]}</th>
+                    <th style={thStyle} colSpan={2}>Saldo Akhir</th>
+                  </tr>
+                  <tr>
+                    {['Debit', 'Kredit', 'Debit', 'Kredit', 'Debit', 'Kredit'].map((h, i) => <th key={i} style={{ ...thStyle, top: '29px' }}>{h}</th>)}
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((r, i) => {
+                    const khusus = r.pos === 'labaDitahan' || r.pos === 'suspense';
+                    return (
+                      <tr key={`${r.kodeAkun}-${r.namaAkun}`} className='tr-hover-effect2' style={{
+                        backgroundColor: r.pos === 'suspense' ? '#fff1f0' : i % 2 === 0 ? '#F4F4F4' : '#ffffff',
+                        fontStyle: khusus ? 'italic' : undefined,
+                      }}>
+                        <td style={tdStyle}>{r.kodeAkun}</td>
+                        <td style={tdStyle}>{r.namaAkun}</td>
+                        <td style={tdStyle}>{r.jenisAkun}</td>
+                        <td style={tdNum}>{r.awal > 0 ? rp(r.awal) : '-'}</td>
+                        <td style={tdNum}>{r.awal < 0 ? rp(-r.awal) : '-'}</td>
+                        <td style={tdNum}>{rp(r.debit)}</td>
+                        <td style={tdNum}>{rp(r.kredit)}</td>
+                        <td style={tdNum}>{r.akhir > 0 ? rp(r.akhir) : '-'}</td>
+                        <td style={tdNum}>{r.akhir < 0 ? rp(-r.akhir) : '-'}</td>
+                      </tr>
+                    );
+                  })}
+                  <tr style={rowTotal}>
+                    <td style={tdStyle} colSpan={5}>Total</td>
+                    <td style={tdNum}>{rp(ns.total.debit)}</td>
+                    <td style={tdNum}>{rp(ns.total.kredit)}</td>
+                    <td style={tdNum}>{rp(ns.total.akhirDebit)}</td>
+                    <td style={tdNum}>{rp(ns.total.akhirKredit)}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div className='mb-5' />
+          </>
+        )}
+      </div>
+    </Container>
   );
 };
 
-export default Jurnal;
+export default NeracaSaldo;

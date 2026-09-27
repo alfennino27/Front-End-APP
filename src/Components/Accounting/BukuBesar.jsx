@@ -8,6 +8,7 @@ import { useNavigate } from 'react-router-dom';
 import { FaPaste } from 'react-icons/fa';
 import { DatePicker, Input } from 'antd';
 import moment from "moment";
+import { saldoAkunBulan } from '../../Utils/neraca';
 import '../Accounting/Accounting.css';
 
 const { Search } = Input;
@@ -139,8 +140,11 @@ const Jurnal = () => {
   const calculateSaldoAwal = (item, date) => {
     if (!item) return 0;
 
-    // Jika filterDate null, cari tanggal paling awal yang tersedia
-    const selectedDate = date || getEarliestDate(item);
+    // Bulan dipilih → saldo awal dihitung dari jurnal (pengganti isian "tutup buku").
+    if (date) return saldoAkunBulan(item, dataJurnal, date).awal;
+
+    // Tanpa filter bulan → saldo pembukaan paling awal, lalu seluruh jurnal.
+    const selectedDate = getEarliestDate(item);
 
     return selectedDate && item.saldoAwalDebit?.[selectedDate]
       ? item.saldoAwalDebit[selectedDate]
@@ -165,7 +169,7 @@ const Jurnal = () => {
         setTanggalSaldoAwal(null);
       }
     }
-  }, [selectedItem, filterDate]);
+  }, [selectedItem, filterDate, dataJurnal]);
 
 
 

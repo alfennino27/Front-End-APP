@@ -249,6 +249,7 @@ const AIChatBubble = ({ seedContext = '', greeting = '', onActivity = null } = {
             invoice_id: prop.invoice_id, kode_invoice: prop.kode_invoice,
             spk_id: prop.spk_id, kode_spk: prop.kode_spk,
             jumlah: prop.jumlah, tanggal: prop.tanggal, detail: prop.detail,
+            akun_penerima: prop.akun_penerima,
             bukti_base64: paymentImgBase64Ref.current,
             created_by_uid: getUid(),
           }),
@@ -685,6 +686,7 @@ const AIChatBubble = ({ seedContext = '', greeting = '', onActivity = null } = {
                               <div>Nominal: <b>{formatRp(p.jumlah)}</b></div>
                               <div>Tanggal: {p.tanggal}</div>
                               {p.detail && <div>Ket: {p.detail}</div>}
+                              {p.rekening && <div>Masuk ke: <b>{p.rekening}</b> <span style={{ opacity: 0.7 }}>(jurnal otomatis)</span></div>}
                               <div style={{ marginTop: 4, padding: '4px 8px', borderRadius: 6, background: isLight ? '#fff9e6' : '#1a1500', fontSize: 12 }}>
                                 Sisa sebelum: {formatRp(p.sisa_sekarang)} → <b>Sisa sesudah: {formatRp(Math.max(0, p.sisa_sekarang - p.jumlah))}</b>
                               </div>

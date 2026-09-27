@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Modal } from 'react-bootstrap';
 import { getApiBaseUrl } from '../../Config/APIurl';
+import { saldoAkunBulan } from '../../Utils/neraca';
 
 // Popup rincian jurnal satu kode akun di bulan terpilih — dipakai tabel
 // Pengeluaran di Laba Rugi Penjualan / Profit / Cash. Rumus nominalnya sama
@@ -171,7 +172,8 @@ const RincianAkunModal = ({ akun, filterDate, dataJurnal, dataAkun, onHide, onJu
   const { entries, saldoAwal, totalDebet, totalKredit, total } = useMemo(() => {
     if (!akun || !filterDate) return { entries: [], saldoAwal: 0, totalDebet: 0, totalKredit: 0, total: 0 };
 
-    const saldoAwal = Number(akun.saldoAwalDebit?.[filterDate] || 0) || Number(akun.saldoAwalKredit?.[filterDate] || 0);
+    // Saldo awal bulan dihitung dari jurnal (pengganti isian "tutup buku").
+    const saldoAwal = saldoAkunBulan(akun, dataJurnal, filterDate).awal;
 
     const entries = dataJurnal
       .filter((j) =>

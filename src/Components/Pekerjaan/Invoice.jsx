@@ -25,6 +25,9 @@ import { RiFileExcel2Line } from "react-icons/ri";
 import OrderAssistant from '../AI/OrderAssistant';
 
 //tes
+// Rekening penerima pembayaran customer (mirror REKENING_PENERIMA di server utils/jurnalPembayaran.js).
+const REKENING_PENERIMA = { '1120': 'BCA (a.n. Alfennino)', '1125': 'Rek CV Karya Logam Furindo' };
+
 const Invoice = () => {
   const baseUrl = getApiBaseUrl();
   const navigate = useNavigate();
@@ -64,6 +67,8 @@ const Invoice = () => {
   const [paymentStatus, setPaymentStatus] = useState('');
   const [paymentTanggalWD, setPaymentTanggalWD] = useState('');
   const [paymentJumlah, setPaymentJumlah] = useState('');
+  // Rekening penerima → jurnal otomatis Dr <rekening> / Cr 1130 Piutang (dibuat server).
+  const [paymentAkunPenerima, setPaymentAkunPenerima] = useState('');
   const [dataInvoicePaymentFromDB, setDataInvoicePaymentFromDB] = useState([]);
 
   const [summaryMonth, setSummaryMonth] = useState('');
@@ -663,6 +668,11 @@ const Invoice = () => {
       alert('Invoice belum dipilih / invalid');
       return;
     }
+    if (!paymentAkunPenerima) {
+      alert('Pilih rekening penerima (BCA / Rek CV) — dipakai untuk jurnal otomatis');
+      setShowPaymentModal(true);
+      return;
+    }
 
     try {
       const formData = new FormData();
@@ -674,6 +684,7 @@ const Invoice = () => {
       formData.append('tanggalWD', paymentTanggalWD);
       formData.append('status', paymentStatus);
       formData.append('jumlah', paymentJumlah);
+      formData.append('akunPenerima', paymentAkunPenerima);
 
       if (paymentFileToUpload) {
         formData.append('image', paymentFileToUpload); // tanpa rename
@@ -687,6 +698,7 @@ const Invoice = () => {
       if (!res.ok) {
         const errorData = await res.json();
         console.error('Gagal mengirim payment:', errorData.message);
+        alert(`Gagal menyimpan payment: ${errorData.message}`);
         return;
       }
 
@@ -694,6 +706,7 @@ const Invoice = () => {
       setPaymentDetail('');
       setPaymentTanggal('');
       setPaymentJumlah('');
+      setPaymentAkunPenerima('');
     } catch (e) {
       console.error('Error mengirim payment:', e);
     }
@@ -709,11 +722,13 @@ const Invoice = () => {
   const [tanggalWDEdit, setTanggalWDEdit] = useState('');
   const [statusEdit, setStatusEdit] = useState('');
   const [jumlahEdit, setJumlahEdit] = useState('');
+  const [akunPenerimaEdit, setAkunPenerimaEdit] = useState('');
+  const [jurnalOtomatisEdit, setJurnalOtomatisEdit] = useState(false);
   const [paymentImageEdit, setPaymentImageEdit] = useState('');
   const [paymentImageDelete, setPaymentImageDelete] = useState(false);
   const [showEditPaymentModal, setShowEditPaymentModal] = useState(false);
   const [showDeletePaymentModal, setShowDeletePaymentModal] = useState(false);
-  const handleEditPayment = (id, detail, tanggal, tanggalWD, status, jumlah, image) => {
+  const handleEditPayment = (id, detail, tanggal, tanggalWD, status, jumlah, image, akunPenerima, jurnalOtomatis) => {
     refreshState();
     setIdPaymentEdit(id);
     setDetailEdit(detail);
@@ -722,6 +737,8 @@ const Invoice = () => {
     setStatusEdit(status);
     setJumlahEdit(jumlah);
     setPaymentImageEdit(image);
+    setAkunPenerimaEdit(akunPenerima || '');
+    setJurnalOtomatisEdit(!!jurnalOtomatis);
     setPaymentImageDelete(false);
     setShowEditPaymentModal(true);
   };
@@ -736,7 +753,8 @@ const Invoice = () => {
       formData.append('tanggal', tanggalEdit);
       formData.append('jumlah', jumlahEdit);
       formData.append('status', statusEdit);
-      formData.append('tanggalWD', statusEdit === 'Withdraw' ? '' : tanggalWDEdit);
+      formData.append('tanggalWD', statusEdit === 'Withdraw' ? tanggalWDEdit : '');
+      if (jurnalOtomatisEdit && akunPenerimaEdit) formData.append('akunPenerima', akunPenerimaEdit);
       formData.append('paymentImageDelete', paymentImageDelete ? 'true' : 'false');
 
       if (fileToUploadPaymentEdit) {
@@ -754,6 +772,7 @@ const Invoice = () => {
         console.log('Update berhasil:', data);
       } else {
         console.error('Update gagal:', data.message);
+        alert(`Gagal update payment: ${data.message}`);
       }
     } catch (e) {
       console.error('Error saat update payment:', e);
@@ -816,6 +835,7 @@ const Invoice = () => {
     setPaymentTanggalWD('');
     setPaymentStatus('');
     setPaymentJumlah('');
+    setPaymentAkunPenerima('');
 
     setFileToUploadPaymentEdit(null);
     setIdPaymentEdit('');
@@ -2283,7 +2303,7 @@ const Invoice = () => {
                     <tbody>
 
                       {dataInvoicePaymentFromDB.map((payment, index) => (
-                        <tr key={index} className={`tr-hover-effect tema-${globalTheme}`} style={{ cursor: "pointer" }} onClick={() => handleEditPayment(payment.id, payment.detail, payment.tanggal, payment.tanggalWD, payment.status, payment.jumlah, payment.image)}>
+                        <tr key={index} className={`tr-hover-effect tema-${globalTheme}`} style={{ cursor: "pointer" }} onClick={() => handleEditPayment(payment.id, payment.detail, payment.tanggal, payment.tanggalWD, payment.status, payment.jumlah, payment.image, payment.akunPenerima, payment.jurnalOtomatis)}>
                           <td className='tableStyle text-center'>{index + 1}</td>
                           <td className='tableStyle text-center'>
                             <span onClick={(e) => { e.stopPropagation(); }}>
@@ -2291,7 +2311,10 @@ const Invoice = () => {
                             </span>
                           </td>
                           <td className='tableStyle text-center'>{payment.detail}</td>
-                          <td className='tableStyle text-center'>{payment.status}</td>
+                          <td className='tableStyle text-center'>
+                            {payment.status}
+                            {payment.akunPenerima && <div style={{ fontSize: '11px', opacity: 0.7 }}>→ {REKENING_PENERIMA[payment.akunPenerima] || payment.akunPenerima}</div>}
+                          </td>
                           <td className='tableStyle text-center'>
                             <span style={{ display: payment.status == "Withdraw" ? "none" : "block" }}>
                               {payment.tanggal}
@@ -2730,6 +2753,12 @@ const Invoice = () => {
 
             <label className='mt-2'>Jumlah :</label>
             <input className="form-control" type='number' onChange={useCallback(debounce((e) => setPaymentJumlah(e.target.value), 300), [])}></input>
+            <label className='mt-2'>Masuk ke rekening :</label>
+            <select className="form-control" value={paymentAkunPenerima} onChange={(e) => setPaymentAkunPenerima(e.target.value)} required>
+              <option value="" disabled>Pilih rekening penerima</option>
+              {Object.entries(REKENING_PENERIMA).map(([kode, label]) => <option key={kode} value={kode}>{label}</option>)}
+            </select>
+            <small style={{ opacity: 0.7 }}>Jurnal penerimaan dibuat otomatis — tidak perlu input jurnal manual.</small>
           </Modal.Body>
           <Modal.Footer>
             <Button variant="primary" onClick={handleSubmitPayment} style={{ marginLeft: "150px" }}>Submit</Button>
@@ -2772,6 +2801,15 @@ const Invoice = () => {
             </div>
             <label className='mt-2'>Jumlah :</label>
             <input className="form-control" type='number' defaultValue={jumlahEdit} onChange={useCallback(debounce((e) => setJumlahEdit(e.target.value), 300), [])}></input>
+            {jurnalOtomatisEdit && (
+              <>
+                <label className='mt-2'>Masuk ke rekening :</label>
+                <select className="form-control" value={akunPenerimaEdit} onChange={(e) => setAkunPenerimaEdit(e.target.value)}>
+                  {Object.entries(REKENING_PENERIMA).map(([kode, label]) => <option key={kode} value={kode}>{label}</option>)}
+                </select>
+                <small style={{ opacity: 0.7 }}>Jurnal otomatis ikut diperbarui.</small>
+              </>
+            )}
           </Modal.Body>
           <Modal.Footer>
             <Button variant="danger" onClick={() => { setShowDeletePaymentModal(true); setShowEditPaymentModal(false) }}>Delete</Button>

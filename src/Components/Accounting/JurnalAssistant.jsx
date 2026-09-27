@@ -214,6 +214,31 @@ const JurnalAssistant = () => {
     return () => document.removeEventListener('paste', onPaste);
   }, []);
 
+  // HP tidak punya Ctrl+V: tombol "Tempel" membaca clipboard lewat Clipboard API. Browser yang
+  // tidak mengizinkan membaca PDF dari clipboard → pakai kotak tempel (tekan lama → Tempel),
+  // paste-nya ditangkap listener di atas.
+  const kotakTempel = useRef(null);
+  const tempelDariClipboard = async () => {
+    try {
+      if (!navigator.clipboard?.read) throw new Error('tidak didukung');
+      const items = await navigator.clipboard.read();
+      const pdf = [];
+      for (const it of items) {
+        const tipe = it.types.find((t) => t === 'application/pdf');
+        if (tipe) {
+          const blob = await it.getType(tipe);
+          pdf.push(new File([blob], `tempel-${Date.now()}-${pdf.length + 1}.pdf`, { type: 'application/pdf' }));
+        }
+      }
+      if (!pdf.length) throw new Error('bukan pdf');
+      setFiles((l) => [...l, ...pdf]);
+      message.success(`${pdf.length} PDF ditambahkan`);
+    } catch (e) {
+      message.info('Tekan lama kotak "Tempel di sini" lalu pilih Tempel / Paste', 4);
+      kotakTempel.current?.focus();
+    }
+  };
+
   const muatDaftar = useCallback(() => api('/jurnal-assistant/batches').then(setBatches).catch((e) => setError(e.message)), [api]);
   useEffect(() => { muatDaftar(); api('/jurnal-assistant/referensi').then(setRef).catch(() => {}); }, []);
 
@@ -331,6 +356,18 @@ const JurnalAssistant = () => {
           <p style={{ margin: 0, fontWeight: 600 }}>Pilih / seret / paste (Ctrl+V) PDF di sini — boleh beberapa sekaligus</p>
           <p style={{ margin: 0, fontSize: 12, color: '#888' }}>Rekening koran BCA & Rek CV, laporan petty cash harian</p>
         </Upload.Dragger>
+        <div style={{ display: 'flex', gap: 8, marginTop: 10, alignItems: 'stretch' }}>
+          <Button onClick={tempelDariClipboard}>📋 Tempel</Button>
+          <div
+            ref={kotakTempel}
+            contentEditable
+            suppressContentEditableWarning
+            onInput={(e) => { e.currentTarget.textContent = 'Tempel di sini (tekan lama → Tempel)'; }}
+            style={{ flex: 1, border: '1px dashed #bbb', borderRadius: 6, padding: '4px 10px', fontSize: 12, color: '#999', minHeight: 32, display: 'flex', alignItems: 'center', outline: 'none', caretColor: 'transparent', userSelect: 'text', WebkitUserSelect: 'text' }}
+          >
+            Tempel di sini (tekan lama → Tempel)
+          </div>
+        </div>
         <Button type="primary" block={mobile} loading={mengunggah} disabled={!files.length} onClick={unggah} style={{ marginTop: 10 }}>
           {progresUpload || `Analisa ${files.length ? `${files.length} PDF` : ''}`}
         </Button>

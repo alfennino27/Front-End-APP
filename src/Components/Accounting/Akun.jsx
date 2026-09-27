@@ -6,7 +6,8 @@ import { useParams } from 'react-router-dom';
 import { getApiBaseUrl } from '../../Config/APIurl';
 import { useNavigate } from 'react-router-dom';
 import { MdFormatListBulletedAdd } from "react-icons/md";
-import { DatePicker, Input } from 'antd';
+import { Input } from 'antd';
+import { SALDO_AWAL_BULAN } from '../../Utils/neraca';
 import '../Accounting/Accounting.css';
 
 const Jurnal = () => {
@@ -101,8 +102,6 @@ const Jurnal = () => {
           kodeAkun,
           namaAkun,
           jenisAkun,
-          saldoAwalDebit,
-          saldoAwalKredit,
         }),
       });
 
@@ -148,8 +147,8 @@ const Jurnal = () => {
     setKodeAkun(item.kodeAkun || "");
     setNamaAkun(item.namaAkun || "");
     setJenisAkun(item.jenisAkun || "");
-    setSaldoAwalDebit(item.saldoAwalDebit?.[filterDate] || 0);
-    setSaldoAwalKredit(item.saldoAwalKredit?.[filterDate] || 0);
+    setSaldoAwalDebit(item.saldoAwalDebit?.[SALDO_AWAL_BULAN] || 0);
+    setSaldoAwalKredit(item.saldoAwalKredit?.[SALDO_AWAL_BULAN] || 0);
     setJurnalPenutup(item.jurnalPenutup || null)
     setShowEditDataModal(true);
   }
@@ -192,9 +191,6 @@ const Jurnal = () => {
           namaAkun,
           jenisAkun,
           jurnalPenutup,
-          saldoAwalDebit,
-          saldoAwalKredit,
-          filterDate, // format YYYY-MM
         }),
       });
 
@@ -280,7 +276,6 @@ const Jurnal = () => {
               <AccountingMenu />
 
               <div>
-                <DatePicker picker="month" style={{ borderColor: 'blue', color: 'blue' }} onChange={(date) => setFilterDate(date ? date.format("YYYY-MM") : null)} />
                 <MdFormatListBulletedAdd style={{ marginLeft: "8px" }} size={25} onClick={() => { setShowTambahDataModal(true); refreshData(); }} />
               </div>
             </div>
@@ -298,45 +293,8 @@ const Jurnal = () => {
                 <th style={thStyle}>Jenis Akun</th>
                 <th style={thStyle}>JP</th>
 
-                {/* Kolom Saldo Awal */}
-                {isSaldoAwal && (
-                  <th colSpan={2} style={thStyle}>
-                    <div
-                      style={{
-                        opacity: animasiSaldoAwal ? 1 : 0, // Fade-in animasi
-                        visibility: animasiSaldoAwal ? 'visible' : 'hidden',
-                        transition: 'opacity 0.5s ease, visibility 0.5s ease',
-                      }}>
-                      Saldo Awal
-                    </div>
-                  </th>
-                )}
-
-                {/* Kolom Debit dan Kredit */}
-                {!isSaldoAwal && (
-                  <>
-                    <th style={thStyle}>
-                      <div
-                        style={{
-                          opacity: animasiDebitKredit ? 1 : 0, // Fade-in animasi
-                          visibility: animasiDebitKredit ? 'visible' : 'hidden',
-                          transition: 'opacity 0.5s ease, visibility 0.5s ease',
-                        }}>
-                        Debit
-                      </div>
-                    </th>
-                    <th style={thStyle}>
-                      <div
-                        style={{
-                          opacity: animasiDebitKredit ? 1 : 0, // Fade-in animasi
-                          visibility: animasiDebitKredit ? 'visible' : 'hidden',
-                          transition: 'opacity 0.5s ease, visibility 0.5s ease',
-                        }}>
-                        Kredit
-                      </div>
-                    </th>
-                  </>
-                )}
+                <th style={thStyle}>Saldo Pembukaan Debit<br /><small>({SALDO_AWAL_BULAN})</small></th>
+                <th style={thStyle}>Saldo Pembukaan Kredit<br /><small>({SALDO_AWAL_BULAN})</small></th>
               </tr>
 
             </thead>
@@ -351,20 +309,20 @@ const Jurnal = () => {
                   {/* <td style={thTdStyle}>Rp. {Number(item.saldoAwalDebit).toLocaleString('id-ID')}</td>
                   <td style={thTdStyle}>Rp. {Number(item.saldoAwalKredit).toLocaleString('id-ID')}</td> */}
                   <td style={thTdStyle}>
-                    Rp. {Number(item.saldoAwalDebit?.[filterDate] || 0).toLocaleString('id-ID')}
+                    Rp. {Number(item.saldoAwalDebit?.[SALDO_AWAL_BULAN] || 0).toLocaleString('id-ID')}
                     {/* ga penting tapi jangan dihapus buat biar rapi tampilannya aja */}
-                    {Number(item.saldoAwalDebit?.[filterDate] || 0) === 0 ? '\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0' : ''}
+                    {Number(item.saldoAwalDebit?.[SALDO_AWAL_BULAN] || 0) === 0 ? '\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0' : ''}
                   </td>
                   <td style={thTdStyle}>
-                    Rp. {Number(item.saldoAwalKredit?.[filterDate] || 0).toLocaleString('id-ID')}
-                    {Number(item.saldoAwalKredit?.[filterDate] || 0) === 0 ? '\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0' : ''}
+                    Rp. {Number(item.saldoAwalKredit?.[SALDO_AWAL_BULAN] || 0).toLocaleString('id-ID')}
+                    {Number(item.saldoAwalKredit?.[SALDO_AWAL_BULAN] || 0) === 0 ? '\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0' : ''}
                   </td>
                 </tr>
               ))}
               <tr style={{ backgroundColor: '#E7E7E8' }} className='fw-semibold'>
                 <td style={thTdStyle} colSpan={5}>Total : </td>
-                <td style={thTdStyle}>Rp. {dataAkun.reduce((total, akun) => total + Number(akun.saldoAwalDebit?.[filterDate] || 0), 0).toLocaleString('id-ID')}</td>
-                <td style={thTdStyle}>Rp. {dataAkun.reduce((total, akun) => total + Number(akun.saldoAwalKredit?.[filterDate] || 0), 0).toLocaleString('id-ID')}</td>
+                <td style={thTdStyle}>Rp. {dataAkun.reduce((total, akun) => total + Number(akun.saldoAwalDebit?.[SALDO_AWAL_BULAN] || 0), 0).toLocaleString('id-ID')}</td>
+                <td style={thTdStyle}>Rp. {dataAkun.reduce((total, akun) => total + Number(akun.saldoAwalKredit?.[SALDO_AWAL_BULAN] || 0), 0).toLocaleString('id-ID')}</td>
               </tr>
             </tbody>
           </table>
@@ -398,10 +356,9 @@ const Jurnal = () => {
               <option value="Operasional">Operasional</option>
               <option value="Pemasukan">Pemasukan</option>
             </select>
-            <label className='mt-2'>Saldo Awal (Debit) :</label>
-            <input className="form-control" type='number' defaultValue={saldoAwalDebit} onChange={(e) => setSaldoAwalDebit(e.target.value)} required></input>
-            <label className='mt-2'>Saldo Awal (Kredit) :</label>
-            <input className="form-control" type='number' defaultValue={saldoAwalKredit} onChange={(e) => setSaldoAwalKredit(e.target.value)} required></input>
+            <small className='d-block mt-2' style={{ opacity: 0.7 }}>
+              Saldo akun dihitung otomatis dari jurnal dan tidak bisa diedit di sini. Koreksi saldo → buat jurnal penyesuaian.
+            </small>
           </Modal.Body>
           <Modal.Footer>
             <Button variant="primary" onClick={handleSubmitTambahData} style={{ marginLeft: "290px" }}>Submit</Button>
@@ -437,10 +394,9 @@ const Jurnal = () => {
               <option value="Operasional">Operasional</option>
               <option value="Pemasukan">Pemasukan</option>
             </select>
-            <label className='mt-2'>Saldo Awal (Debit) :</label>
-            <input className="form-control" type='number' defaultValue={saldoAwalDebit} onChange={(e) => setSaldoAwalDebit(e.target.value)} required></input>
-            <label className='mt-2'>Saldo Awal (Kredit) :</label>
-            <input className="form-control" type='number' defaultValue={saldoAwalKredit} onChange={(e) => setSaldoAwalKredit(e.target.value)} required></input>
+            <small className='d-block mt-2' style={{ opacity: 0.7 }}>
+              Saldo akun dihitung otomatis dari jurnal dan tidak bisa diedit di sini. Koreksi saldo → buat jurnal penyesuaian.
+            </small>
 
             {/* Input Radio */}
             <label className='mt-2'>Jurnal Penutup :</label>

@@ -100,7 +100,7 @@ tbody tr:nth-child(even) {
 @media (min-width: 768px) {
   .accounting-menu-grid {
     grid-template-columns: repeat(3, 1fr);
-    grid-template-rows: repeat(6, auto);
+    grid-template-rows: repeat(7, auto);
     grid-auto-flow: column;
   }
 }

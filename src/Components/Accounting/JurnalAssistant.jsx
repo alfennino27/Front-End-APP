@@ -198,6 +198,22 @@ const JurnalAssistant = () => {
   }, [baseUrl, uid]);
   const kirim = (path, method, body) => api(path, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...body, uid }) });
 
+  // Paste (Cmd/Ctrl+V) di mana saja di halaman: file PDF dari Finder / clipboard ikut masuk daftar.
+  // Paste teks biasa ke kolom keterangan tidak terganggu (clipboard tanpa file diabaikan).
+  useEffect(() => {
+    const onPaste = (e) => {
+      const list = Array.from(e.clipboardData?.files || []);
+      if (!list.length) return;
+      const pdf = list.filter((f) => f.type === 'application/pdf' || /\.pdf$/i.test(f.name));
+      e.preventDefault();
+      if (!pdf.length) { message.warning('Yang di-paste bukan PDF'); return; }
+      setFiles((l) => [...l, ...pdf]);
+      message.success(`${pdf.length} PDF ditambahkan`);
+    };
+    document.addEventListener('paste', onPaste);
+    return () => document.removeEventListener('paste', onPaste);
+  }, []);
+
   const muatDaftar = useCallback(() => api('/jurnal-assistant/batches').then(setBatches).catch((e) => setError(e.message)), [api]);
   useEffect(() => { muatDaftar(); api('/jurnal-assistant/referensi').then(setRef).catch(() => {}); }, []);
 
@@ -312,7 +328,7 @@ const JurnalAssistant = () => {
           onRemove={(f) => setFiles((l) => l.filter((_, i) => String(i) !== f.uid))}
         >
           <p className="ant-upload-drag-icon"><InboxOutlined /></p>
-          <p style={{ margin: 0, fontWeight: 600 }}>Pilih / seret PDF di sini — boleh beberapa sekaligus</p>
+          <p style={{ margin: 0, fontWeight: 600 }}>Pilih / seret / paste (Ctrl+V) PDF di sini — boleh beberapa sekaligus</p>
           <p style={{ margin: 0, fontSize: 12, color: '#888' }}>Rekening koran BCA & Rek CV, laporan petty cash harian</p>
         </Upload.Dragger>
         <Button type="primary" block={mobile} loading={mengunggah} disabled={!files.length} onClick={unggah} style={{ marginTop: 10 }}>

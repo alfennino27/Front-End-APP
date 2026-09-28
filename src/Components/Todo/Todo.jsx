@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { getApiBaseUrl } from '../../Config/APIurl';
 import { useTheme } from '../../ThemeContext';
 import { getImageUrl } from '../../Utils/image';
+import { IoRefresh, IoSettingsOutline } from 'react-icons/io5';
 
 // ============================================================================
 // AGENDA TO-DO & QC
@@ -16,6 +17,7 @@ import { getImageUrl } from '../../Utils/image';
 const KATEGORI = ['Stainless', 'Besi', 'Kayu', 'Jok', 'Rotan', 'Marmer', 'Kaca', 'Fiber', 'Veneer', 'Finishing', 'Hardware', 'BarangJadi'];
 
 const BUCKETS = [
+  { key: 'all', label: 'Semua', color: '#334155' },
   { key: 'overdue', label: 'Terlambat', color: '#dc2626' },
   { key: 'this_week', label: 'Minggu ini', color: '#d97706' },
   { key: 'next_week', label: 'Minggu depan', color: '#2563eb' },
@@ -146,11 +148,12 @@ const Todo = () => {
   const counts = useMemo(() => {
     const c = {};
     filtered.forEach((t) => { c[t.bucket] = (c[t.bucket] || 0) + 1; });
+    c.all = filtered.length;
     return c;
   }, [filtered]);
 
   const groups = useMemo(() => {
-    const list = filtered.filter((t) => t.bucket === tab);
+    const list = tab === 'all' ? filtered : filtered.filter((t) => t.bucket === tab);
     const map = new Map();
     const keyOf = (t) => {
       if (groupBy === 'supplier') return t.supplier || 'Belum ada supplier';
@@ -231,6 +234,10 @@ const Todo = () => {
     background: bg, color: fg, border: 'none', borderRadius: 10, padding: '10px 14px',
     fontSize: 14, fontWeight: 600, cursor: 'pointer', minHeight: 42,
   });
+  const sIconBtn = {
+    background: C.card, color: C.text, border: `1px solid ${C.border}`, borderRadius: 10,
+    width: 42, height: 42, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flex: '0 0 42px',
+  };
   const chip = (color) => ({
     display: 'inline-block', background: color, color: '#fff', borderRadius: 999,
     padding: '1px 8px', fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap',
@@ -263,8 +270,12 @@ const Todo = () => {
               {fmtTanggal(today)} · {agenda ? `${agenda.jumlah_item} item ongoing` : 'memuat…'}
             </div>
           </div>
-          <button type="button" style={sBtn(C.soft, C.text)} onClick={() => { setLoading(true); fetchAgenda(); }} title="Muat ulang">⟳</button>
-          <button type="button" style={sBtn(C.soft, C.text)} onClick={() => setShowSettings(true)} title="Setting lead time">⚙</button>
+          <button type="button" style={sIconBtn} onClick={() => { setLoading(true); fetchAgenda(); }} title="Muat ulang" aria-label="Muat ulang">
+            <IoRefresh size={20} />
+          </button>
+          <button type="button" style={sIconBtn} onClick={() => setShowSettings(true)} title="Setting lead time" aria-label="Setting lead time">
+            <IoSettingsOutline size={20} />
+          </button>
           <button type="button" style={sBtn('#2563eb')} onClick={() => setShowAdd(true)}>+ To-do</button>
         </div>
 
@@ -291,7 +302,11 @@ const Todo = () => {
 
         {/* Filter */}
         <div style={{ display: 'flex', gap: 6, overflowX: 'auto', padding: '6px 0 10px' }}>
-          <input style={{ ...sInput, minWidth: 150, flex: '1 0 150px' }} placeholder="Cari item / customer / supplier" value={search} onChange={(e) => setSearch(e.target.value)} />
+          <input style={{ ...sInput, minWidth: 150, flex: '1 0 150px' }} placeholder="Cari item / customer / supplier" value={search} onChange={(e) => {
+            const v = e.target.value;
+            if (!search.trim() && v.trim()) setTab('all');
+            setSearch(v);
+          }} />
           <select style={sInput} value={groupBy} onChange={(e) => setGroupBy(e.target.value)}>
             {GROUPS.map((g) => <option key={g.key} value={g.key}>Per {g.label}</option>)}
           </select>
@@ -309,9 +324,9 @@ const Todo = () => {
             {users.map((u) => <option key={u} value={u}>{u}</option>)}
           </select>
           <select style={sInput} value={fSumber} onChange={(e) => setFSumber(e.target.value)}>
-            <option value="">Manual + otomatis</option>
-            <option value="manual">✎ Manual saja</option>
-            <option value="otomatis">⚙ Otomatis saja</option>
+            <option value="">Semua sumber</option>
+            <option value="manual">✎ Ditulis orang</option>
+            <option value="otomatis">⚙ Temuan sistem</option>
           </select>
           <label style={{ ...sInput, display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap', cursor: 'pointer' }}>
             <input type="checkbox" checked={showStock} onChange={(e) => setShowStock(e.target.checked)} /> Item stok
@@ -357,7 +372,7 @@ const Todo = () => {
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap', marginBottom: 2 }}>
                         <span style={chip(CAT_COLOR[t.category] || '#6b7280')}>{t.category}</span>
-                        <span style={{ fontSize: 11, color: C.muted }}>{t.sumber === 'manual' ? '✎ to-do' : `⚙ ${t.jenis_label}`}</span>
+                        <span style={{ fontSize: 11, color: C.muted }}>{t.sumber === 'manual' ? '✎ ditulis orang' : `⚙ ${t.jenis_label}`}</span>
                         {t.pic && <span style={{ fontSize: 11, color: C.muted }}>· {t.pic}</span>}
                         {t.notes?.length > 0 && <span style={{ fontSize: 11, color: C.muted }}>· 💬{t.notes.length}</span>}
                       </div>
@@ -446,7 +461,7 @@ const TaskSheet = ({ t, C, users, busy, today, sInput, sBtn, chip, onClose, aksi
     <Sheet C={C} onClose={onClose} title={t.judul}>
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', fontSize: 13 }}>
         <span style={chip(CAT_COLOR[t.category] || '#6b7280')}>{t.category}</span>
-        <span style={{ color: C.muted }}>{manual ? '✎ To-do manual' : `⚙ ${t.jenis_label} (otomatis)`}</span>
+        <span style={{ color: C.muted }}>{manual ? '✎ To-do ditulis orang' : `⚙ ${t.jenis_label} (temuan sistem)`}</span>
       </div>
       <div style={{ fontSize: 13, marginTop: 8, lineHeight: 1.6 }}>
         <div><b>{t.item}</b></div>

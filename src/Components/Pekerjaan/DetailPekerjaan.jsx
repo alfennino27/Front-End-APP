@@ -679,8 +679,9 @@ const DetailPekerjaan = () => {
       setShowToDoListModal(false);
 
       const formattedTodos = Array.isArray(todo)
-        ? todo.map(t => ({ text: t.text || "", done: !!t.done }))
+        ? todo.filter(t => (t.text || "").trim()).map(t => ({ ...t, text: t.text || "", done: !!t.done }))
         : [];
+      const userLS = JSON.parse(localStorage.getItem('user') || 'null');
 
       const response = await fetch(`${baseUrl}/projects/update/todo`, {
         method: "POST",
@@ -691,6 +692,7 @@ const DetailPekerjaan = () => {
           slug,
           category,
           todo: formattedTodos,
+          by: userLS?.uid || '',
         }),
       });
 
@@ -1323,10 +1325,10 @@ const DetailPekerjaan = () => {
         const todosFromDB = dataProjectFromDB[0][`Todo${category}`];
 
         const todos = Array.isArray(todosFromDB)
-          ? todosFromDB.map(t => ({
-            text: typeof t === "string" ? t : t.text || "",
-            done: typeof t === "object" ? !!t.done : false,
-          }))
+          ? todosFromDB.map(t => (typeof t === "object" && t
+            // Pertahankan id/due/pic/catatan — dipakai halaman agenda /todo.
+            ? { ...t, text: t.text || "", done: !!t.done }
+            : { text: typeof t === "string" ? t : "", done: false }))
           : [{ text: "", done: false }];
 
         setTodo(todos);
@@ -3161,6 +3163,18 @@ const DetailPekerjaan = () => {
                     setTodo(newTodo);
                   }}
                   placeholder={`To Do #${index + 1}`}
+                />
+                <input
+                  className="form-control ms-2"
+                  type="date"
+                  title="Harus beres tanggal (kosong = otomatis H-7 target kirim)"
+                  style={{ maxWidth: 150 }}
+                  value={t.due || ""}
+                  onChange={(e) => {
+                    const newTodo = [...todo];
+                    newTodo[index] = { ...newTodo[index], due: e.target.value };
+                    setTodo(newTodo);
+                  }}
                 />
               </div>
             ))

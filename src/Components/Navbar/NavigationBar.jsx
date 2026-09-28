@@ -1128,7 +1128,7 @@ const NavigationBar = () => {
                   }}
                 >
                   <LuClipboardList />
-                  <span className="fw-semibold">To Do</span>
+                  <span className="fw-semibold">To-Do &amp; QC</span>
                 </Link>
                 <hr className="my-1" style={dividerStyle} />
 

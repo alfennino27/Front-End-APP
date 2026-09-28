@@ -503,6 +503,16 @@ const NavigationBar = () => {
       const data = await res.json();
       if (!Array.isArray(data)) return;
       setUserAccess(data);
+      // Tidak punya akses menu apa pun → tidak boleh memakai app sama sekali.
+      // Hanya diputuskan dari data server yang berhasil diambil (bukan cache / saat offline).
+      const SUPER_ADMIN = ['w4M5JJjgGQeHFbS2nkyoCfUBE532', 'fYpdHwXRDLhj5XGxM5FZIAvxp9E2'];
+      const uidNow = user?.uid;
+      if (uidNow && !SUPER_ADMIN.includes(uidNow)
+        && !data.some(a => a.uid === uidNow && (a.value === true || a.value === 'true'))) {
+        localStorage.removeItem('user');
+        window.location.replace('/login?noaccess=1');
+        return;
+      }
       try { localStorage.setItem('userAccessCache', JSON.stringify(data)); } catch (e) { /* quota penuh, abaikan */ }
     } catch (err) {
       console.error('Gagal ambil user access:', err);

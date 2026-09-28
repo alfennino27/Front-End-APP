@@ -23,6 +23,9 @@ const Login = () => {
     localStorage.removeItem('searchSupplierLocalStorage');
     localStorage.removeItem('searchSupplierCategoryLocalStorage');
     localStorage.removeItem('projectListFilters'); // filter daftar project ikut direset saat login
+    if (new URLSearchParams(window.location.search).get('noaccess')) {
+      setError('Akun ini belum punya akses ke aplikasi. Hubungi admin.');
+    }
     const cekLogin = () => {
       if (user !== null) {
         window.location.replace('/project');

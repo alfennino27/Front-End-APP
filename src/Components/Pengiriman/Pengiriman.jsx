@@ -55,7 +55,7 @@ export function buildWaText(doc) {
     lines.push('', `*${i + 1}. ${t.penerima || t.customer}*${t.telepon ? ` — ${t.telepon}` : ''}`, `Alamat: ${t.alamat}`);
     if (t.ongkir && ONGKIR[t.ongkir]) lines.push(`💰 *${ONGKIR[t.ongkir].label}*`);
     if (t.catatan) lines.push(`⚠ *CATATAN PENERIMAAN:* ${t.catatan.split('\n').filter(Boolean).join('; ')}`);
-    t.items.forEach((it) => lines.push(`• ${it.namaBarang} × ${it.qty}`));
+    t.items.forEach((it) => lines.push(`• ${it.namaBarang} × ${it.qty}${it.keterangan ? ` — ${it.keterangan}` : ''}`));
   });
   return lines.join('\n');
 }
@@ -532,7 +532,8 @@ const TujuanCard = ({ t, i, C, sInput, sBtn, sCard, sLabel, invoices, busy, onCh
             const sisa = Math.max(0, num(p.qtyOrder) - num(p.terkirim));
             return (
               <div key={p.projectId}
-                style={{ display: 'flex', gap: 10, alignItems: 'center', padding: 8, borderRadius: 10, marginBottom: 6, border: `1px solid ${p.checked ? '#16a34a' : C.border}`, background: p.checked ? (C.bg === '#0f0f10' ? '#052e16' : '#f0fdf4') : 'transparent', opacity: !p.checked && sisa === 0 ? 0.55 : 1 }}>
+                style={{ padding: 8, borderRadius: 10, marginBottom: 6, border: `1px solid ${p.checked ? '#16a34a' : C.border}`, background: p.checked ? (C.bg === '#0f0f10' ? '#052e16' : '#f0fdf4') : 'transparent', opacity: !p.checked && sisa === 0 ? 0.55 : 1 }}>
+               <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
                 <input type="checkbox" style={{ width: 22, height: 22, flex: '0 0 22px' }} checked={!!p.checked}
                   onChange={(e) => onPilihan(p.projectId, { checked: e.target.checked, qty: p.qty || sisa || p.qtyOrder })} />
                 <img src={getImageUrl(p.image)} alt="" style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: 8, flex: '0 0 64px', background: C.soft }} />
@@ -546,6 +547,13 @@ const TujuanCard = ({ t, i, C, sInput, sBtn, sCard, sLabel, invoices, busy, onCh
                 {p.checked && (
                   <input type="number" min={1} style={{ ...sInput, width: 70, flex: '0 0 70px', textAlign: 'center' }} value={p.qty}
                     onChange={(e) => onPilihan(p.projectId, { qty: e.target.value })} />
+                )}
+               </div>
+                {/* Keterangan per barang → tampil di bawah foto di PDF & teks WA */}
+                {p.checked && (
+                  <input style={{ ...sInput, marginTop: 8, fontSize: 15 }} value={p.keterangan || ''}
+                    placeholder="Keterangan, mis. dimensi D110 x 30, top marmer"
+                    onChange={(e) => onPilihan(p.projectId, { keterangan: e.target.value })} />
                 )}
               </div>
             );

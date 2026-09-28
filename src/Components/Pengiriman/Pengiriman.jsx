@@ -31,6 +31,13 @@ const waNumber = (s) => {
 };
 const fileName = (doc) => `Pengiriman ${doc.ekspedisi?.nama || ''} ${doc.tanggalKirim}`.replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, ' ').trim();
 
+// Customer yang sama: kode customer sama, atau (kalau salah satu tanpa kode) nama sama.
+const normNama = (s) => String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
+const sameCustomer = (a, b) => {
+  if (a.kodeCustomer && b.kodeCustomer) return a.kodeCustomer === b.kodeCustomer;
+  return normNama(a.customer) === normNama(b.customer);
+};
+
 const emptyTujuan = () => ({ key: Math.random().toString(36).slice(2), invoiceIds: [], penerima: '', telepon: '', alamat: '', catatan: '', pilihan: [] });
 
 // Teks siap tempel ke WhatsApp ekspedisi (isi sama dengan PDF, tanpa foto).
@@ -136,6 +143,8 @@ const Pengiriman = () => {
         for (const invId of (t.invoiceIds && t.invoiceIds.length ? t.invoiceIds : [t.invoiceId]).filter(Boolean)) {
           try {
             const d = await fetchInvoiceDetail(invId, doc.id);
+            if (!t.kodeCustomer && d.kodeCustomer) t.kodeCustomer = d.kodeCustomer;
+            if (!t.customer) t.customer = d.customer;
             for (const it of d.items) {
               const ada = pilihan.find((p) => p.projectId === it.projectId);
               if (ada) Object.assign(ada, { qtyOrder: it.qtyOrder, terkirim: it.terkirim, status: it.status });
@@ -164,6 +173,9 @@ const Pengiriman = () => {
     if (!invoiceId) return;
     const t = form.tujuan.find((x) => x.key === key);
     if (t.invoiceIds.includes(invoiceId)) return;
+    // Satu tujuan = satu customer (tidak mungkin beda customer tapi alamat sama).
+    const inv = invoices.find((x) => x.id === invoiceId);
+    if (t.invoiceIds.length && inv && !sameCustomer(inv, t)) return alert(`Tujuan ini milik ${t.customer}. Barang customer lain buat sebagai tujuan baru.`);
     setBusy(true);
     try {
       const d = await fetchInvoiceDetail(invoiceId, editId);
@@ -178,7 +190,7 @@ const Pengiriman = () => {
         invoiceIds: [...t.invoiceIds, d.invoiceId],
         pilihan: [...t.pilihan, ...baru],
         // Invoice pertama mengisi data penerima; invoice tambahan tidak menimpa.
-        ...(pertama ? { penerima: d.penerima, telepon: d.telepon, alamat: d.alamat, catatan: d.catatan, customer: d.customer, invoiceId: d.invoiceId, kodeInvoice: d.kodeInvoice } : {}),
+        ...(pertama ? { penerima: d.penerima, telepon: d.telepon, alamat: d.alamat, catatan: d.catatan, customer: d.customer, kodeCustomer: d.kodeCustomer, invoiceId: d.invoiceId, kodeInvoice: d.kodeInvoice } : {}),
         ...(!pertama && d.catatan && !String(t.catatan || '').includes(d.catatan) ? { catatan: [t.catatan, d.catatan].filter(Boolean).join('\n') } : {}),
       });
     } catch (err) {
@@ -415,9 +427,11 @@ const TujuanCard = ({ t, i, C, sInput, sBtn, sCard, sLabel, invoices, busy, onCh
     const q = cari.trim().toLowerCase();
     return invoices
       .filter((inv) => !t.invoiceIds.includes(inv.id))
+      // Sudah ada invoice → hanya invoice lain milik customer yang SAMA.
+      .filter((inv) => !t.invoiceIds.length || sameCustomer(inv, t))
       .filter((inv) => !q || inv.customer.toLowerCase().includes(q) || inv.kodeInvoice.toLowerCase().includes(q))
       .slice(0, 30);
-  }, [cari, invoices, t.invoiceIds]);
+  }, [cari, invoices, t.invoiceIds, t.kodeCustomer, t.customer]);
 
   const pcs = t.pilihan.filter((p) => p.checked).reduce((a, p) => a + num(p.qty), 0);
 
@@ -431,7 +445,7 @@ const TujuanCard = ({ t, i, C, sInput, sBtn, sCard, sLabel, invoices, busy, onCh
 
       {/* Pilih invoice */}
       <div style={{ position: 'relative', marginBottom: 10 }}>
-        <label style={sLabel}>{t.invoiceIds.length ? 'Tambah barang dari invoice lain (alamat sama)' : 'Pilih invoice / customer'}</label>
+        <label style={sLabel}>{t.invoiceIds.length ? `Tambah barang dari invoice lain milik ${t.customer || t.penerima}` : 'Pilih invoice / customer'}</label>
         <input
           style={sInput}
           value={cari}
@@ -441,13 +455,27 @@ const TujuanCard = ({ t, i, C, sInput, sBtn, sCard, sLabel, invoices, busy, onCh
           onChange={(e) => { setCari(e.target.value); setOpen(true); }}
         />
         {open && (
-          <div style={{ position: 'absolute', left: 0, right: 0, top: '100%', zIndex: 30, background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, maxHeight: 260, overflowY: 'auto', boxShadow: '0 8px 24px rgba(0,0,0,0.18)' }}>
+          <div style={{ position: 'absolute', left: 0, right: 0, top: '100%', zIndex: 30, background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, maxHeight: 340, overflowY: 'auto', boxShadow: '0 8px 24px rgba(0,0,0,0.18)' }}>
             {!invoices.length && <div style={{ padding: 10, color: C.muted }}>Memuat invoice…</div>}
+            {invoices.length > 0 && !hasil.length && (
+              <div style={{ padding: 10, color: C.muted, fontSize: 13 }}>
+                {t.invoiceIds.length ? `Tidak ada invoice lain milik ${t.customer || t.penerima} dengan barang ongoing.` : 'Tidak ada invoice dengan barang ongoing yang cocok.'}
+              </div>
+            )}
             {hasil.map((inv) => (
               <div key={inv.id} onMouseDown={() => { onTambahInvoice(inv.id); setCari(''); setOpen(false); }}
                 style={{ padding: '8px 10px', cursor: 'pointer', borderBottom: `1px solid ${C.border}` }}>
                 <div style={{ fontWeight: 600 }}>{inv.customer || '(tanpa nama)'}</div>
-                <div style={{ fontSize: 12, color: C.muted }}>{inv.kodeInvoice} · {inv.tanggal}</div>
+                <div style={{ fontSize: 12, color: C.muted }}>{inv.kodeInvoice} · {inv.tanggal} · {inv.jumlahItem} item ongoing</div>
+                <div style={{ display: 'flex', gap: 6, marginTop: 6, alignItems: 'center' }}>
+                  {(inv.thumbs || []).map((th, k) => (
+                    <img key={k} src={getImageUrl(th.image)} alt={th.nama} title={th.nama} loading="lazy"
+                      style={{ width: 52, height: 52, objectFit: 'cover', borderRadius: 8, background: C.soft, flex: '0 0 52px' }} />
+                  ))}
+                  {inv.jumlahItem > (inv.thumbs || []).length && (
+                    <span style={{ fontSize: 12, color: C.muted, fontWeight: 600 }}>+{inv.jumlahItem - inv.thumbs.length}</span>
+                  )}
+                </div>
               </div>
             ))}
           </div>

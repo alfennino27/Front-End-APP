@@ -38,7 +38,10 @@ const sameCustomer = (a, b) => {
   return normNama(a.customer) === normNama(b.customer);
 };
 
-const emptyTujuan = () => ({ key: Math.random().toString(36).slice(2), invoiceIds: [], penerima: '', telepon: '', alamat: '', catatan: '', pilihan: [] });
+const emptyTujuan = () => ({ key: Math.random().toString(36).slice(2), invoiceIds: [], penerima: '', telepon: '', alamat: '', catatan: '', ongkir: '', pilihan: [] });
+
+// Ongkir per tujuan (diturunkan dari ongkir Quote/Invoice, bisa diubah).
+const ONGKIR = { penjual: { label: 'ONGKIR PENJUAL', sub: 'Gratis ongkir', color: '#16a34a' }, penerima: { label: 'ONGKIR PENERIMA', sub: 'Belum termasuk ongkir', color: '#ea580c' } };
 
 // Teks siap tempel ke WhatsApp ekspedisi (isi sama dengan PDF, tanpa foto).
 export function buildWaText(doc) {
@@ -50,6 +53,7 @@ export function buildWaText(doc) {
   if (doc.catatanUmum) lines.push(`Catatan: ${doc.catatanUmum}`);
   doc.tujuan.forEach((t, i) => {
     lines.push('', `*${i + 1}. ${t.penerima || t.customer}*${t.telepon ? ` — ${t.telepon}` : ''}`, `Alamat: ${t.alamat}`);
+    if (t.ongkir && ONGKIR[t.ongkir]) lines.push(`💰 *${ONGKIR[t.ongkir].label}*`);
     if (t.catatan) lines.push(`⚠ *CATATAN PENERIMAAN:* ${t.catatan.split('\n').filter(Boolean).join('; ')}`);
     t.items.forEach((it) => lines.push(`• ${it.namaBarang} × ${it.qty}`));
   });
@@ -190,7 +194,7 @@ const Pengiriman = () => {
         invoiceIds: [...t.invoiceIds, d.invoiceId],
         pilihan: [...t.pilihan, ...baru],
         // Invoice pertama mengisi data penerima; invoice tambahan tidak menimpa.
-        ...(pertama ? { penerima: d.penerima, telepon: d.telepon, alamat: d.alamat, catatan: d.catatan, customer: d.customer, kodeCustomer: d.kodeCustomer, invoiceId: d.invoiceId, kodeInvoice: d.kodeInvoice } : {}),
+        ...(pertama ? { penerima: d.penerima, telepon: d.telepon, alamat: d.alamat, catatan: d.catatan, customer: d.customer, kodeCustomer: d.kodeCustomer, invoiceId: d.invoiceId, kodeInvoice: d.kodeInvoice, ongkir: d.ongkir } : {}),
         ...(!pertama && d.catatan && !String(t.catatan || '').includes(d.catatan) ? { catatan: [t.catatan, d.catatan].filter(Boolean).join('\n') } : {}),
       });
     } catch (err) {
@@ -217,6 +221,7 @@ const Pengiriman = () => {
         telepon: t.telepon,
         alamat: t.alamat,
         catatan: t.catatan,
+        ongkir: t.ongkir,
         items: t.pilihan.filter((p) => p.checked && num(p.qty) > 0).map((p) => ({
           projectId: p.projectId, kodeInvoice: p.kodeInvoice, namaBarang: p.namaBarang, qty: num(p.qty), qtyOrder: p.qtyOrder, image: p.image, keterangan: p.keterangan || '',
         })),
@@ -227,6 +232,8 @@ const Pengiriman = () => {
   const simpan = async () => {
     const body = buildPayload();
     if (!body.ekspedisiId) return alert('Pilih ekspedisi dulu');
+    const tanpaOngkir = form.tujuan.findIndex((t) => !t.ongkir);
+    if (tanpaOngkir >= 0) return alert(`Pilih ongkir (penjual / penerima) untuk tujuan ${tanpaOngkir + 1}`);
     setBusy(true);
     try {
       const r = await fetch(`${baseUrl}/pengiriman/${editId ? `update/${editId}` : 'create'}`, {
@@ -397,6 +404,7 @@ const Pengiriman = () => {
               {doc.tujuan.map((t, i) => (
                 <div key={i}>
                   {i + 1}. <b>{t.penerima || t.customer}</b> — {t.items.map((it) => `${it.namaBarang} ×${it.qty}`).join(', ')}
+                  {t.ongkir && ONGKIR[t.ongkir] && <span style={{ color: ONGKIR[t.ongkir].color, fontWeight: 600, fontSize: 12 }}> · {ONGKIR[t.ongkir].label}</span>}
                   {t.catatan && <span style={{ color: '#dc2626' }}> ⚠</span>}
                 </div>
               ))}
@@ -498,6 +506,22 @@ const TujuanCard = ({ t, i, C, sInput, sBtn, sCard, sLabel, invoices, busy, onCh
           </div>
           <label style={{ ...sLabel, marginTop: 10 }}>Alamat lengkap</label>
           <textarea className="form-control" rows={2} style={sInput} value={t.alamat} onChange={(e) => onChange({ alamat: e.target.value })} />
+
+          <label style={{ ...sLabel, marginTop: 10 }}>Ongkir</label>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {Object.entries(ONGKIR).map(([k, o]) => {
+              const on = t.ongkir === k;
+              return (
+                <button key={k} type="button" onClick={() => onChange({ ongkir: k })}
+                  style={{ flex: 1, minHeight: 52, borderRadius: 10, cursor: 'pointer', padding: '6px 8px', lineHeight: 1.25,
+                    border: `2px solid ${on ? o.color : C.border}`, background: on ? o.color : 'transparent', color: on ? '#fff' : C.text }}>
+                  <div style={{ fontWeight: 700, fontSize: 14 }}>{on ? '✓ ' : ''}{o.label}</div>
+                  <div style={{ fontSize: 11, opacity: 0.85 }}>{o.sub}</div>
+                </button>
+              );
+            })}
+          </div>
+          {!t.ongkir && <div style={{ fontSize: 11, color: '#dc2626', marginTop: 2 }}>Ongkir di Quote/Invoice belum diisi — pilih salah satu.</div>}
 
           <label style={{ ...sLabel, marginTop: 10, color: '#dc2626' }}>⚠ Catatan penerimaan</label>
           <CatatanPenerimaanInput value={t.catatan} onChange={(v) => onChange({ catatan: v })} style={sInput} muted={C.muted} rows={2} />

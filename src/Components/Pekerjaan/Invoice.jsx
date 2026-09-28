@@ -61,6 +61,8 @@ const Invoice = () => {
   const [alamatKirim, setAlamatKirim] = useState('');
   const [teleponKirim, setTeleponKirim] = useState('');
   const [invoiceDariQuote, setInvoiceDariQuote] = useState(false);
+  // Ongkir order: gratis ongkir (ONGKIR PENJUAL) / belum termasuk (ONGKIR PENERIMA) → ikut ke Pengiriman
+  const [ongkirNote, setOngkirNote] = useState('none');
   const [tanggalMulaiInvoice, setTanggalMulaiInvoice] = useState('');
   const [deadlineInvoice, setDeadlineInvoice] = useState('');
   const [ongkirPackingInvoice, setOngkirPackingInvoice] = useState(0);
@@ -238,6 +240,7 @@ const Invoice = () => {
           catatanPenerimaan,
           tampilCatatanPenerimaan,
           ...(invoiceDariQuote ? {} : { alamatKirim, teleponKirim }),
+          ongkirNote,
         }),
       });
 
@@ -304,6 +307,7 @@ const Invoice = () => {
       setAlamatKirim(selectedInvoice.alamatKirim || '');
       setTeleponKirim(selectedInvoice.teleponKirim || '');
       setInvoiceDariQuote(!!selectedInvoice.fromQuoteId);
+      setOngkirNote(selectedInvoice.ongkirNote || 'none');
       setTampilCatatanPenerimaan(!!selectedInvoice.tampilCatatanPenerimaan);
       setDataInvoiceFromDB([selectedInvoice]);
     }
@@ -424,6 +428,7 @@ const Invoice = () => {
           catatanPenerimaan,
           tampilCatatanPenerimaan,
           ...(invoiceDariQuote ? {} : { alamatKirim, teleponKirim }),
+          ongkirNote,
         }),
       });
 
@@ -891,6 +896,7 @@ const Invoice = () => {
     setAlamatKirim('');
     setTeleponKirim('');
     setInvoiceDariQuote(false);
+    setOngkirNote('none');
   }
 
 
@@ -2428,6 +2434,12 @@ const Invoice = () => {
               title={invoiceDariQuote ? 'Order dari Quote — ubah telepon di fitur Quote' : ''}
               onChange={(e) => setTeleponKirim(e.target.value)} />
             <small className="text-muted">{invoiceDariQuote ? 'Order ini dari Quote — ubah alamat/telepon di Quote.' : 'Khusus order ini, tidak mengubah data customer. Otomatis ikut ke semua produk.'}</small>
+            <label className='mt-2'>Ongkir :</label>
+            <select className="form-control" value={ongkirNote} onChange={(e) => setOngkirNote(e.target.value)}>
+              <option value="none">— belum dipilih —</option>
+              <option value="gratis_jawa_bali">Gratis ongkir (ONGKIR PENJUAL)</option>
+              <option value="belum_termasuk">Belum termasuk ongkir (ONGKIR PENERIMA)</option>
+            </select>
             <label className='mt-2'>Catatan Penerimaan Barang :</label>
             <CatatanPenerimaanInput value={catatanPenerimaan} onChange={setCatatanPenerimaan} rows={2} />
             <label style={{ display: 'flex', gap: 8, alignItems: 'center', cursor: 'pointer', marginTop: 6 }}>
@@ -2506,6 +2518,12 @@ const Invoice = () => {
               title={invoiceDariQuote ? 'Order dari Quote — ubah telepon di fitur Quote' : ''}
               onChange={(e) => setTeleponKirim(e.target.value)} />
             <small className="text-muted">{invoiceDariQuote ? 'Order ini dari Quote — ubah alamat/telepon di Quote.' : 'Khusus order ini, tidak mengubah data customer. Otomatis ikut ke semua produk.'}</small>
+            <label className='mt-2'>Ongkir :</label>
+            <select className="form-control" value={ongkirNote} onChange={(e) => setOngkirNote(e.target.value)}>
+              <option value="none">— belum dipilih —</option>
+              <option value="gratis_jawa_bali">Gratis ongkir (ONGKIR PENJUAL)</option>
+              <option value="belum_termasuk">Belum termasuk ongkir (ONGKIR PENERIMA)</option>
+            </select>
             <label className='mt-2'>Catatan Penerimaan Barang :</label>
             <CatatanPenerimaanInput value={catatanPenerimaan} onChange={setCatatanPenerimaan} rows={2} />
             <label style={{ display: 'flex', gap: 8, alignItems: 'center', cursor: 'pointer', marginTop: 6 }}>

@@ -46,8 +46,8 @@ const CATEGORIES = ['Stainless', 'Besi', 'Kayu', 'Jok', 'Rotan', 'Finishing', 'M
 
 const ONGKIR_OPTIONS = [
   { value: 'none', label: 'Tanpa catatan ongkir' },
-  { value: 'gratis_jawa_bali', label: '*gratis ongkir Jawa & Bali' },
-  { value: 'belum_termasuk', label: '*belum termasuk ongkir' },
+  { value: 'gratis_jawa_bali', label: '*gratis ongkir Jawa & Bali (ongkir penjual)' },
+  { value: 'belum_termasuk', label: '*belum termasuk ongkir (ongkir penerima)' },
 ];
 
 const rupiah = (n) => 'Rp ' + Math.round(Number(n) || 0).toLocaleString('id-ID');

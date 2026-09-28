@@ -541,8 +541,106 @@ const NavigationBar = () => {
   const dividerStyle = {
     borderColor: globalTheme === "light" ? "#bdbdbd" : "#313a51",
   };
-
   const [showLogsModal, setShowLogsModal] = useState(false);
+
+  // Daftar menu sidebar. `menu` = key di UserAccess (HARUS sama dengan label
+  // checkbox di UserManagement.jsx). Item yang tidak boleh diakses disembunyikan.
+  const SUPER_ADMIN_UIDS = ['w4M5JJjgGQeHFbS2nkyoCfUBE532', 'fYpdHwXRDLhj5XGxM5FZIAvxp9E2'];
+  const DEVELOPER_UID = 'w4M5JJjgGQeHFbS2nkyoCfUBE532';
+  const uid = user?.uid;
+  const menuItem = (menu, path, label, icon) => ({ key: path, path, label, icon, show: hasMenuAccess(uid, menu) });
+  const switchRow = (key, icon, label, control) => ({
+    key,
+    show: true,
+    render: () => (
+      <div className="d-flex align-items-center justify-content-between gap-2 py-2 link-hover">
+        <div className="d-flex align-items-center gap-2" style={{ color: globalTheme === "light" ? "black" : "white" }}>
+          {icon}
+          <span className="fw-semibold">{label}</span>
+        </div>
+        {control}
+      </div>
+    ),
+  });
+
+  const sidebarGroups = [
+    {
+      key: 'general', label: 'General', icon: <FaLayerGroup />, open: openGeneral, setOpen: setOpenGeneral,
+      items: [
+        menuItem('Dashboard', '/dashboard', 'Dashboard', <BsFillClipboard2DataFill />),
+        menuItem('Calendar', '/calendar', 'Calendar', <FaRegCalendarAlt />),
+        menuItem('Notes', '/notes', 'Notes', <FaPencilAlt />),
+      ],
+    },
+    {
+      key: 'operations', label: 'Operations', icon: <GrWorkshop />, open: openOperations, setOpen: setOpenOperations,
+      items: [
+        menuItem('Invoice', '/invoice', 'Invoice', <FaFileInvoiceDollar />),
+        menuItem('Quote', '/quote', 'Quote', <span role="img" aria-label="quote">🧾</span>),
+        menuItem('Projects', '/project', 'Projects', <MdDashboard />),
+        menuItem('SPK', '/spk', 'SPK', <FaRegFileAlt />),
+        menuItem('Category', '/category', 'Category', <SiWikibooks />),
+        menuItem('Todo', '/todo', 'To-Do & QC', <LuClipboardList />),
+        menuItem('Books', '/books', 'Books', <BsBook />),
+        menuItem('CRM', '/crm', 'CRM', <BsPeopleFill />),
+        menuItem('Knowledge', '/knowledge', 'Knowledge Base', <span role="img" aria-label="knowledge">🧠</span>),
+      ],
+    },
+    {
+      key: 'finance', label: 'Finance', icon: <GiMoneyStack />, open: openFinance, setOpen: setOpenFinance,
+      items: [
+        menuItem('Accounting', '/accounting', 'Accounting', <BsCurrencyDollar />),
+        menuItem('Stocks', '/stock', 'Stocks', <MdWarehouse />),
+        menuItem('Assets', '/assets', 'Assets', <FaChartBar />),
+      ],
+    },
+    {
+      key: 'archive', label: 'Archive', icon: <BiArchive />, open: openArchive, setOpen: setOpenArchive,
+      items: [
+        menuItem('Catalog', '/catalog', 'Catalog', <FaRegFolderOpen />),
+        menuItem('Products', '/products', 'Products', <MdChair />),
+        menuItem('Price List', '/pricelist', 'Price List', <ImPriceTags />),
+        // Testimoni Lama memang tidak punya hak akses — terbuka untuk semua.
+        { key: '/testimoni-lama', path: '/testimoni-lama', label: 'Testimoni Lama', icon: <BiArchive />, show: true },
+      ],
+    },
+    {
+      key: 'management', label: 'Management', icon: <FaRegIdBadge />, open: openManagement, setOpen: setOpenManagement,
+      items: [
+        { key: '/user-management', path: '/user-management', label: 'User Management', icon: <IoPeople />, show: SUPER_ADMIN_UIDS.includes(uid) },
+        menuItem('Appraisal', '/appraisal', 'Appraisal', <BsFillPersonVcardFill />),
+        menuItem('Absensi', '/absensi', 'Absensi', <MdOutlineAccessTimeFilled />),
+      ],
+    },
+    {
+      key: 'system', label: 'System', icon: <FaGear />, open: openSystem, setOpen: setOpenSystem,
+      items: [
+        switchRow('theme', <FaPaintBrush />, 'Theme',
+          <Switch checkedChildren="Light" unCheckedChildren="Dark" checked={theme === "light"} onChange={handleThemeChange} size="small" />),
+        {
+          ...switchRow('devmode', <FaCode />, 'Developer Mode',
+            <Switch checkedChildren="On" unCheckedChildren="Off" checked={developerMode === "on"} onChange={handleDeveloperModeChange} size="small" />),
+          show: uid === DEVELOPER_UID,
+        },
+        {
+          ...switchRow('imgsrc', <FaRegImages />, 'Image Source',
+            <Switch checkedChildren="Local" unCheckedChildren="Server" checked={localImageMode === "local"} onChange={handleLocalImageModeChange} size="small" />),
+          show: uid === DEVELOPER_UID,
+        },
+        {
+          key: 'logs',
+          show: true,
+          render: () => (
+            <div className="d-flex align-items-center gap-2 py-2 text-decoration-none link-hover" style={{ cursor: "pointer" }} onClick={() => setShowLogsModal(true)}>
+              <MdUpdate />
+              <span className="fw-semibold">Update Logs</span>
+            </div>
+          ),
+        },
+      ],
+    },
+  ];
+
   const updateLogs = [
     { date: "11 November 2025", description: "Telegram Bot" },
     { date: "12 November 2025", description: "Link barang jadi ke website" },
@@ -938,600 +1036,67 @@ const NavigationBar = () => {
 
 
 
-        <div className="w-100">
-          {/* Root Menu */}
-          <div
-            className="d-flex align-items-center justify-content-between rounded mb-2 link-hover"
-            role="button"
-            onClick={() => setOpenGeneral(!openGeneral)}
-            style={
-              ["/dashboard", "/calendar", "/notes"].some((path) => location.pathname.startsWith(path))
-                ? { color: "#234dba", fontWeight: 600 }
-                : { color: globalTheme === "light" ? "black" : "white" }
-            }
-
-          >
-            <div className="d-flex align-items-center gap-2">
-              <FaLayerGroup />
-              <span className="fw-semibold">General</span>
-            </div>
-            {openGeneral ? <IoIosArrowUp /> : <IoIosArrowDown />}
-          </div>
-
-          {/* Isi Dropdown */}
-          <AnimatePresence>
-            {openGeneral && (
-              <motion.div
-                className="ps-3 border-start mt-3"
-                style={{ borderColor: "#bdbdbd50" }}
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: "auto", opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 0.2, ease: "easeInOut" }}
-              >
-                <Link
-                  to={hasMenuAccess(user.uid, "Dashboard") ? "/dashboard" : "#"}
-                  className={`d-flex align-items-center gap-2 py-2 text-decoration-none link-hover ${!hasMenuAccess(user.uid, "Dashboard") ? "disabled-link" : ""
-                    }`}
-                  style={isActive("/dashboard")}
-                  onClick={(e) => {
-                    if (!hasMenuAccess(user.uid, "Dashboard")) e.preventDefault();
-                  }}
-                >
-                  <BsFillClipboard2DataFill />
-                  <span className="fw-semibold">Dashboard</span>
-                </Link>
-                <hr className="my-1" style={dividerStyle} />
-
-                <Link
-                  to={hasMenuAccess(user.uid, "Calendar") ? "/calendar" : "#"}
-                  className={`d-flex align-items-center gap-2 py-2 text-decoration-none link-hover ${!hasMenuAccess(user.uid, "Calendar") ? "disabled-link" : ""
-                    }`}
-                  style={isActive("/calendar")}
-                  onClick={(e) => {
-                    if (!hasMenuAccess(user.uid, "Calendar")) e.preventDefault();
-                  }}
-                >
-                  <FaRegCalendarAlt />
-                  <span className="fw-semibold">Calendar</span>
-                </Link>
-                <hr className="my-1" style={dividerStyle} />
-
-                <Link
-                  to={hasMenuAccess(user.uid, "Notes") ? "/notes" : "#"}
-                  className={`d-flex align-items-center gap-2 py-2 text-decoration-none link-hover ${!hasMenuAccess(user.uid, "Notes") ? "disabled-link" : ""
-                    }`}
-                  style={isActive("/notes")}
-                  onClick={(e) => {
-                    if (!hasMenuAccess(user.uid, "Notes")) e.preventDefault();
-                  }}
-                >
-                  <FaPencilAlt />
-                  <span className="fw-semibold">Notes</span>
-                </Link>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-        </div>
-
-        <Divider style={{ borderColor: theme == "light" ? '#bdbdbd' : '#313a51', color: theme == "light" ? '#bdbdbd' : '#313a51' }} />
-
-        <div className="w-100">
-          {/* Root Menu */}
-          <div
-            className="d-flex align-items-center justify-content-between rounded mb-2 link-hover"
-            role="button"
-            onClick={() => setOpenOperations(!openOperations)}
-            style={
-              ["/invoice", "/quote", "/project", "/spk", "/category", "/todo", "/books", "/crm"].some((path) => location.pathname.startsWith(path))
-                ? { color: "#234dba", fontWeight: 600 }
-                : { color: globalTheme === "light" ? "black" : "white" }
-            }
-          >
-            <div className="d-flex align-items-center gap-2">
-              <GrWorkshop />
-              <span className="fw-semibold">Operations</span>
-            </div>
-            {openOperations ? <IoIosArrowUp /> : <IoIosArrowDown />}
-          </div>
-
-          {/* Isi Dropdown */}
-          <AnimatePresence>
-            {openOperations && (
-              <motion.div
-                className="ps-3 border-start mt-3"
-                style={{ borderColor: "#bdbdbd50" }}
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: "auto", opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 0.2, ease: "easeInOut" }}
-              >
-
-                <Link
-                  to={hasMenuAccess(user.uid, "Invoice") ? "/invoice" : "#"}
-                  className={`d-flex align-items-center gap-2 py-2 text-decoration-none link-hover ${!hasMenuAccess(user.uid, "Invoice") ? "disabled-link" : ""
-                    }`}
-                  style={isActive("/invoice")}
-                  onClick={(e) => {
-                    if (!hasMenuAccess(user.uid, "Invoice")) e.preventDefault();
-                  }}
-                >
-                  <FaFileInvoiceDollar />
-                  <span className="fw-semibold">Invoice</span>
-                </Link>
-                <hr className="my-1" style={dividerStyle} />
-
-                <Link
-                  to={hasMenuAccess(user.uid, "Quote") ? "/quote" : "#"}
-                  className={`d-flex align-items-center gap-2 py-2 text-decoration-none link-hover ${!hasMenuAccess(user.uid, "Quote") ? "disabled-link" : ""
-                    }`}
-                  style={isActive("/quote")}
-                  onClick={(e) => {
-                    if (!hasMenuAccess(user.uid, "Quote")) e.preventDefault();
-                  }}
-                >
-                  <span role="img" aria-label="quote">🧾</span>
-                  <span className="fw-semibold">Quote</span>
-                </Link>
-                <hr className="my-1" style={dividerStyle} />
-
-                <Link
-                  to={hasMenuAccess(user.uid, "Projects") ? "/project" : "#"}
-                  className={`d-flex align-items-center gap-2 py-2 text-decoration-none link-hover ${!hasMenuAccess(user.uid, "Projects") ? "disabled-link" : ""
-                    }`}
-                  style={isActive("/project")}
-                  onClick={(e) => {
-                    if (!hasMenuAccess(user.uid, "Projects")) e.preventDefault();
-                  }}
-                >
-                  <MdDashboard />
-                  <span className="fw-semibold">Projects</span>
-                </Link>
-                <hr className="my-1" style={dividerStyle} />
-
-                <Link
-                  to={hasMenuAccess(user.uid, "SPK") ? "/spk" : "#"}
-                  className={`d-flex align-items-center gap-2 py-2 text-decoration-none link-hover ${!hasMenuAccess(user.uid, "SPK") ? "disabled-link" : ""
-                    }`}
-                  style={isActive("/spk")}
-                  onClick={(e) => {
-                    if (!hasMenuAccess(user.uid, "SPK")) e.preventDefault();
-                  }}
-                >
-                  <FaRegFileAlt />
-                  <span className="fw-semibold">SPK</span>
-                </Link>
-                <hr className="my-1" style={dividerStyle} />
-
-                <Link
-                  to={hasMenuAccess(user.uid, "Category") ? "/category" : "#"}
-                  className={`d-flex align-items-center gap-2 py-2 text-decoration-none link-hover ${!hasMenuAccess(user.uid, "Category") ? "disabled-link" : ""
-                    }`}
-                  style={isActive("/category")}
-                  onClick={(e) => {
-                    if (!hasMenuAccess(user.uid, "Category")) e.preventDefault();
-                  }}
-                >
-                  <SiWikibooks />
-                  <span className="fw-semibold">Category</span>
-                </Link>
-                <hr className="my-1" style={dividerStyle} />
-
-                <Link
-                  to={hasMenuAccess(user.uid, "Todo") ? "/todo" : "#"}
-                  className={`d-flex align-items-center gap-2 py-2 text-decoration-none link-hover ${!hasMenuAccess(user.uid, "Todo") ? "disabled-link" : ""
-                    }`}
-                  style={isActive("/todo")}
-                  onClick={(e) => {
-                    if (!hasMenuAccess(user.uid, "Todo")) e.preventDefault();
-                  }}
-                >
-                  <LuClipboardList />
-                  <span className="fw-semibold">To-Do &amp; QC</span>
-                </Link>
-                <hr className="my-1" style={dividerStyle} />
-
-                <Link
-                  to={hasMenuAccess(user.uid, "Books") ? "/books" : "#"}
-                  className={`d-flex align-items-center gap-2 py-2 text-decoration-none link-hover ${!hasMenuAccess(user.uid, "Books") ? "disabled-link" : ""
-                    }`}
-                  style={isActive("/books")}
-                  onClick={(e) => {
-                    if (!hasMenuAccess(user.uid, "Books")) e.preventDefault();
-                  }}
-                >
-                  <BsBook />
-                  <span className="fw-semibold">Books</span>
-                </Link>
-                <hr className="my-1" style={dividerStyle} />
-
-                <Link
-                  to={hasMenuAccess(user.uid, "CRM") ? "/crm" : "#"}
-                  className={`d-flex align-items-center gap-2 py-2 text-decoration-none link-hover ${!hasMenuAccess(user.uid, "CRM") ? "disabled-link" : ""
-                    }`}
-                  style={isActive("/crm")}
-                  onClick={(e) => {
-                    if (!hasMenuAccess(user.uid, "CRM")) e.preventDefault();
-                  }}
-                >
-                  <BsPeopleFill />
-                  <span className="fw-semibold">CRM</span>
-                </Link>
-
-                <Link
-                  to={hasMenuAccess(user.uid, "Knowledge") ? "/knowledge" : "#"}
-                  className={`d-flex align-items-center gap-2 py-2 text-decoration-none link-hover ${!hasMenuAccess(user.uid, "Knowledge") ? "disabled-link" : ""
-                    }`}
-                  style={isActive("/knowledge")}
-                  onClick={(e) => {
-                    if (!hasMenuAccess(user.uid, "Knowledge")) e.preventDefault();
-                  }}
-                >
-                  <span role="img" aria-label="knowledge">🧠</span>
-                  <span className="fw-semibold">Knowledge Base</span>
-                </Link>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-        <Divider style={{ borderColor: theme == "light" ? '#bdbdbd' : '#313a51', color: theme == "light" ? '#bdbdbd' : '#313a51' }} />
-
-        <div className="w-100">
-          {/* Root Menu */}
-          <div
-            className="d-flex align-items-center justify-content-between rounded mb-2 link-hover"
-            role="button"
-            onClick={() => setOpenFinance(!openFinance)}
-            style={
-              ["/accounting", "/stock", "/assets"].some((path) => location.pathname.startsWith(path))
-                ? { color: "#234dba", fontWeight: 600 }
-                : { color: globalTheme === "light" ? "black" : "white" }
-            }
-          >
-            <div className="d-flex align-items-center gap-2">
-              <GiMoneyStack />
-              <span className="fw-semibold">Finance</span>
-            </div>
-            {openFinance ? <IoIosArrowUp /> : <IoIosArrowDown />}
-          </div>
-
-          {/* Isi Dropdown */}
-          <AnimatePresence>
-            {openFinance && (
-              <motion.div
-                className="ps-3 border-start mt-3"
-                style={{ borderColor: "#bdbdbd50" }}
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: "auto", opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 0.2, ease: "easeInOut" }}
-              >
-                <Link
-                  to={hasMenuAccess(user.uid, "Accounting") ? "/accounting" : "#"}
-                  className={`d-flex align-items-center gap-2 py-2 text-decoration-none link-hover ${!hasMenuAccess(user.uid, "Accounting") ? "disabled-link" : ""
-                    }`}
-                  style={isActive("/accounting")}
-                  onClick={(e) => {
-                    if (!hasMenuAccess(user.uid, "Accounting")) e.preventDefault();
-                  }}
-                >
-                  <BsCurrencyDollar />
-                  <span className="fw-semibold">Accounting</span>
-                </Link>
-                <hr className="my-1" style={dividerStyle} />
-
-                <Link
-                  to={hasMenuAccess(user.uid, "Stocks") ? "/stock" : "#"}
-                  className={`d-flex align-items-center gap-2 py-2 text-decoration-none link-hover ${!hasMenuAccess(user.uid, "Stocks") ? "disabled-link" : ""
-                    }`}
-                  style={isActive("/stock")}
-                  onClick={(e) => {
-                    if (!hasMenuAccess(user.uid, "Stocks")) e.preventDefault();
-                  }}
-                >
-                  <MdWarehouse />
-                  <span className="fw-semibold">Stocks</span>
-                </Link>
-                <hr className="my-1" style={dividerStyle} />
-
-                <Link
-                  to={hasMenuAccess(user.uid, "Assets") ? "/assets" : "#"}
-                  className={`d-flex align-items-center gap-2 py-2 text-decoration-none link-hover ${!hasMenuAccess(user.uid, "Assets") ? "disabled-link" : ""
-                    }`}
-                  style={isActive("/assets")}
-                  onClick={(e) => {
-                    if (!hasMenuAccess(user.uid, "Assets")) e.preventDefault();
-                  }}
-                >
-                  <FaChartBar />
-                  <span className="fw-semibold">Assets</span>
-                </Link>
-
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-        <Divider style={{ borderColor: theme == "light" ? '#bdbdbd' : '#313a51', color: theme == "light" ? '#bdbdbd' : '#313a51' }} />
-
-        <div className="w-100">
-          {/* Root Menu */}
-          <div
-            className="d-flex align-items-center justify-content-between rounded mb-2 link-hover"
-            role="button"
-            onClick={() => setOpenArchive(!openArchive)}
-            style={
-              ["/catalog", "/products", "/pricelist", "/testimoni-lama"].some((path) => location.pathname.startsWith(path))
-                ? { color: "#234dba", fontWeight: 600 }
-                : { color: globalTheme === "light" ? "black" : "white" }
-            }
-          >
-            <div className="d-flex align-items-center gap-2">
-              <BiArchive />
-              <span className="fw-semibold">Archive</span>
-            </div>
-            {openArchive ? <IoIosArrowUp /> : <IoIosArrowDown />}
-          </div>
-
-          {/* Isi Dropdown */}
-          <AnimatePresence>
-            {openArchive && (
-              <motion.div
-                className="ps-3 border-start mt-3"
-                style={{ borderColor: "#bdbdbd50" }}
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: "auto", opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 0.2, ease: "easeInOut" }}
-              >
-                <Link
-                  to={hasMenuAccess(user.uid, "Catalog") ? "/catalog" : "#"}
-                  className={`d-flex align-items-center gap-2 py-2 text-decoration-none link-hover ${!hasMenuAccess(user.uid, "Catalog") ? "disabled-link" : ""
-                    }`}
-                  style={isActive("/catalog")}
-                  onClick={(e) => {
-                    if (!hasMenuAccess(user.uid, "Catalog")) e.preventDefault();
-                  }}
-                >
-                  <FaRegFolderOpen />
-                  <span className="fw-semibold">Catalog</span>
-                </Link>
-                <hr className="my-1" style={dividerStyle} />
-
-                <Link
-                  to={hasMenuAccess(user.uid, "Products") ? "/products" : "#"}
-                  className={`d-flex align-items-center gap-2 py-2 text-decoration-none link-hover ${!hasMenuAccess(user.uid, "Products") ? "disabled-link" : ""
-                    }`}
-                  style={isActive("/products")}
-                  onClick={(e) => {
-                    if (!hasMenuAccess(user.uid, "Products")) e.preventDefault();
-                  }}
-                >
-                  <MdChair />
-                  <span className="fw-semibold">Products</span>
-                </Link>
-                <hr className="my-1" style={dividerStyle} />
-
-                <Link
-                  to={hasMenuAccess(user.uid, "Price List") ? "/pricelist" : "#"}
-                  className={`d-flex align-items-center gap-2 py-2 text-decoration-none link-hover ${!hasMenuAccess(user.uid, "Price List") ? "disabled-link" : ""
-                    }`}
-                  style={isActive("/pricelist")}
-                  onClick={(e) => {
-                    if (!hasMenuAccess(user.uid, "Price List")) e.preventDefault();
-                  }}
-                >
-                  <ImPriceTags />
-                  <span className="fw-semibold">Price List</span>
-                </Link>
-                <hr className="my-1" style={dividerStyle} />
-
-                <Link
-                  to="/testimoni-lama"
-                  className="d-flex align-items-center gap-2 py-2 text-decoration-none link-hover"
-                  style={isActive("/testimoni-lama")}
-                >
-                  <BiArchive />
-                  <span className="fw-semibold">Testimoni Lama</span>
-                </Link>
-
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-        <Divider style={{ borderColor: theme == "light" ? '#bdbdbd' : '#313a51', color: theme == "light" ? '#bdbdbd' : '#313a51' }} />
-
-        <div className="w-100">
-          {/* Root Menu */}
-          <div
-            className="d-flex align-items-center justify-content-between rounded mb-2 link-hover"
-            role="button"
-            onClick={() => setOpenManagement(!openManagement)}
-            style={
-              ["/user-management", "/appraisal", "/absensi"].some((path) => location.pathname.startsWith(path))
-                ? { color: "#234dba", fontWeight: 600 }
-                : { color: globalTheme === "light" ? "black" : "white" }
-            }
-          >
-            <div className="d-flex align-items-center gap-2">
-              <FaRegIdBadge />
-              <span className="fw-semibold">Management</span>
-            </div>
-            {openManagement ? <IoIosArrowUp /> : <IoIosArrowDown />}
-          </div>
-
-          {/* Isi Dropdown */}
-          <AnimatePresence>
-            {openManagement && (
-              <motion.div
-                className="ps-3 border-start mt-3"
-                style={{ borderColor: "#bdbdbd50" }}
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: "auto", opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 0.2, ease: "easeInOut" }}
-              >
-                <Link
-                  to={
-                    user.uid === 'w4M5JJjgGQeHFbS2nkyoCfUBE532' ||
-                      user.uid === 'fYpdHwXRDLhj5XGxM5FZIAvxp9E2'
-                      ? "/user-management"
-                      : "#"
+        {/* Menu sidebar berbasis data: item tanpa akses TIDAK ditampilkan sama sekali
+            (dulu tampil abu-abu), grup yang isinya kosong ikut disembunyikan. */}
+        {sidebarGroups
+          .map((g) => ({ ...g, visible: g.items.filter((it) => it.show) }))
+          .filter((g) => g.visible.length > 0)
+          .map((g, gi) => (
+            <React.Fragment key={g.key}>
+              {gi > 0 && (
+                <Divider style={{ borderColor: theme == "light" ? '#bdbdbd' : '#313a51', color: theme == "light" ? '#bdbdbd' : '#313a51' }} />
+              )}
+              <div className="w-100">
+                {/* Root Menu */}
+                <div
+                  className="d-flex align-items-center justify-content-between rounded mb-2 link-hover"
+                  role="button"
+                  onClick={() => g.setOpen(!g.open)}
+                  style={
+                    g.visible.some((it) => it.path && location.pathname.startsWith(it.path))
+                      ? { color: "#234dba", fontWeight: 600 }
+                      : { color: globalTheme === "light" ? "black" : "white" }
                   }
-                  className={`d-flex align-items-center gap-2 py-2 text-decoration-none link-hover ${!(user.uid === 'w4M5JJjgGQeHFbS2nkyoCfUBE532' ||
-                    user.uid === 'fYpdHwXRDLhj5XGxM5FZIAvxp9E2')
-                    ? "disabled-link"
-                    : ""
-                    }`}
-                  style={isActive("/user-management")}
-                  onClick={(e) => {
-                    if (!(
-                      user.uid === 'w4M5JJjgGQeHFbS2nkyoCfUBE532' ||
-                      user.uid === 'fYpdHwXRDLhj5XGxM5FZIAvxp9E2'
-                    )) e.preventDefault();
-                  }}
                 >
-                  <IoPeople />
-                  <span className="fw-semibold">User Management</span>
-                </Link>
-                <hr className="my-1" style={dividerStyle} />
-
-                <Link
-                  to={hasMenuAccess(user.uid, "Appraisal") ? "/appraisal" : "#"}
-                  className={`d-flex align-items-center gap-2 py-2 text-decoration-none link-hover ${!hasMenuAccess(user.uid, "Appraisal") ? "disabled-link" : ""
-                    }`}
-                  style={isActive("/appraisal")}
-                  onClick={(e) => {
-                    if (!hasMenuAccess(user.uid, "Appraisal")) e.preventDefault();
-                  }}
-                >
-                  <BsFillPersonVcardFill />
-                  <span className="fw-semibold">Appraisal</span>
-                </Link>
-                <hr className="my-1" style={dividerStyle} />
-
-                <Link
-                  to={hasMenuAccess(user.uid, "Absensi") ? "/absensi" : "#"}
-                  className={`d-flex align-items-center gap-2 py-2 text-decoration-none link-hover ${!hasMenuAccess(user.uid, "Absensi") ? "disabled-link" : ""
-                    }`}
-                  style={isActive("/absensi")}
-                  onClick={(e) => {
-                    if (!hasMenuAccess(user.uid, "Absensi")) e.preventDefault();
-                  }}
-                >
-                  <MdOutlineAccessTimeFilled />
-                  <span className="fw-semibold">Absensi</span>
-                </Link>
-
-
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-        <Divider style={{ borderColor: theme == "light" ? '#bdbdbd' : '#313a51', color: theme == "light" ? '#bdbdbd' : '#313a51' }} />
-
-        <div className="w-100">
-          {/* Root Menu */}
-          <div
-            className="d-flex align-items-center justify-content-between rounded mb-2 link-hover"
-            role="button"
-            onClick={() => setOpenSystem(!openSystem)}
-            style={{
-              color: globalTheme === "light" ? "black" : "white",
-            }}
-          >
-            <div className="d-flex align-items-center gap-2">
-              <FaGear />
-              <span className="fw-semibold">System</span>
-            </div>
-            {openSystem ? <IoIosArrowUp /> : <IoIosArrowDown />}
-          </div>
-
-          {/* Isi Dropdown */}
-          <AnimatePresence>
-            {openSystem && (
-              <motion.div
-                className="ps-3 border-start mt-3"
-                style={{ borderColor: "#bdbdbd50" }}
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: "auto", opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 0.2, ease: "easeInOut" }}
-              >
-                {/* THEME */}
-                <div className="d-flex align-items-center justify-content-between gap-2 py-2 link-hover">
-                  <div className="d-flex align-items-center gap-2" style={{ color: globalTheme === "light" ? "black" : "white" }}>
-                    <FaPaintBrush />
-                    <span className="fw-semibold">Theme</span>
+                  <div className="d-flex align-items-center gap-2">
+                    {g.icon}
+                    <span className="fw-semibold">{g.label}</span>
                   </div>
-                  <Switch
-                    checkedChildren="Light"
-                    unCheckedChildren="Dark"
-                    checked={theme === "light"}
-                    onChange={handleThemeChange}
-                    size="small"
-                  />
-                </div>
-                <hr className="my-1" style={dividerStyle} />
-
-                {/* DEVELOPER MODE */}
-                <div
-                  className={`d-flex align-items-center justify-content-between gap-2 py-2 link-hover ${user.uid !== "w4M5JJjgGQeHFbS2nkyoCfUBE532" ? "disabled-link" : ""
-                    }`}
-                >
-                  <div className="d-flex align-items-center gap-2" style={{ color: globalTheme === "light" ? "black" : "white" }}>
-                    <FaCode />
-                    <span className="fw-semibold">Developer Mode</span>
-                  </div>
-                  <Switch
-                    checkedChildren="On"
-                    unCheckedChildren="Off"
-                    checked={developerMode === "on"}
-                    onChange={handleDeveloperModeChange}
-                    size="small"
-                    disabled={user.uid !== "w4M5JJjgGQeHFbS2nkyoCfUBE532"}
-                  />
-                </div>
-                <hr className="my-1" style={dividerStyle} />
-
-                {/* IMAGE SOURCE */}
-                <div
-                  className={`d-flex align-items-center justify-content-between gap-2 py-2 link-hover ${user.uid !== "w4M5JJjgGQeHFbS2nkyoCfUBE532" ? "disabled-link" : ""
-                    }`}
-                >
-                  <div className="d-flex align-items-center gap-2" style={{ color: globalTheme === "light" ? "black" : "white" }}>
-                    <FaRegImages />
-                    <span className="fw-semibold">Image Source</span>
-                  </div>
-                  <Switch
-                    checkedChildren="Local"
-                    unCheckedChildren="Server"
-                    checked={localImageMode === "local"}
-                    onChange={handleLocalImageModeChange}
-                    size="small"
-                    disabled={user.uid !== "w4M5JJjgGQeHFbS2nkyoCfUBE532"}
-                  />
-                </div>
-                <hr className="my-1" style={dividerStyle} />
-
-                <div
-                  className="d-flex align-items-center gap-2 py-2 text-decoration-none link-hover"
-                  style={{ cursor: "pointer" }}
-                  onClick={() => setShowLogsModal(true)}
-                >
-                  <MdUpdate />
-                  <span className="fw-semibold">Update Logs</span>
+                  {g.open ? <IoIosArrowUp /> : <IoIosArrowDown />}
                 </div>
 
-
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
+                {/* Isi Dropdown */}
+                <AnimatePresence>
+                  {g.open && (
+                    <motion.div
+                      className="ps-3 border-start mt-3"
+                      style={{ borderColor: "#bdbdbd50" }}
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.2, ease: "easeInOut" }}
+                    >
+                      {g.visible.map((it, i) => (
+                        <React.Fragment key={it.key}>
+                          {i > 0 && <hr className="my-1" style={dividerStyle} />}
+                          {it.render ? it.render() : (
+                            <Link
+                              to={it.path}
+                              className="d-flex align-items-center gap-2 py-2 text-decoration-none link-hover"
+                              style={isActive(it.path)}
+                            >
+                              {it.icon}
+                              <span className="fw-semibold">{it.label}</span>
+                            </Link>
+                          )}
+                        </React.Fragment>
+                      ))}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            </React.Fragment>
+          ))}
 
 
 

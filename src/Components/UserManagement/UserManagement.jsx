@@ -456,6 +456,10 @@ const UserManagement = () => {
                                                                 onChange={(e) => handleCheckboxChange(item.uid, "Link Produk", e.target.checked)}
                                                             >Link Project ke Produk Website</Checkbox><br />
                                                             <Checkbox
+                                                                checked={getCheckboxState(item.uid, "QC Alur Kerja")}
+                                                                onChange={(e) => handleCheckboxChange(item.uid, "QC Alur Kerja", e.target.checked)}
+                                                            >QC — centang Alur Kerja (QC Pass / Servis)</Checkbox><br />
+                                                            <Checkbox
                                                                 checked={getCheckboxState(item.uid, "Website Admin")}
                                                                 onChange={(e) => handleCheckboxChange(item.uid, "Website Admin", e.target.checked)}
                                                             >Website Admin</Checkbox><br />

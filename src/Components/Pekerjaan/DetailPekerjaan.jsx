@@ -218,6 +218,7 @@ const DetailPekerjaan = () => {
 
   const [canSeeTelepon, setCanSeeTelepon] = useState(false);
   const [canLinkProduct, setCanLinkProduct] = useState(false); // akses hubungkan project ↔ produk website
+  const [canAlurKerja, setCanAlurKerja] = useState(false); // akses centang Alur Kerja QC (→ QC Pass / Servis)
   useEffect(() => {
     if (!user?.uid) return;
     fetch(`${baseUrl}/useraccess/get`)
@@ -228,6 +229,8 @@ const DetailPekerjaan = () => {
         // owner (super admin) selalu boleh; user lain via User Management → "Link Project ke Produk Website"
         const superAdmin = ['fYpdHwXRDLhj5XGxM5FZIAvxp9E2', 'w4M5JJjgGQeHFbS2nkyoCfUBE532'].includes(user.uid);
         setCanLinkProduct(superAdmin || data.some(a => a.uid === user.uid && a.menu === 'Link Produk' && a.value === true));
+        // Alur Kerja QC: user lain via User Management → "QC Alur Kerja" (dulu hardcode uid → staf QC baru tidak bisa QC Pass).
+        setCanAlurKerja(data.some(a => a.uid === user.uid && a.menu === 'QC Alur Kerja' && a.value === true));
       })
       .catch(() => {});
   }, []);
@@ -1373,6 +1376,7 @@ const DetailPekerjaan = () => {
     return () => clearTimeout(timer);
   }, [category, slug, dataCommentsFromDB]);
 
+  // Selalu boleh; user lain lewat hak akses "QC Alur Kerja" (canAlurKerja).
   const ALUR_KERJA_AUTHORIZED_UIDS = [
     'w4M5JJjgGQeHFbS2nkyoCfUBE532',
     'fYpdHwXRDLhj5XGxM5FZIAvxp9E2', // Alfen
@@ -1436,7 +1440,7 @@ const DetailPekerjaan = () => {
   };
 
   const handleAlurKerjaClick = (fieldName, label, currentVal) => {
-    if (!ALUR_KERJA_AUTHORIZED_UIDS.includes(user?.uid)) return;
+    if (!ALUR_KERJA_AUTHORIZED_UIDS.includes(user?.uid) && !canAlurKerja) return;
     setAlurKerjaField(fieldName);
     setAlurKerjaLabel(label);
     setAlurKerjaCurrentVal(currentVal ?? null);
@@ -1446,7 +1450,7 @@ const DetailPekerjaan = () => {
   };
 
   const handleAlurKerjaSubmit = async (state, keterangan) => {
-    const displayName = user?.displayName || 'User';
+    const displayName = dataUserFromDB.find(u => u.uid === user?.uid)?.name || user?.displayName || 'User';
     const apiState = state === 'reset' ? null : state;
     const commentText = state === 'ok'
       ? `${displayName} sudah cek ${category} — ${alurKerjaLabel} dan sudah ok${keterangan ? `. Keterangan: ${keterangan}` : ''}`
@@ -1479,7 +1483,7 @@ const DetailPekerjaan = () => {
     const val = dataProjectFromDB[0]?.[fieldName];
     const isOk = val === 'ok';
     const isServis = val === 'servis';
-    const isAuthorized = ALUR_KERJA_AUTHORIZED_UIDS.includes(user?.uid);
+    const isAuthorized = ALUR_KERJA_AUTHORIZED_UIDS.includes(user?.uid) || canAlurKerja;
     const textColor = isOk ? '#28a745' : isServis ? '#ffc107' : (globalTheme === 'light' ? '#333' : '#ccc');
     return (
       <div

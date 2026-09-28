@@ -151,7 +151,7 @@ const Pengiriman = () => {
             if (!t.customer) t.customer = d.customer;
             for (const it of d.items) {
               const ada = pilihan.find((p) => p.projectId === it.projectId);
-              if (ada) Object.assign(ada, { qtyOrder: it.qtyOrder, terkirim: it.terkirim, status: it.status });
+              if (ada) Object.assign(ada, { qtyOrder: it.qtyOrder, terkirim: it.terkirim, status: it.status, spesifikasi: it.spesifikasi });
               else pilihan.push({ ...it, checked: false, qty: Math.max(0, it.qtyOrder - it.terkirim) });
             }
           } catch { /* invoice mungkin sudah dihapus */ }
@@ -261,7 +261,8 @@ const Pengiriman = () => {
   };
 
   // ── Bagikan ────────────────────────────────────────────────────────────────
-  const pdfUrl = (doc) => `${baseUrl}/pengiriman/${doc.id}/pdf/${encodeURIComponent(fileName(doc))}.pdf`;
+  // ?v= supaya tidak pernah dapat PDF lama dari cache Cloudflare/browser setelah diedit
+  const pdfUrl = (doc) => `${baseUrl}/pengiriman/${doc.id}/pdf/${encodeURIComponent(fileName(doc))}.pdf?v=${encodeURIComponent(doc.updated_at || doc.created_at || '')}-${Date.now()}`;
 
   const bagikanPdf = async (doc) => {
     setBusy(true);
@@ -551,8 +552,11 @@ const TujuanCard = ({ t, i, C, sInput, sBtn, sCard, sLabel, invoices, busy, onCh
                </div>
                 {/* Keterangan per barang → tampil di bawah foto di PDF & teks WA */}
                 {p.checked && (
-                  <input style={{ ...sInput, marginTop: 8, fontSize: 15 }} value={p.keterangan || ''}
-                    placeholder="Keterangan, mis. dimensi D110 x 30, top marmer"
+                  <textarea className="form-control"
+                    rows={Math.min(5, Math.max(2, String(p.spesifikasi || '').split('\n').length))}
+                    style={{ ...sInput, marginTop: 8, fontSize: 15, resize: 'vertical' }} value={p.keterangan || ''}
+                    // Placeholder = deskripsi di detail produk, jadi tidak perlu buka detail produk lagi
+                    placeholder={p.spesifikasi ? p.spesifikasi : 'Keterangan untuk ekspedisi (ukuran, marmer, dll)'}
                     onChange={(e) => onPilihan(p.projectId, { keterangan: e.target.value })} />
                 )}
               </div>

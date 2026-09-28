@@ -6,7 +6,8 @@ import { useSearchParams } from 'react-router-dom';
 import AccountingMenu from './AccountingMenu';
 import { getApiBaseUrl } from '../../Config/APIurl';
 
-// Jurnal Assistant — upload PDF (rekening koran BCA / Rek CV, laporan petty cash) →
+// Jurnal Assistant — upload PDF (rekening koran BCA / Rek CV, mutasi mBCA, laporan petty cash)
+// atau FOTO laporan petty cash tulisan tangan →
 // server cek dobel ke semua jurnal & payment yang sudah ada → AI usulkan akun →
 // user cek/ubah di sini → simpan. Logika di KLF-Server utils/jurnalAssistant.
 // Hermes memakai batch yang sama (link ?batch=<id>).
@@ -42,14 +43,19 @@ function useLebar() {
   return w;
 }
 
+// PDF + foto (laporan tulisan tangan). HEIC dari iPhone dikonversi di server.
+const BISA_DIBACA = (f) => /^(application\/pdf|image\/(jpeg|png|webp|heic|heif))$/.test(f.type) || /\.(pdf|jpe?g|png|webp|heic|heif)$/i.test(f.name);
+
 const filterOpsi = (input, option) => String(option?.label || '').toLowerCase().includes(input.toLowerCase());
 
 // ---------------------------------------------------------------------------
 // Satu baris (kartu). memo: batch bisa 250+ baris.
 // ---------------------------------------------------------------------------
-const BarisKartu = memo(({ r, opsiAkun, opsiInvoice, opsiSpk, dipilih, onPilih, onUbah, sibuk, mobile }) => {
+const BarisKartu = memo(({ r, opsiAkun, opsiInvoice, opsiSpk, dipilih, onPilih, onUbah, sibuk, mobile, gambar }) => {
   const [ket, setKet] = useState(r.keterangan || '');
   useEffect(() => { setKet(r.keterangan || ''); }, [r.keterangan]);
+  const [nom, setNom] = useState(String(r.nominal ?? ''));
+  useEffect(() => { setNom(String(r.nominal ?? '')); }, [r.nominal]);
   const bisaUbah = r.status === 'siap' || r.status === 'perlu_cek' || r.status === 'dilewati';
   const masuk = r.arah === 'CR';
   const nominal = r.nominalJurnal ?? r.nominal;
@@ -85,7 +91,15 @@ const BarisKartu = memo(({ r, opsiAkun, opsiInvoice, opsiSpk, dipilih, onPilih, 
               {r.nominalJurnal != null && r.nominalJurnal !== r.nominal && <span style={{ ...kecil, fontWeight: 400 }}> (dari {rp(r.nominal)})</span>}
             </span>
           </div>
-          <div style={{ ...kecil, marginTop: 2, wordBreak: 'break-word' }}>{r.uraian || <i>(tanpa keterangan)</i>}</div>
+          <div style={{ ...kecil, marginTop: 2, wordBreak: 'break-word' }}>
+            {r.tulisanTangan && <span title="Dibaca AI dari tulisan tangan">✍️ </span>}
+            {r.uraian || <i>(tanpa keterangan)</i>}
+            {r.qty > 1 && r.sumber === 'petty_cash' ? ` · ${r.qty} × ${rp(r.hargaSatuan)}` : ''}
+            {r.catatan ? ` · ${r.catatan}` : ''}
+            {r.dibacaAI && gambar?.length > 0 && gambar.map((g, i) => (
+              <a key={g} href={g} target="_blank" rel="noreferrer" style={{ marginLeft: 6, whiteSpace: 'nowrap' }}>📷 foto{gambar.length > 1 ? ` ${i + 1}` : ''}</a>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -120,6 +134,18 @@ const BarisKartu = memo(({ r, opsiAkun, opsiInvoice, opsiSpk, dipilih, onPilih, 
             </div>
           )}
           <div style={grid}>
+            {r.dibacaAI && (
+              <>
+                <div>
+                  <div style={label}>Tanggal (hasil baca foto)</div>
+                  <Input type="date" value={r.tanggal} onChange={(e) => e.target.value && e.target.value !== r.tanggal && onUbah(r, { tanggal: e.target.value })} />
+                </div>
+                <div>
+                  <div style={label}>Nominal (hasil baca foto)</div>
+                  <Input inputMode="numeric" prefix="Rp" value={nom} onChange={(e) => setNom(e.target.value.replace(/[^\d]/g, ''))} onBlur={() => Number(nom) > 0 && Number(nom) !== r.nominal && onUbah(r, { nominal: Number(nom) })} />
+                </div>
+              </>
+            )}
             <div>
               <div style={label}>Aksi</div>
               {LABEL_AKSI[r.aksi] ? <div style={{ fontSize: 13, padding: '4px 0' }}>{LABEL_AKSI[r.aksi]}</div> : (
@@ -204,11 +230,11 @@ const JurnalAssistant = () => {
     const onPaste = (e) => {
       const list = Array.from(e.clipboardData?.files || []);
       if (!list.length) return;
-      const pdf = list.filter((f) => f.type === 'application/pdf' || /\.pdf$/i.test(f.name));
+      const pdf = list.filter(BISA_DIBACA);
       e.preventDefault();
-      if (!pdf.length) { message.warning('Yang di-paste bukan PDF'); return; }
+      if (!pdf.length) { message.warning('Yang di-paste bukan PDF / foto'); return; }
       setFiles((l) => [...l, ...pdf]);
-      message.success(`${pdf.length} PDF ditambahkan`);
+      message.success(`${pdf.length} file ditambahkan`);
     };
     document.addEventListener('paste', onPaste);
     return () => document.removeEventListener('paste', onPaste);
@@ -224,15 +250,16 @@ const JurnalAssistant = () => {
       const items = await navigator.clipboard.read();
       const pdf = [];
       for (const it of items) {
-        const tipe = it.types.find((t) => t === 'application/pdf');
+        const tipe = it.types.find((t) => t === 'application/pdf' || /^image\/(jpeg|png|webp|heic|heif)$/.test(t));
         if (tipe) {
           const blob = await it.getType(tipe);
-          pdf.push(new File([blob], `tempel-${Date.now()}-${pdf.length + 1}.pdf`, { type: 'application/pdf' }));
+          const ext = tipe === 'application/pdf' ? 'pdf' : tipe.split('/')[1].replace('jpeg', 'jpg');
+          pdf.push(new File([blob], `tempel-${Date.now()}-${pdf.length + 1}.${ext}`, { type: tipe }));
         }
       }
       if (!pdf.length) throw new Error('bukan pdf');
       setFiles((l) => [...l, ...pdf]);
-      message.success(`${pdf.length} PDF ditambahkan`);
+      message.success(`${pdf.length} file ditambahkan`);
     } catch (e) {
       message.info('Tekan lama kotak "Tempel di sini" lalu pilih Tempel / Paste', 4);
       kotakTempel.current?.focus();
@@ -266,7 +293,7 @@ const JurnalAssistant = () => {
   // Server membatasi satu request 50 MB (petty cash ±4 MB/file) → kirim bertahap per ±40 MB
   // ke batch yang sama, lalu minta diproses.
   const unggah = async () => {
-    if (!files.length) { message.warning('Pilih PDF dulu'); return; }
+    if (!files.length) { message.warning('Pilih PDF / foto dulu'); return; }
     const BATAS = 40 * 1024 * 1024;
     const grup = [];
     files.forEach((f) => {
@@ -296,6 +323,9 @@ const JurnalAssistant = () => {
       setParams({ batch: id });
     } catch (e) { message.error(e.message); } finally { setMengunggah(false); setProgresUpload(''); }
   };
+
+  // Foto per file (URL penuh) untuk link "📷 foto" di baris hasil baca AI. useMemo: BarisKartu memo.
+  const gambarFile = useMemo(() => (batch?.files || []).map((f) => (f.gambar || []).map((g) => `${baseUrl}${g}`)), [batch?.files, baseUrl]);
 
   const gantiBaris = (row) => setBatch((b) => ({ ...b, rows: b.rows.map((x) => (x.no === row.no ? row : x)) }));
   const ubah = useCallback(async (r, patch) => {
@@ -347,14 +377,14 @@ const JurnalAssistant = () => {
       <div style={kartu}>
         <Upload.Dragger
           multiple
-          accept="application/pdf,.pdf"
+          accept="application/pdf,.pdf,image/*,.heic,.heif"
           fileList={files.map((f, i) => ({ uid: String(i), name: f.name, status: 'done' }))}
-          beforeUpload={(f) => { setFiles((l) => [...l, f]); return false; }}
+          beforeUpload={(f) => { if (BISA_DIBACA(f)) setFiles((l) => [...l, f]); else message.warning(`${f.name} bukan PDF / foto`); return false; }}
           onRemove={(f) => setFiles((l) => l.filter((_, i) => String(i) !== f.uid))}
         >
           <p className="ant-upload-drag-icon"><InboxOutlined /></p>
-          <p style={{ margin: 0, fontWeight: 600 }}>Pilih / seret / paste (Ctrl+V) PDF di sini — boleh beberapa sekaligus</p>
-          <p style={{ margin: 0, fontSize: 12, color: '#888' }}>Rekening koran BCA & Rek CV, laporan petty cash harian</p>
+          <p style={{ margin: 0, fontWeight: 600 }}>Pilih / seret / paste (Ctrl+V) PDF atau foto di sini — boleh beberapa sekaligus</p>
+          <p style={{ margin: 0, fontSize: 12, color: '#888' }}>Rekening koran BCA & Rek CV, mutasi dari aplikasi mBCA, laporan petty cash harian (ketik atau foto tulisan tangan)</p>
         </Upload.Dragger>
         <div style={{ display: 'flex', gap: 8, marginTop: 10, alignItems: 'stretch' }}>
           <Button onClick={tempelDariClipboard}>📋 Tempel</Button>
@@ -369,7 +399,7 @@ const JurnalAssistant = () => {
           </div>
         </div>
         <Button type="primary" block={mobile} loading={mengunggah} disabled={!files.length} onClick={unggah} style={{ marginTop: 10 }}>
-          {progresUpload || `Analisa ${files.length ? `${files.length} PDF` : ''}`}
+          {progresUpload || (mengunggah && files.some((f) => !/pdf/i.test(f.type)) ? 'AI membaca foto… (±30 detik)' : `Analisa ${files.length ? `${files.length} file` : ''}`)}
         </Button>
         {batches.length > 0 && (
           <div style={{ marginTop: 12 }}>
@@ -396,8 +426,18 @@ const JurnalAssistant = () => {
               <div key={i} style={{ fontSize: 13, marginBottom: 4 }}>
                 {f.error ? <span style={{ color: '#cf1322' }}>✗ {f.nama}: {f.error}</span> : (
                   <>
-                    {f.checksum?.ok ? '✓' : <span style={{ color: '#cf1322' }}>⚠ checksum tidak cocok —</span>} <b>{f.label}</b> · {f.jumlahBaris} baris
+                    {f.checksum?.ok ? '✓' : <span style={{ color: '#cf1322' }}>⚠ {f.checksum?.metode === 'total-tertulis' ? 'total tertulis tidak cocok / tidak ada —' : f.checksum?.metode === 'baca-ulang' ? 'baca ulang tidak cocok —' : 'checksum tidak cocok —'}</span>} <b>{f.label}</b> · {f.jumlahBaris} baris
+                    {f.dibacaAI && <span style={{ fontSize: 11, background: '#f9f0ff', color: '#531dab', borderRadius: 4, padding: '0 6px', marginLeft: 6 }}>dibaca AI</span>}
                     {(f.peringatan || []).map((p, j) => <div key={j} style={{ fontSize: 12, color: '#d46b08' }}>⚠ {p}</div>)}
+                    {f.gambar?.length > 0 && (
+                      <div style={{ display: 'flex', gap: 6, marginTop: 4, overflowX: 'auto' }}>
+                        {f.gambar.map((g) => (
+                          <a key={g} href={`${baseUrl}${g}`} target="_blank" rel="noreferrer">
+                            <img src={`${baseUrl}${g}`} alt="" style={{ height: 72, borderRadius: 4, border: '1px solid #e5e5e5' }} />
+                          </a>
+                        ))}
+                      </div>
+                    )}
                   </>
                 )}
               </div>
@@ -448,6 +488,7 @@ const JurnalAssistant = () => {
                   opsiAkun={opsiAkun}
                   opsiInvoice={opsiInvoice}
                   opsiSpk={opsiSpk}
+                  gambar={gambarFile[r.file]}
                   dipilih={!!pilih[r.no]}
                   onPilih={onPilih}
                   onUbah={ubah}

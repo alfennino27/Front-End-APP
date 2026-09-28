@@ -4,6 +4,7 @@ import { getApiBaseUrl } from '../../Config/APIurl';
 import { useTheme } from '../../ThemeContext';
 import { isHeic, heicToJpegAll } from '../../Utils/heic';
 import { labelBulan, toMonth, campaignsForMonth, monthChoices } from '../../Utils/campaignMonth';
+import CatatanPenerimaanInput from '../Pengiriman/CatatanPenerimaanInput';
 
 // Dropdown dengan search bar (dipakai untuk pilih customer & template).
 const SearchableSelect = ({ options, value, onChange, placeholder, ui }) => {
@@ -282,6 +283,8 @@ const Quote = () => {
     hideTotals: false,
     termsTemplateId: '',
     ongkirNote: 'gratis_jawa_bali',
+    catatanPenerimaan: '',          // request penerimaan barang → Invoice & Pengiriman
+    tampilCatatanPenerimaan: false, // tampilkan di PDF quote/invoice
     campaignId: 'organic',
     leadMonth: toMonth(new Date()),   // 'YYYY-MM' bulan lead masuk (atribusi ROI)
     isRepeatOrder: false,
@@ -627,6 +630,8 @@ const Quote = () => {
     fd.append('hideTotals', form.hideTotals);
     fd.append('termsTemplateId', form.termsTemplateId || '');
     fd.append('ongkirNote', form.ongkirNote);
+    fd.append('catatanPenerimaan', form.catatanPenerimaan || '');
+    fd.append('tampilCatatanPenerimaan', !!form.tampilCatatanPenerimaan);
     fd.append('campaignId', form.campaignId);
     fd.append('leadMonth', form.leadMonth || '');
     fd.append('isRepeatOrder', form.isRepeatOrder);
@@ -1007,12 +1012,13 @@ const Quote = () => {
               options={[{ value: '', label: '— baru / ketik manual —' }, ...custList.map((c, i) => ({ value: c.kodeCust || `__${i}`, label: c.namaCust || '(tanpa nama)' }))]} /></label>
           <label className="klf-fld"><span style={{ color: sub }}>Nama customer</span>
             <input style={inputStyle} value={form.customer} onChange={(e) => setF({ customer: e.target.value })} /></label>
-          <label className="klf-fld"><span style={{ color: sub }}>WA / HP</span>
+          <label className="klf-fld"><span style={{ color: sub }}>Telepon penerima (order ini)</span>
             <input style={inputStyle} value={form.customerWA} onChange={(e) => setF({ customerWA: e.target.value })} /></label>
           <label className="klf-fld"><span style={{ color: sub }}>Email</span>
             <input style={inputStyle} value={form.customerEmail} onChange={(e) => setF({ customerEmail: e.target.value })} /></label>
-          <label className="klf-fld klf-fld-full"><span style={{ color: sub }}>Alamat</span>
-            <input style={inputStyle} value={form.customerAddress} onChange={(e) => setF({ customerAddress: e.target.value })} /></label>
+          <label className="klf-fld klf-fld-full"><span style={{ color: sub }}>Alamat pengiriman (order ini)</span>
+            <input style={inputStyle} value={form.customerAddress} onChange={(e) => setF({ customerAddress: e.target.value })} />
+            <small style={{ color: sub, fontSize: 12 }}>Terisi dari data customer, bisa diubah khusus order ini (tidak mengubah data customer). Alamat & telepon ini otomatis ikut ke Invoice, Detail Produk, Label & Pengiriman.</small></label>
           <label className="klf-fld"><span style={{ color: sub }}>Tanggal</span>
             <input type="date" style={inputStyle} value={form.tanggal} onChange={(e) => setF({ tanggal: e.target.value })} /></label>
           <label className="klf-fld"><span style={{ color: sub }}>Deadline</span>
@@ -1365,6 +1371,20 @@ const Quote = () => {
                 Campaign tersimpan tidak aktif di bulan ini — pilih ulang campaign atau ganti bulan lead.
               </small>
             )}
+          </label>
+        </div>
+        <div style={{ marginTop: 12 }}>
+          <div style={{ color: sub, marginBottom: 4 }}>Catatan penerimaan barang <small>(ikut ke Invoice & form Pengiriman)</small></div>
+          <CatatanPenerimaanInput
+            value={form.catatanPenerimaan}
+            onChange={(v) => setF({ catatanPenerimaan: v })}
+            style={inputStyle}
+            muted={sub}
+            rows={2}
+          />
+          <label style={{ display: 'flex', gap: 8, alignItems: 'center', color: text, cursor: 'pointer', marginTop: 6 }}>
+            <input type="checkbox" checked={!!form.tampilCatatanPenerimaan} onChange={(e) => setF({ tampilCatatanPenerimaan: e.target.checked })} />
+            Tampilkan catatan penerimaan di PDF
           </label>
         </div>
         <div style={{ display: 'flex', gap: 18, marginTop: 12, flexWrap: 'wrap' }}>

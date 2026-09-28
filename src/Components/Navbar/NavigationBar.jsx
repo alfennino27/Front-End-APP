@@ -588,6 +588,7 @@ const NavigationBar = () => {
         menuItem('Invoice', '/invoice', 'Invoice', <FaFileInvoiceDollar />),
         menuItem('Quote', '/quote', 'Quote', <span role="img" aria-label="quote">🧾</span>),
         menuItem('Projects', '/project', 'Projects', <MdDashboard />),
+        menuItem('Pengiriman', '/pengiriman', 'Pengiriman', <span role="img" aria-label="pengiriman">🚚</span>),
         menuItem('SPK', '/spk', 'SPK', <FaRegFileAlt />),
         menuItem('Category', '/category', 'Category', <SiWikibooks />),
         menuItem('Todo', '/todo', 'To-Do & QC', <LuClipboardList />),

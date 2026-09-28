@@ -36,6 +36,7 @@ import NotesPage from './Pages/NotesPage';
 import StoragePage from './Pages/StoragePage';
 import CrmPage from './Pages/CrmPage';
 import QuotePage from './Pages/QuotePage';
+import PengirimanPage from './Pages/PengirimanPage';
 import AbsensiPage from './Pages/AbsensiPage';
 import KnowledgePage from './Pages/KnowledgePage';
 import StockPage from './Pages/StockPage';
@@ -107,6 +108,7 @@ function App() {
         <Route path="/user-management" element={<UserManagementPage />} />
         <Route path="/crm" element={<CrmPage />} />
         <Route path="/quote" element={<QuotePage />} />
+        <Route path="/pengiriman" element={<PengirimanPage />} />
         <Route path="/quote/:id" element={<QuotePage />} />
         <Route path="/absensi" element={<AbsensiPage />} />
         <Route path="/knowledge" element={<KnowledgePage />} />

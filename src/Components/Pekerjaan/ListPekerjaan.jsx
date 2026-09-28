@@ -1418,7 +1418,7 @@ const ListPekerjaan = () => {
               value={tipeLabel}
               onChange={(e) => setTipeLabel(e.target.value)}
             >
-              <option value="Pengiriman">Pengiriman</option>
+              <option value="Pengiriman">Label Produk</option>
               <option value="QC">QC</option>
               <option value="PDF Supplier">PDF Supplier</option>
             </Form.Select>
@@ -1503,7 +1503,7 @@ const ListPekerjaan = () => {
               value={tipeLabel}
               onChange={(e) => setTipeLabel(e.target.value)}
             >
-              <option value="Pengiriman">Pengiriman</option>
+              <option value="Pengiriman">Label Produk</option>
               <option value="QC">QC</option>
             </Form.Select>
           </Form.Group>
@@ -1523,7 +1523,7 @@ const ListPekerjaan = () => {
                   return (
                     <Dropdown.Item
                       key={index}
-                      onClick={() => { setIdProject(item.id); setSelectedProduct(item.NamaBarang); setProductProject(item.NamaBarang); setBuyerProject(item.Buyer); setTeleponProject(''); setAlamatProject(item.Lokasi); setImageProject(item.image1); setQtyProject(item.Qty); setJumlahPrint(item.Qty); }}
+                      onClick={() => { setIdProject(item.id); setSelectedProduct(item.NamaBarang); setProductProject(item.NamaBarang); setBuyerProject(item.Buyer); setTeleponProject(item.Telepon || ''); setAlamatProject(item.Lokasi || ''); setImageProject(item.image1); setQtyProject(item.Qty); setJumlahPrint(item.Qty); }}
                     >
                       <img
                         src={getImageUrl(item.image1)}
@@ -1537,14 +1537,17 @@ const ListPekerjaan = () => {
             </Dropdown>
           </div>
           <div style={{ display: tipeLabel == "Pengiriman" ? "" : "none" }}>
+            {/* Read-only: diambil dari produk & Quote/Invoice (alamat & telepon kirim per order).
+                Ubah alamat/telepon di Quote, bukan di sini. */}
             <label className='mt-2'>Buyer :</label>
-            <input className="form-control mb-1" type='text' defaultValue={buyerProject} onChange={(e) => setBuyerProject(e.target.value)}></input>
+            <input className="form-control mb-1" type='text' value={buyerProject || ''} readOnly style={{ backgroundColor: 'rgba(0,0,0,0.06)' }}></input>
             <label className='mt-2'>Telephone :</label>
-            <input className="form-control mb-1" type='text' defaultValue={teleponProject} onChange={(e) => setTeleponProject(e.target.value)}></input>
+            <input className="form-control mb-1" type='text' value={teleponProject || ''} readOnly style={{ backgroundColor: 'rgba(0,0,0,0.06)', cursor: 'help' }} title="Ubah nomor telepon penerima di Quote / Invoice"></input>
             <label className='mt-2'>Address :</label>
-            <input className="form-control mb-1" type='text' defaultValue={alamatProject} onChange={(e) => setAlamatProject(e.target.value)}></input>
+            <input className="form-control mb-1" type='text' value={alamatProject || ''} readOnly style={{ backgroundColor: 'rgba(0,0,0,0.06)', cursor: 'help' }} title="Ubah alamat pengiriman di Quote / Invoice"></input>
             <label className='mt-2'>Product Name :</label>
-            <input className="form-control mb-1" type='text' defaultValue={productProject} onChange={(e) => setProductProject(e.target.value)}></input>
+            <input className="form-control mb-1" type='text' value={productProject || ''} readOnly style={{ backgroundColor: 'rgba(0,0,0,0.06)' }}></input>
+            <small className="text-muted">Data otomatis dari produk & Quote/Invoice. Ubah alamat/telepon di Quote.</small>
           </div>
           <label className='mt-2'>Quantity Product :</label>
           <input className="form-control mb-1" type='number' value={qtyProject} onChange={(e) => setQtyProject(e.target.value)} onWheel={(e) => e.target.blur()}></input>

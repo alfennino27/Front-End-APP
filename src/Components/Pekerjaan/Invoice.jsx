@@ -13,6 +13,7 @@ import { MdFormatListBulletedAdd, MdAssignment } from 'react-icons/md';
 import { BsPrinterFill } from "react-icons/bs";
 import { getApiBaseUrl } from '../../Config/APIurl';
 import AuditBadge from '../AI/AuditBadge';
+import CatatanPenerimaanInput from '../Pengiriman/CatatanPenerimaanInput';
 import { useNavigate } from 'react-router-dom';
 import { FaDisplay } from 'react-icons/fa6';
 import { Skeleton, Statistic, Spin, Image, Popconfirm } from 'antd';
@@ -53,6 +54,13 @@ const Invoice = () => {
   // Bulan lead masuk ('YYYY-MM') — dasar atribusi ROI campaign (bukan bulan closing)
   const [leadMonth, setLeadMonth] = useState(toMonth(new Date()));
   const [leadMonthTouched, setLeadMonthTouched] = useState(false);
+  // Request penerimaan barang (mis. hanya jam kerja) → otomatis terisi di form Pengiriman
+  const [catatanPenerimaan, setCatatanPenerimaan] = useState('');
+  const [tampilCatatanPenerimaan, setTampilCatatanPenerimaan] = useState(false);
+  // Alamat & telepon kirim milik ORDER (bukan data customer). Order dari Quote → edit di Quote.
+  const [alamatKirim, setAlamatKirim] = useState('');
+  const [teleponKirim, setTeleponKirim] = useState('');
+  const [invoiceDariQuote, setInvoiceDariQuote] = useState(false);
   const [tanggalMulaiInvoice, setTanggalMulaiInvoice] = useState('');
   const [deadlineInvoice, setDeadlineInvoice] = useState('');
   const [ongkirPackingInvoice, setOngkirPackingInvoice] = useState(0);
@@ -227,6 +235,9 @@ const Invoice = () => {
           is_repeat_order: isRepeatOrder,
           repeat_ref_campaign_id: isRepeatOrder ? repeatRefCampaignId : null,
           leadMonth,   // bulan lead masuk → dasar atribusi ROI campaign
+          catatanPenerimaan,
+          tampilCatatanPenerimaan,
+          ...(invoiceDariQuote ? {} : { alamatKirim, teleponKirim }),
         }),
       });
 
@@ -289,6 +300,11 @@ const Invoice = () => {
       // invoice lama belum punya leadMonth → tampilkan bulan invoice (perilaku lama),
       // dan owner bisa mengoreksinya lewat form Update.
       setLeadMonth(selectedInvoice.leadMonth || toMonth(selectedInvoice.tanggalMulaiInvoice) || toMonth(new Date()));
+      setCatatanPenerimaan(selectedInvoice.catatanPenerimaan || '');
+      setAlamatKirim(selectedInvoice.alamatKirim || '');
+      setTeleponKirim(selectedInvoice.teleponKirim || '');
+      setInvoiceDariQuote(!!selectedInvoice.fromQuoteId);
+      setTampilCatatanPenerimaan(!!selectedInvoice.tampilCatatanPenerimaan);
       setDataInvoiceFromDB([selectedInvoice]);
     }
   }, [slug, backUpDataInvoice, showUpdateInvoiceModal]);
@@ -405,6 +421,9 @@ const Invoice = () => {
           is_repeat_order: isRepeatOrder,
           repeat_ref_campaign_id: isRepeatOrder ? repeatRefCampaignId : null,
           leadMonth,   // bulan lead masuk → dasar atribusi ROI campaign
+          catatanPenerimaan,
+          tampilCatatanPenerimaan,
+          ...(invoiceDariQuote ? {} : { alamatKirim, teleponKirim }),
         }),
       });
 
@@ -867,6 +886,11 @@ const Invoice = () => {
     setAdminInvoice(0);
     setDiscountInvoice(0);
     setOngkirCustInvoice(0);
+    setCatatanPenerimaan('');
+    setTampilCatatanPenerimaan(false);
+    setAlamatKirim('');
+    setTeleponKirim('');
+    setInvoiceDariQuote(false);
   }
 
 
@@ -2395,6 +2419,21 @@ const Invoice = () => {
               </label>
             </div>
             {renderCampaignPicker()}
+            <label className='mt-2'>Alamat Pengiriman (order ini) :</label>
+            <textarea className="form-control" rows={2} value={alamatKirim} readOnly={invoiceDariQuote}
+              title={invoiceDariQuote ? 'Order dari Quote — ubah alamat di fitur Quote' : ''}
+              onChange={(e) => setAlamatKirim(e.target.value)} />
+            <label className='mt-2'>Telepon Penerima (order ini) :</label>
+            <input className="form-control" type='text' value={teleponKirim} readOnly={invoiceDariQuote}
+              title={invoiceDariQuote ? 'Order dari Quote — ubah telepon di fitur Quote' : ''}
+              onChange={(e) => setTeleponKirim(e.target.value)} />
+            <small className="text-muted">{invoiceDariQuote ? 'Order ini dari Quote — ubah alamat/telepon di Quote.' : 'Khusus order ini, tidak mengubah data customer. Otomatis ikut ke semua produk.'}</small>
+            <label className='mt-2'>Catatan Penerimaan Barang :</label>
+            <CatatanPenerimaanInput value={catatanPenerimaan} onChange={setCatatanPenerimaan} rows={2} />
+            <label style={{ display: 'flex', gap: 8, alignItems: 'center', cursor: 'pointer', marginTop: 6 }}>
+              <input type="checkbox" checked={tampilCatatanPenerimaan} onChange={(e) => setTampilCatatanPenerimaan(e.target.checked)} />
+              Tampilkan catatan penerimaan di PDF invoice
+            </label>
           </Modal.Body>
           <Modal.Footer>
             <Button variant="primary" onClick={handleSubmitInvoice}>Submit</Button>
@@ -2458,6 +2497,21 @@ const Invoice = () => {
               </label>
             </div>
             {renderCampaignPicker()}
+            <label className='mt-2'>Alamat Pengiriman (order ini) :</label>
+            <textarea className="form-control" rows={2} value={alamatKirim} readOnly={invoiceDariQuote}
+              title={invoiceDariQuote ? 'Order dari Quote — ubah alamat di fitur Quote' : ''}
+              onChange={(e) => setAlamatKirim(e.target.value)} />
+            <label className='mt-2'>Telepon Penerima (order ini) :</label>
+            <input className="form-control" type='text' value={teleponKirim} readOnly={invoiceDariQuote}
+              title={invoiceDariQuote ? 'Order dari Quote — ubah telepon di fitur Quote' : ''}
+              onChange={(e) => setTeleponKirim(e.target.value)} />
+            <small className="text-muted">{invoiceDariQuote ? 'Order ini dari Quote — ubah alamat/telepon di Quote.' : 'Khusus order ini, tidak mengubah data customer. Otomatis ikut ke semua produk.'}</small>
+            <label className='mt-2'>Catatan Penerimaan Barang :</label>
+            <CatatanPenerimaanInput value={catatanPenerimaan} onChange={setCatatanPenerimaan} rows={2} />
+            <label style={{ display: 'flex', gap: 8, alignItems: 'center', cursor: 'pointer', marginTop: 6 }}>
+              <input type="checkbox" checked={tampilCatatanPenerimaan} onChange={(e) => setTampilCatatanPenerimaan(e.target.checked)} />
+              Tampilkan catatan penerimaan di PDF invoice
+            </label>
           </Modal.Body>
           <Modal.Footer>
             <div className="d-flex justify-content-between w-100">

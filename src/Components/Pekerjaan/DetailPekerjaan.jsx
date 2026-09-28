@@ -93,6 +93,9 @@ const DetailPekerjaan = () => {
   const [productNameInformation, setProductNameInformation] = useState('');
   const [buyerNameInformation, setBuyerNameInformation] = useState('');
   const [buyerLocationInformation, setBuyerLocationInformation] = useState('');
+  // Telepon penerima & alamat = milik Quote/Invoice (read-only di sini)
+  const [teleponInformation, setTeleponInformation] = useState('');
+  const [kirimDariQuote, setKirimDariQuote] = useState(false);
   const [orderDateInformation, setOrderDateInformation] = useState('');
   const [deadlineInformation, setDeadlineInformation] = useState('');
   const [targetKirimInformation, setTargetKirimInformation] = useState('');
@@ -732,7 +735,6 @@ const DetailPekerjaan = () => {
           id: slug,
           NamaBarang: productNameInformation,
           Buyer: buyerNameInformation,
-          Lokasi: buyerLocationInformation,
           Date: orderDateInformation,
           Deadline: deadlineInformation,
           TargetKirim: targetKirimInformation || '',
@@ -1198,6 +1200,8 @@ const DetailPekerjaan = () => {
         setProductNameInformation(data.NamaBarang);
         setBuyerNameInformation(data.Buyer);
         setBuyerLocationInformation(data.Lokasi);
+        setTeleponInformation(data.Telepon || '');
+        setKirimDariQuote(!!data.kirimDariQuote);
         setOrderDateInformation(data.Date);
         setDeadlineInformation(data.Deadline);
         setTargetKirimInformation(data.TargetKirim || '');
@@ -2095,8 +2099,15 @@ const DetailPekerjaan = () => {
           <input className="form-control" type='text' value={productNameInformation} onChange={(e) => setProductNameInformation(e.target.value)} required></input>
           <label className='mt-3 fw-semibold'>Buyer :</label>
           <input className="form-control" type='text' value={buyerNameInformation} onChange={(e) => setBuyerNameInformation(e.target.value)} required></input>
+          {/* Telepon & Location milik Quote/Invoice (satu customer bisa beda alamat per order) → read-only */}
+          <label className='mt-3 fw-semibold'>Telepon Penerima :</label>
+          <input className="form-control" type='text' value={teleponInformation || ''} readOnly
+            title={kirimDariQuote ? 'Untuk mengubah nomor telepon, edit di fitur Quote' : 'Untuk mengubah nomor telepon, edit di Quote (atau Update Invoice untuk order tanpa Quote)'}
+            style={{ cursor: 'help', backgroundColor: 'rgba(0,0,0,0.06)' }}></input>
           <label className='mt-3 fw-semibold'>Location :</label>
-          <input className="form-control" type='text' value={buyerLocationInformation} onChange={(e) => setBuyerLocationInformation(e.target.value)} required></input>
+          <input className="form-control" type='text' value={buyerLocationInformation || ''} readOnly
+            title={kirimDariQuote ? 'Untuk mengubah location, edit di fitur Quote' : 'Untuk mengubah location, edit di Quote (atau Update Invoice untuk order tanpa Quote)'}
+            style={{ cursor: 'help', backgroundColor: 'rgba(0,0,0,0.06)' }}></input>
           <label className='mt-3 fw-semibold'>Order Date :</label>
           <input className="form-control" type='date' value={orderDateInformation} onChange={(e) => setOrderDateInformation(e.target.value)} required></input>
           <label className='mt-3 fw-semibold'>Deadline :</label>

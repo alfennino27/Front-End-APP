@@ -97,10 +97,6 @@ const DetailPekerjaan = () => {
   const [deadlineInformation, setDeadlineInformation] = useState('');
   const [targetKirimInformation, setTargetKirimInformation] = useState('');
   const [descriptionInformation, setDescriptionInformation] = useState('');
-  const [ukuranQC, setUkuranQC] = useState('');
-  const [finishingQC, setFinishingQC] = useState('');
-  const [jenisMarmerQC, setJenisMarmerQC] = useState('');
-  const [jenisKainQC, setJenisKainQC] = useState('');
   const [percentageInformation, setPercentageInformation] = useState('');
   const [statusInformation, setStatusInformation] = useState('');
 
@@ -724,11 +720,6 @@ const DetailPekerjaan = () => {
     const updatedHargaInformation = hargaInformation === undefined ? '0' : hargaInformation;
     const updatedQtyInformation = qtyInformation === undefined ? '0' : qtyInformation;
 
-    const updatedUkuranQC = ukuranQC === undefined ? '' : ukuranQC;
-    const updatedFinishingQC = finishingQC === undefined ? '' : finishingQC;
-    const updatedJenisMarmerQC = jenisMarmerQC === undefined ? '' : jenisMarmerQC;
-    const updatedJenisKainQC = jenisKainQC === undefined ? '' : jenisKainQC;
-
     const updatedStorageFolder = storageFolder === undefined ? '' : storageFolder;
 
     try {
@@ -752,10 +743,6 @@ const DetailPekerjaan = () => {
           idInvoice: updatedIdInvoice,
           Harga: updatedHargaInformation,
           Qty: updatedQtyInformation,
-          UkuranQC: updatedUkuranQC,
-          FinishingQC: updatedFinishingQC,
-          JenisMarmerQC: updatedJenisMarmerQC,
-          JenisKainQC: updatedJenisKainQC,
           StorageFolder: updatedStorageFolder,
           uid: user?.uid || '',
         }),
@@ -1215,10 +1202,6 @@ const DetailPekerjaan = () => {
         setDeadlineInformation(data.Deadline);
         setTargetKirimInformation(data.TargetKirim || '');
         setDescriptionInformation(data.Spesifikasi);
-        setUkuranQC(data.UkuranQC);
-        setFinishingQC(data.FinishingQC);
-        setJenisMarmerQC(data.JenisMarmerQC);
-        setJenisKainQC(data.JenisKainQC);
         setPercentageInformation(data.Percentage);
         setStatusInformation(data.Status);
         setStorageFolder(data.StorageFolder);
@@ -2125,14 +2108,6 @@ const DetailPekerjaan = () => {
           <input className="form-control" type='number' value={percentageInformation} onChange={(e) => setPercentageInformation(e.target.value)} required></input>
           <label className='mt-3 fw-semibold'>Description :</label>
           <textarea className="form-control" type='text' rows="5" value={descriptionInformation} onChange={(e) => setDescriptionInformation(e.target.value)} required></textarea>
-          <label className='mt-3 fw-semibold'>Ukuran :</label>
-          <input className="form-control" type='text' value={ukuranQC} onChange={(e) => setUkuranQC(e.target.value)} required></input>
-          <label className='mt-3 fw-semibold'>Finishing :</label>
-          <input className="form-control" type='text' value={finishingQC} onChange={(e) => setFinishingQC(e.target.value)} required></input>
-          <label className='mt-3 fw-semibold'>Jenis Marmer :</label>
-          <input className="form-control" type='text' value={jenisMarmerQC} onChange={(e) => setJenisMarmerQC(e.target.value)} required></input>
-          <label className='mt-3 fw-semibold'>Jenis Kain :</label>
-          <input className="form-control" type='text' value={jenisKainQC} onChange={(e) => setJenisKainQC(e.target.value)} required></input>
           <label className='mt-3 fw-semibold'>Status :</label>
           <select className="form-control" value={statusInformation} onChange={(e) => setStatusInformation(e.target.value)} required>
             <option value="Ongoing">Ongoing</option>

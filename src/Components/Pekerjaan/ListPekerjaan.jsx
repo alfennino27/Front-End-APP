@@ -88,10 +88,6 @@ const ListPekerjaan = () => {
   const [teleponProject, setTeleponProject] = useState('');
   const [alamatProject, setAlamatProject] = useState('');
   const [imageProject, setImageProject] = useState('');
-  const [ukuranProject, setUkuranProject] = useState('');
-  const [finishingProject, setFinishingProject] = useState('');
-  const [jenisMarmerProject, setJenisMarmerProject] = useState('');
-  const [jenisKainProject, setJenisKainProject] = useState('');
   const [qtyProject, setQtyProject] = useState('');
   const [jumlahPrint, setJumlahPrint] = useState(''); // berapa lembar label mau dicetak (bebas)
   const [labelProducts, setLabelProducts] = useState([]); // produk dari invoice yg BELUM LUNAS (sumber dropdown label)
@@ -339,10 +335,6 @@ const ListPekerjaan = () => {
     setTeleponProject('');
     setAlamatProject('');
     setImageProject('');
-    setUkuranProject('');
-    setFinishingProject('');
-    setJenisMarmerProject('');
-    setJenisKainProject('');
     setQtyProject('');
     setJumlahPrint('');
 
@@ -557,10 +549,6 @@ const ListPekerjaan = () => {
       address: alamatProject,
       image: imageProject,
       productName: productProject,
-      ukuranQC: ukuranProject,
-      finishingQC: finishingProject,
-      jenisMarmerQC: jenisMarmerProject,
-      jenisKainQC: jenisKainProject,
       quantity: qtyProject,       // Quantity Product (dari invoice) — tampil di label
       jumlahPrint: jumlahPrint,   // berapa lembar label dicetak
     };
@@ -573,10 +561,6 @@ const ListPekerjaan = () => {
     setTeleponProject('');
     setAlamatProject('');
     setImageProject('');
-    setUkuranProject('');
-    setFinishingProject('');
-    setJenisMarmerProject('');
-    setJenisKainProject('');
     setQtyProject('');
     setJumlahPrint('');
 
@@ -1539,7 +1523,7 @@ const ListPekerjaan = () => {
                   return (
                     <Dropdown.Item
                       key={index}
-                      onClick={() => { setIdProject(item.id); setSelectedProduct(item.NamaBarang); setProductProject(item.NamaBarang); setBuyerProject(item.Buyer); setTeleponProject(''); setAlamatProject(item.Lokasi); setImageProject(item.image1); setUkuranProject(item.UkuranQC); setFinishingProject(item.FinishingQC); setJenisMarmerProject(item.JenisMarmerQC); setJenisKainProject(item.JenisKainQC); setQtyProject(item.Qty); setJumlahPrint(item.Qty); }}
+                      onClick={() => { setIdProject(item.id); setSelectedProduct(item.NamaBarang); setProductProject(item.NamaBarang); setBuyerProject(item.Buyer); setTeleponProject(''); setAlamatProject(item.Lokasi); setImageProject(item.image1); setQtyProject(item.Qty); setJumlahPrint(item.Qty); }}
                     >
                       <img
                         src={getImageUrl(item.image1)}

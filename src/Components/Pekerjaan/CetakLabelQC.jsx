@@ -109,12 +109,12 @@ const CetakLabel = () => {
             <div key={`${index}-${i}`} className="label-card">
               <div className="fw-bold text-center">{item.productName}</div>
               <img src={getImageUrl(item.image)} alt={item.productName} />
-              <div className="border text-start small" style={{ paddingLeft:"5px" }}>Ukuran : {item.ukuranQC}</div>
+              <div className="border text-start small" style={{ paddingLeft:"5px" }}>Ukuran :</div>
               <div className="border text-start small" style={{ paddingLeft:"5px" }}>Bentuk :</div>
-              <div className="border text-start small" style={{ paddingLeft:"5px" }}>Finishing : {item.finishingQC}</div>
+              <div className="border text-start small" style={{ paddingLeft:"5px" }}>Finishing :</div>
               <div className="border text-start small" style={{ paddingLeft:"5px" }}>Kerapian :</div>
-              <div className="border text-start small" style={{ paddingLeft:"5px" }}>Jenis Marmer : {item.jenisMarmerQC}</div>
-              <div className="border text-start small" style={{ paddingLeft:"5px" }}>Jenis Kain : {item.jenisKainQC}</div>
+              <div className="border text-start small" style={{ paddingLeft:"5px" }}>Jenis Marmer :</div>
+              <div className="border text-start small" style={{ paddingLeft:"5px" }}>Jenis Kain :</div>
               <div className="border text-start small" style={{ paddingLeft:"5px" }}>Kebersihan :</div>
               <div className="border text-start small" style={{ paddingLeft:"5px" }}>Flat Kaca :</div>
               <div className="border text-start small" style={{ paddingLeft:"5px" }}>Sepatu :</div>

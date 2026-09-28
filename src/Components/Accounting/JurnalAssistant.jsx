@@ -384,7 +384,7 @@ const JurnalAssistant = () => {
         >
           <p className="ant-upload-drag-icon"><InboxOutlined /></p>
           <p style={{ margin: 0, fontWeight: 600 }}>Pilih / seret / paste (Ctrl+V) PDF atau foto di sini — boleh beberapa sekaligus</p>
-          <p style={{ margin: 0, fontSize: 12, color: '#888' }}>Rekening koran BCA & Rek CV, mutasi dari aplikasi mBCA, laporan petty cash harian (ketik atau foto tulisan tangan)</p>
+          <p style={{ margin: 0, fontSize: 12, color: '#888' }}>Rekening koran & mutasi BCA / Rek CV / BRI (PDF KlikBCA, mBCA, atau screenshot KlikBCA/BRImo), laporan petty cash harian (ketik atau foto tulisan tangan)</p>
         </Upload.Dragger>
         <div style={{ display: 'flex', gap: 8, marginTop: 10, alignItems: 'stretch' }}>
           <Button onClick={tempelDariClipboard}>📋 Tempel</Button>

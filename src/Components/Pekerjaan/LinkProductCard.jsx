@@ -15,7 +15,28 @@ const firstImage = (p) => {
   return '';
 };
 
-const LinkProductCard = ({ projectId, linkProduct, canEdit, theme = 'light' }) => {
+// Catalog project (StorageFolder.name, istilah ERP) → kategori produk website (ProductsCategory.name).
+// Nama yang sama persis (Sofa, Coffee Table, Kursi Bar, Stool, Meja Cafe) cocok otomatis tanpa perlu di sini.
+const CATALOG_KE_KATEGORI = {
+  'kursi makan': 'Dining Chair',
+  'kursi teras': 'Dining Chair',
+  'meja makan': 'Dining Table',
+  'meja konsul': 'Console',
+  'sidetable': 'Side Table',
+  'bedside/ nakas': 'Side Table',
+  'buffet-tv stand-sideboard': 'Buffet',
+  'meja kantor': 'Meja Kerja',
+  'meja bar': 'Meja Cafe',
+};
+const kategoriDariCatalog = (catalogName, categories) => {
+  const k = String(catalogName || '').trim().toLowerCase();
+  if (!k) return '';
+  const nama = CATALOG_KE_KATEGORI[k] || k;
+  const hit = categories.find((c) => String(c.name || '').trim().toLowerCase() === nama.toLowerCase());
+  return hit ? hit.name : '';
+};
+
+const LinkProductCard = ({ projectId, linkProduct, canEdit, catalogName, theme = 'light' }) => {
   const baseUrl = getApiBaseUrl();
   const dark = theme !== 'light';
   const [current, setCurrent] = useState(linkProduct || null);
@@ -29,7 +50,7 @@ const LinkProductCard = ({ projectId, linkProduct, canEdit, theme = 'light' }) =
   useEffect(() => { setCurrent(linkProduct || null); }, [linkProduct]);
 
   const loadProducts = async () => {
-    if (products.length) return;
+    if (products.length) return { categories };
     try {
       const [p, c] = await Promise.all([
         fetch(`${baseUrl}/products/get`).then((r) => r.json()),
@@ -37,7 +58,18 @@ const LinkProductCard = ({ projectId, linkProduct, canEdit, theme = 'light' }) =
       ]);
       setProducts(Array.isArray(p) ? p : []);
       setCategories(Array.isArray(c) ? c : []);
-    } catch (e) { console.error('load products', e); }
+      return { categories: Array.isArray(c) ? c : [] };
+    } catch (e) { console.error('load products', e); return { categories: [] }; }
+  };
+  // Buka popup: kategori langsung terisi dari produk ter-link, atau dari Catalog project → tinggal cari/pilih
+  const openPicker = async () => {
+    setQ('');
+    setCat(linked ? linked.category : kategoriDariCatalog(catalogName, categories));
+    setOpen(true);
+    if (!linked) {
+      const { categories: cats } = await loadProducts();
+      setCat((prev) => prev || kategoriDariCatalog(catalogName, cats));
+    }
   };
   // produk ter-link perlu datanya buat kartu ringkas
   useEffect(() => { if (current) loadProducts(); }, [current]);
@@ -78,7 +110,7 @@ const LinkProductCard = ({ projectId, linkProduct, canEdit, theme = 'light' }) =
         <h6 className="mb-0" style={{ color: text }}>Produk Website</h6>
         {canEdit && (
           <div style={{ display: 'flex', gap: 6 }}>
-            <button className="btn btn-sm btn-outline-primary" onClick={() => { loadProducts(); setCat(linked ? linked.category : ''); setQ(''); setOpen(true); }}>
+            <button className="btn btn-sm btn-outline-primary" onClick={openPicker}>
               {current ? 'Ubah' : '+ Hubungkan ke produk'}
             </button>
             {current && <button className="btn btn-sm btn-outline-danger" disabled={saving} onClick={() => save(null)}>Lepas</button>}
@@ -112,7 +144,7 @@ const LinkProductCard = ({ projectId, linkProduct, canEdit, theme = 'light' }) =
               options={categories.map((c) => ({ value: c.name, label: c.name }))}
               getPopupContainer={(n) => n.parentNode}
             />
-            <Input allowClear prefix={<FaSearch style={{ color: '#999' }} />} placeholder="Cari nama produk…" value={q} onChange={(e) => setQ(e.target.value)} style={{ width: 260 }} />
+            <Input allowClear autoFocus prefix={<FaSearch style={{ color: '#999' }} />} placeholder="Cari nama produk…" value={q} onChange={(e) => setQ(e.target.value)} style={{ width: 260 }} />
             <span style={{ alignSelf: 'center', fontSize: 12, color: muted }}>{list.length} produk</span>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 10 }}>

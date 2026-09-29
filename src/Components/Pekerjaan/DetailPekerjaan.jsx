@@ -2046,7 +2046,8 @@ const DetailPekerjaan = () => {
 
           {/* Hubungkan project ke produk katalog website (foto BarangJadi tampil di halaman produk) */}
           {slug && dataProjectFromDB.length > 0 && (
-            <LinkProductCard projectId={slug} linkProduct={dataProjectFromDB[0]?.linkProduct} canEdit={canLinkProduct} theme={globalTheme} />
+            <LinkProductCard projectId={slug} linkProduct={dataProjectFromDB[0]?.linkProduct} canEdit={canLinkProduct} theme={globalTheme}
+              catalogName={dataStorageFromDB.find((f) => f.id === (dataProjectFromDB[0]?.StorageFolder || storageFolder))?.name} />
           )}
 
           <div onClick={handleShowInformationModal}>

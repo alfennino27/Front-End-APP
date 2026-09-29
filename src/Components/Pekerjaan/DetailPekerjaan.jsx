@@ -2045,8 +2045,10 @@ const DetailPekerjaan = () => {
           )}
 
           {/* Hubungkan project ke produk katalog website (foto BarangJadi tampil di halaman produk) */}
+          {/* key=slug: pindah project → kartu dibuat ulang. Tanpa ini pilihan project sebelumnya "nempel"
+              karena linkProduct lama & baru sama-sama undefined (data halaman belum di-refetch setelah simpan). */}
           {slug && dataProjectFromDB.length > 0 && (
-            <LinkProductCard projectId={slug} linkProduct={dataProjectFromDB[0]?.linkProduct} canEdit={canLinkProduct} theme={globalTheme}
+            <LinkProductCard key={slug} projectId={slug} linkProduct={dataProjectFromDB[0]?.linkProduct} canEdit={canLinkProduct} theme={globalTheme}
               catalogName={dataStorageFromDB.find((f) => f.id === (dataProjectFromDB[0]?.StorageFolder || storageFolder))?.name} />
           )}
 

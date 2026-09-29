@@ -47,7 +47,7 @@ const LinkProductCard = ({ projectId, linkProduct, canEdit, catalogName, theme =
   const [q, setQ] = useState('');
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => { setCurrent(linkProduct || null); }, [linkProduct]);
+  useEffect(() => { setCurrent(linkProduct || null); setOpen(false); }, [linkProduct, projectId]);
 
   const loadProducts = async () => {
     if (products.length) return { categories };

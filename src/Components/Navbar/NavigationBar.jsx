@@ -243,7 +243,12 @@ const NavigationBar = () => {
   }
 
 
-  const handleNotifClick = () => {
+  // Di HP panel notif dipasang fixed selebar layar tepat di bawah bell (lihat <ul> notif).
+  // Posisi otomatis Popper mendorong panel keluar layar ke kiri di layar sempit.
+  const [notifTop, setNotifTop] = useState(60);
+  const handleNotifClick = (e) => {
+    const rect = e?.currentTarget?.getBoundingClientRect?.();
+    if (rect) setNotifTop(Math.round(rect.bottom + 8));
     localStorage.removeItem('notifStatus');
     setNotifStatus(localStorage.getItem('notifStatus'));
   };
@@ -822,6 +827,7 @@ const NavigationBar = () => {
                           }}
                           onClick={handleNotifClick}
                           data-bs-toggle="dropdown"
+                          data-bs-display={isMobile ? "static" : undefined}
                           aria-expanded="false"
                           className='bell-hover'
                         />
@@ -836,6 +842,7 @@ const NavigationBar = () => {
                             }}
                             onClick={handleNotifClick}
                             data-bs-toggle="dropdown"
+                            data-bs-display={isMobile ? "static" : undefined}
                             aria-expanded="false"
                             className='bell-hover'
                           />
@@ -847,6 +854,7 @@ const NavigationBar = () => {
                         style={{ fontSize: '24px', marginRight: '5px', color: 'white' }}
                         onClick={handleNotifClick}
                         data-bs-toggle="dropdown"
+                        data-bs-display={isMobile ? "static" : undefined}
                         aria-expanded="false"
                         className='bell-hover'
                       />
@@ -855,12 +863,18 @@ const NavigationBar = () => {
                         style={{ fontSize: '24px', marginRight: '5px', color: 'white' }}
                         onClick={handleNotifClick}
                         data-bs-toggle="dropdown"
+                        data-bs-display={isMobile ? "static" : undefined}
                         aria-expanded="false"
                         className='bell-hover'
                       />
                     )}
 
-                    <ul className={`dropdown-menu ${theme === 'light' ? 'bg-light' : 'bg-dark'}`} style={{ maxHeight: '500px', ...(isMobile ? { width: '250px' } : { width: '350px' }), overflowY: 'auto' }}>
+                    <ul className={`dropdown-menu ${theme === 'light' ? 'bg-light' : 'bg-dark'}`} style={{
+                      overflowY: 'auto',
+                      ...(isMobile
+                        ? { position: 'fixed', left: 8, right: 8, top: notifTop, width: 'auto', margin: 0, maxHeight: `calc(100vh - ${notifTop + 16}px)`, zIndex: 1080 }
+                        : { maxHeight: '500px', width: '350px' }),
+                    }}>
                       <li
                         className={`dropdown-item ${theme === 'light' ? 'bg-light text-dark' : 'bg-dark text-light'}`}
                         style={{

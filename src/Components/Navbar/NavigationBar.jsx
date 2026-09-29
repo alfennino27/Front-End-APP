@@ -534,6 +534,13 @@ const NavigationBar = () => {
     if (showBoardModal) fetchUserAccess();
   }, [showBoardModal, fetchUserAccess]);
 
+  // angka kecil di menu Desain Produk (kurator: menunggu review, desainer: diminta revisi) — bukan notifikasi utama
+  const [desainBadge, setDesainBadge] = useState(0);
+  useEffect(() => {
+    if (!showBoardModal || !user?.uid) return;
+    fetch(`${getApiBaseUrl()}/desain/badge?uid=${encodeURIComponent(user.uid)}`).then((r) => r.json()).then((d) => setDesainBadge(d.total || 0)).catch(() => {});
+  }, [showBoardModal]);
+
   const hasMenuAccess = (uid, menu) => {
     return userAccess.some(
       a => a.uid === uid && a.menu === menu && (a.value === true || a.value === 'true')
@@ -614,6 +621,7 @@ const NavigationBar = () => {
       key: 'archive', label: 'Archive', icon: <BiArchive />, open: openArchive, setOpen: setOpenArchive,
       items: [
         menuItem('Catalog', '/catalog', 'Catalog', <FaRegFolderOpen />),
+        { ...menuItem('Desain Produk', '/desain', 'Desain Produk', <FaPaintBrush />), badge: desainBadge },
         menuItem('Products', '/products', 'Products', <MdChair />),
         menuItem('Price List', '/pricelist', 'Price List', <ImPriceTags />),
         // Testimoni Lama memang tidak punya hak akses — terbuka untuk semua.
@@ -1086,6 +1094,7 @@ const NavigationBar = () => {
                   <div className="d-flex align-items-center gap-2">
                     {g.icon}
                     <span className="fw-semibold">{g.label}</span>
+                    {!g.open && g.visible.some((it) => it.badge > 0) && <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#e11d48' }} />}
                   </div>
                   {g.open ? <IoIosArrowUp /> : <IoIosArrowDown />}
                 </div>
@@ -1112,6 +1121,7 @@ const NavigationBar = () => {
                             >
                               {it.icon}
                               <span className="fw-semibold">{it.label}</span>
+                              {it.badge > 0 && <span style={{ fontSize: 10, fontWeight: 700, background: '#e11d48', color: '#fff', borderRadius: 999, padding: '1px 7px' }}>{it.badge} baru</span>}
                             </Link>
                           )}
                         </React.Fragment>

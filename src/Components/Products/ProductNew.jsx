@@ -62,6 +62,8 @@ const ProductNew = () => {
   const [labels, setLabels] = useState([]);
   const [video, setVideo] = useState(['', '', '']);
   const [model3d, setModel3d] = useState(null);
+  const [model3dDraft, setModel3dDraft] = useState(null); // url .glb yang sudah di server (draft dari Arsip Desain)
+  const [dariDesain, setDariDesain] = useState(null); // { id, v } kalau draft dibuat dari Arsip Desain
   const [isDisplay, setIsDisplay] = useState(true);
   const [varians, setVarians] = useState([emptyVarian()]);
   const [photos, setPhotos] = useState([]); // [{url}] — url di server (foto draft langsung diupload)
@@ -99,6 +101,8 @@ const ProductNew = () => {
       setIsDisplay(dt.isDisplay !== false);
       setVarians(Array.isArray(dt.varians) && dt.varians.length ? dt.varians.map((v) => ({ ...emptyVarian(), ...v, open: false })) : [emptyVarian()]);
       setPhotos((d.photos || []).map((u) => ({ url: u })));
+      if (d.model3d) setModel3dDraft(d.model3d);
+      if (d.desainId) setDariDesain({ id: d.desainId, v: d.desainVersion });
       // labels diset setelah category (efek reset label hanya saat kategori BERUBAH dari nilai sebelumnya)
       setTimeout(() => setLabels(Array.isArray(dt.labels) ? dt.labels : []), 0);
       setDraftLoaded(true);
@@ -205,6 +209,7 @@ const ProductNew = () => {
       fd.append('existingImages', JSON.stringify(photos.map((p) => p.url)));
       if (draftIdRef.current) fd.append('draftId', draftIdRef.current);
       if (model3d) fd.append('model3d', model3d);
+      else if (model3dDraft) fd.append('existingModel3d', model3dDraft);
       const r = await fetch(`${baseUrl}/products/create-full`, { method: 'POST', body: fd });
       const d = await r.json();
       if (!r.ok) throw new Error(d.message || 'Gagal menyimpan');
@@ -240,6 +245,7 @@ const ProductNew = () => {
         <div style={{ maxWidth: 1100, margin: '0 auto', padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
         <button style={btn(false)} onClick={() => navigate('/products')}><FiArrowLeft /> Kembali</button>
         <div style={{ fontWeight: 700, fontSize: 17 }}>Tambah Produk Baru</div>
+        {dariDesain && <span style={{ fontSize: 11, fontWeight: 600, background: '#e8f5e9', color: '#1e7b34', padding: '3px 9px', borderRadius: 999 }} title="Foto & 3D disalin dari versi desain yang di-approve">Dari Arsip Desain · v{dariDesain.v}</span>}
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 12 }}>
           <span style={{ fontSize: 12, color: draftStatus.startsWith('Gagal') ? '#c0392b' : muted }} title="Draft tersimpan otomatis; bisa dilanjutkan dari tombol Draft di halaman Products">
             {draftStatus ? `Draft · ${draftStatus}` : 'Draft otomatis tersimpan'}
@@ -365,11 +371,11 @@ const ProductNew = () => {
             {video.map((v, i) => (
               <Field th={th} key={i} label={`Link video ${i + 1}`}><input style={input} value={v} onChange={(e) => setVideo((prev) => prev.map((x, j) => (j === i ? e.target.value : x)))} placeholder="https://…" /></Field>
             ))}
-            <Field th={th} label="3D Model (.glb) — tidak ikut draft, pilih saat akan simpan">
+            <Field th={th} label={model3dDraft ? '3D Model (.glb) — dari Arsip Desain' : '3D Model (.glb) — tidak ikut draft, pilih saat akan simpan'}>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                 <button type="button" style={btn(false)} onClick={() => glbRef.current && glbRef.current.click()}>Pilih file</button>
-                <span style={{ fontSize: 12, color: muted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{model3d ? model3d.name : 'Belum ada'}</span>
-                {model3d && <button type="button" style={{ ...btn(false), color: '#c0392b', padding: '4px 8px' }} onClick={() => setModel3d(null)}><FiTrash2 /></button>}
+                <span style={{ fontSize: 12, color: muted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{model3d ? model3d.name : model3dDraft ? model3dDraft.split('/').pop() : 'Belum ada'}</span>
+                {(model3d || model3dDraft) && <button type="button" style={{ ...btn(false), color: '#c0392b', padding: '4px 8px' }} onClick={() => { setModel3d(null); setModel3dDraft(null); }}><FiTrash2 /></button>}
                 <input ref={glbRef} type="file" accept=".glb" hidden onChange={(e) => { setModel3d(e.target.files[0] || null); e.target.value = ''; }} />
               </div>
             </Field>

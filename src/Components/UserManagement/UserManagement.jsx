@@ -444,6 +444,14 @@ const UserManagement = () => {
                                                                 onChange={(e) => handleCheckboxChange(item.uid, "Products", e.target.checked)}
                                                             >Products</Checkbox><br />
                                                             <Checkbox
+                                                                checked={getCheckboxState(item.uid, "Desain Produk")}
+                                                                onChange={(e) => handleCheckboxChange(item.uid, "Desain Produk", e.target.checked)}
+                                                            >Desain Produk (lihat & upload desain)</Checkbox><br />
+                                                            <Checkbox
+                                                                checked={getCheckboxState(item.uid, "Kurasi Desain")}
+                                                                onChange={(e) => handleCheckboxChange(item.uid, "Kurasi Desain", e.target.checked)}
+                                                            >Kurasi Desain (Layak / Revisi / Arsip)</Checkbox><br />
+                                                            <Checkbox
                                                                 checked={getCheckboxState(item.uid, "KLF AI")}
                                                                 onChange={(e) => handleCheckboxChange(item.uid, "KLF AI", e.target.checked)}
                                                             >KLF AI</Checkbox><br />

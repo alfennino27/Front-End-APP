@@ -271,7 +271,7 @@ export const parseJamMenit = (str) => {
   if (str === null || str === undefined) return 0;
   const s = String(str).trim();
   if (!s) return 0;
-  const [h, m = '0'] = s.split(/[.:]/);
+  const [h, m = '0'] = s.split(/[.,:]/);
   const jam = Number(h) || 0;
   const menit = Number(String(m).slice(0, 2)) || 0;
   return jam * 60 + Math.min(Math.max(menit, 0), 59);

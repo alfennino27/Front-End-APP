@@ -11,7 +11,8 @@ import { hitungFinansialInvoice, ambilSpkTenagaIds } from '../../Utils/invoiceFi
 import ExportLabaRugiPdf from './ExportLabaRugiPdf';
 import RincianAkunModal from './RincianAkunModal';
 import InvoiceBiayaModal from './InvoiceBiayaModal';
-import { buatLaporanPenjualan, persenGrossProfit } from '../../Utils/labaRugiReport';
+import { buatLaporanPenjualan, persenGrossProfit, hitungHppLuarInvoice } from '../../Utils/labaRugiReport';
+import HppLuarInvoiceTable from './HppLuarInvoiceTable';
 
 const Jurnal = () => {
   const baseUrl = getApiBaseUrl();
@@ -190,6 +191,13 @@ const Jurnal = () => {
 
   const [keuntunganPenjualan, setKeuntunganPenjualan] = useState(0);
 
+  // HPP di luar invoice: selisih bengkel (real − estimasi di GP) + ongkir/packing/hardware
+  // − koreksi Pengeluaran Lain yang sudah dijurnal.
+  const hppLuar = filterDate
+    ? hitungHppLuarInvoice(filteredInvoices, { dataProject, dataSPKProduct, dataJurnal, dataAkun, dataInvoicePengeluaran, spkTenagaIds }, filterDate)
+    : null;
+  const totalHppLuar = hppLuar ? hppLuar.total : 0;
+
   useEffect(() => {
     if (!filterDate) {
       setKeuntunganPenjualan(0);
@@ -221,8 +229,8 @@ const Jurnal = () => {
         return total + saldoAkhir;
       }, 0);
 
-    setKeuntunganPenjualan(totalGrossProfit - totalPengeluaran);
-  }, [filteredInvoices, dataAkun, dataJurnal, filterDate]); // Perbarui saat data berubah
+    setKeuntunganPenjualan(totalGrossProfit - totalHppLuar - totalPengeluaran);
+  }, [filteredInvoices, dataAkun, dataJurnal, filterDate, totalHppLuar]); // Perbarui saat data berubah
 
 
 
@@ -336,6 +344,14 @@ const Jurnal = () => {
 
 
           </div>
+
+          {hppLuar && (
+            <HppLuarInvoiceTable
+              hpp={hppLuar}
+              styles={{ tableContainerStyle, tableStyle, thStyle, thTdStyle, tbodyTrEvenStyle, tbodyTrOddStyle }}
+              onPilihAkun={(kode) => setAkunDipilih(dataAkun.find((a) => a.kodeAkun === kode) || null)}
+            />
+          )}
 
           <p className='fw-semibold px-4 mt-4 mb-2'>Pengeluaran (Operasional) <span className='fw-normal text-muted' style={{ fontSize: 12 }}>· klik akun untuk lihat rincian</span></p>
           <div style={{ ...tableContainerStyle, maxHeight: '60vh', overflowY: 'auto' }}>

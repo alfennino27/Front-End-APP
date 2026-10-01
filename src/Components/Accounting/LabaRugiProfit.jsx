@@ -11,7 +11,8 @@ import { hitungFinansialInvoice, ambilSpkTenagaIds } from '../../Utils/invoiceFi
 import ExportLabaRugiPdf from './ExportLabaRugiPdf';
 import RincianAkunModal from './RincianAkunModal';
 import InvoiceBiayaModal from './InvoiceBiayaModal';
-import { buatLaporanProfit } from '../../Utils/labaRugiReport';
+import { buatLaporanProfit, hitungHppLuarInvoice } from '../../Utils/labaRugiReport';
+import HppLuarInvoiceTable from './HppLuarInvoiceTable';
 
 const Jurnal = () => {
   const baseUrl = getApiBaseUrl();
@@ -295,7 +296,13 @@ const Jurnal = () => {
       return total + saldoAkhir;
     }, 0);
 
-  const keuntunganPenjualan = totalGrossProfitPenjualan - totalSaldoAkhir;
+  // HPP di luar invoice: selisih bengkel (real − estimasi di GP) + ongkir/packing/hardware
+  // − koreksi Pengeluaran Lain yang sudah dijurnal.
+  const hppLuar = filterDate
+    ? hitungHppLuarInvoice(processedInvoices, { dataProject, dataSPKProduct, dataJurnal, dataAkun, dataInvoicePengeluaran, spkTenagaIds }, filterDate)
+    : null;
+
+  const keuntunganPenjualan = totalGrossProfitPenjualan - (hppLuar ? hppLuar.total : 0) - totalSaldoAkhir;
 
 
   // Data untuk export PDF — bulan dipilih di modal, jadi laporannya dihitung
@@ -418,6 +425,14 @@ const Jurnal = () => {
 
 
           </div>
+
+          {hppLuar && (
+            <HppLuarInvoiceTable
+              hpp={hppLuar}
+              styles={{ tableContainerStyle, tableStyle, thStyle, thTdStyle, tbodyTrEvenStyle, tbodyTrOddStyle }}
+              onPilihAkun={(kode) => setAkunDipilih(dataAkun.find((a) => a.kodeAkun === kode) || null)}
+            />
+          )}
 
           <p className='fw-semibold px-4 mt-4 mb-2'>Pengeluaran (Operasional) <span className='fw-normal text-muted' style={{ fontSize: 12 }}>· klik akun untuk lihat rincian</span></p>
           <div style={{ ...tableContainerStyle, maxHeight: '60vh', overflowY: 'auto' }}>

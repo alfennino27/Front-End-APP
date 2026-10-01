@@ -338,6 +338,24 @@ const Invoice = () => {
     }
   };
 
+  // Tandai Pengeluaran Lain "sudah dijurnal": tetap dihitung di GP invoice ini (profit riil),
+  // tapi dikoreksi di Laba Rugi supaya tidak dobel dengan jurnal.
+  const tandaiSudahDijurnal = async (ids, sudahDijurnal) => {
+    if (!ids.length) return;
+    try {
+      const res = await fetch(`${baseUrl}/invoice/pengeluaran/tandai-jurnal`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids, sudahDijurnal }),
+      });
+      if (!res.ok) throw new Error('Gagal menyimpan tanda jurnal');
+      fetchDataPengeluaran();
+    } catch (err) {
+      console.error(err);
+      alert(err.message);
+    }
+  };
+
   const fetchDataPengeluaran = async () => {
     if (!slug) return;
 
@@ -2272,7 +2290,21 @@ const Invoice = () => {
 
                 }}>
                 <h4 style={{ color: globalTheme == "light" ? "#000000" : "#ffffff", marginTop: "0px", marginBottom: "0px" }}>Jurnal Pengeluaran Order</h4>
-                <button className="btnKomentar button-effect2" style={{ marginRight: '0.5vh' }} onClick={() => { setShowPengeluaranModal(true); refreshState(); }}>+ Pengeluaran</button>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                  {dataPengeluaranFromDB.length > 0 && (() => {
+                    const belum = dataPengeluaranFromDB.filter((x) => !x.sudahDijurnal).map((x) => x.id);
+                    return (
+                      <button
+                        className="btnKomentar button-effect2"
+                        title="Pengeluaran yang uangnya sudah dicatat di Jurnal — tidak dihitung dobel di Laba Rugi"
+                        onClick={() => tandaiSudahDijurnal(belum.length ? belum : dataPengeluaranFromDB.map((x) => x.id), belum.length > 0)}
+                      >
+                        {belum.length ? 'Tandai semua sudah dijurnal' : 'Batalkan tanda jurnal'}
+                      </button>
+                    );
+                  })()}
+                  <button className="btnKomentar button-effect2" style={{ marginRight: '0.5vh' }} onClick={() => { setShowPengeluaranModal(true); refreshState(); }}>+ Pengeluaran</button>
+                </div>
               </div>
 
               <div className='SPK mt-1 shadow' style={{ backgroundImage: globalTheme === "light" ? "linear-gradient(to right, #ffffff, #e7e7e7)" : "linear-gradient(to right, #151515, #303030)", border: globalTheme === "light" ? "2px solid rgb(163, 163, 163)" : "2px solid #7a7a7a" }}>
@@ -2285,6 +2317,7 @@ const Invoice = () => {
                         <th className='tableStyle text-center'>Kategori</th>
                         <th className='tableStyle text-center'>Keterangan</th>
                         <th className='tableStyle text-center'>Nominal</th>
+                        <th className='tableStyle text-center'>Jurnal</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -2296,10 +2329,31 @@ const Invoice = () => {
                           <td className='tableStyle text-center'>{pengeluaran.kategoriPengeluaran}</td>
                           <td className='tableStyle text-center'>{pengeluaran.keteranganPengeluaran}</td>
                           <td className='tableStyle text-center'>Rp. {Number(pengeluaran.nominalPengeluaran).toLocaleString('id-ID')}</td>
+                          <td className='tableStyle text-center'>
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); tandaiSudahDijurnal([pengeluaran.id], !pengeluaran.sudahDijurnal); }}
+                              title={pengeluaran.sudahDijurnal ? 'Sudah ada di Jurnal — klik untuk batalkan' : 'Klik kalau uangnya sudah dicatat di Jurnal'}
+                              style={{
+                                minWidth: 44, minHeight: 30, padding: '2px 10px', borderRadius: 999, fontSize: 12, cursor: 'pointer',
+                                border: pengeluaran.sudahDijurnal ? '1px solid #1f8a4c' : '1px solid #9a9a9a',
+                                background: pengeluaran.sudahDijurnal ? '#e3f4ea' : 'transparent',
+                                color: pengeluaran.sudahDijurnal ? '#1f8a4c' : 'inherit',
+                              }}
+                            >
+                              {pengeluaran.sudahDijurnal ? '✓ Sudah' : 'Belum'}
+                            </button>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
+                  {dataPengeluaranFromDB.some((x) => x.sudahDijurnal) && (
+                    <small className='d-block mt-2' style={{ opacity: 0.8 }}>
+                      Sudah dijurnal: Rp. {dataPengeluaranFromDB.filter((x) => x.sudahDijurnal).reduce((t, x) => t + Number(x.nominalPengeluaran || 0), 0).toLocaleString('id-ID')}
+                      {' '}— tetap dihitung di gross profit invoice ini (profit riil), tapi dikoreksi di Laba Rugi supaya tidak dobel dengan jurnal.
+                    </small>
+                  )}
                 </div>
               </div>
             </div>

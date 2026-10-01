@@ -12,9 +12,11 @@ export const HPP_CATEGORIES = [
  * Aturannya:
  *  - belum ada SPK                     -> pakai estimasi
  *  - ada SPK dari pengrajin borong penuh -> pakai nilai SPK (sudah termasuk bahan)
- *  - ada SPK dari pengrajin borong TENAGA -> pakai estimasi, karena nilai SPK-nya
- *    cuma ongkos tukang sementara bahannya ditanggung KLF. Kalau estimasi kosong,
- *    terpaksa jatuh balik ke nilai SPK (HPP jadi terlalu kecil — isi estimasinya).
+ *  - ada SPK dari pengrajin borong TENAGA atau SPK budget -> pakai estimasi, karena
+ *    nilai SPK-nya cuma ongkos tukang / costing internal sementara bahannya ditanggung
+ *    KLF. Kalau estimasi kosong, jatuh balik ke nilai SPK. Finishing & Jok yang
+ *    estimasinya kosong diisi budget Cek Finishing & Jok (server, utils/budgetBengkel.js);
+ *    selisihnya dengan biaya riil muncul sebagai "selisih bengkel" di Laba Rugi.
  *
  * @param {object} product - dokumen Projects
  * @param {Array} spkProducts - dokumen SPKproduct (boleh semua, difilter di sini)
@@ -30,6 +32,27 @@ export const hitungHPPKategori = (product, spkProducts, cat, spkTenagaIds) => {
 
   const dariTenaga = spkTenagaIds && rows.some((r) => spkTenagaIds.has(r.idSPK));
   return dariTenaga && estimasi > 0 ? estimasi : spkTotal;
+};
+
+/**
+ * Biaya bengkel sendiri (Finishing & Jok) yang SUDAH ikut di HPP invoice, dikali Qty.
+ * Dipakai Laba Rugi untuk menghitung selisih bengkel = real jurnal − angka ini.
+ * Dihitung bengkel sendiri kalau: belum ada SPK (nilainya estimasi), atau
+ * SPK-nya dari pengrajin borong tenaga / SPK budget. SPK supplier luar tidak dihitung.
+ */
+export const BENGKEL_KATEGORI = ['Finishing', 'Jok'];
+export const hitungBengkelDiGP = (products, spkProducts, spkTenagaIds) => {
+  const hasil = { Finishing: 0, Jok: 0 };
+  products.forEach((p) => {
+    const qty = Number(p.Qty) || 0;
+    BENGKEL_KATEGORI.forEach((cat) => {
+      const rows = spkProducts.filter((s) => s.idProduct === p.id && s.category === cat);
+      const spkTotal = rows.reduce((sum, s) => sum + (Number(s.harga) || 0), 0);
+      const sendiri = spkTotal <= 0 || (spkTenagaIds && rows.some((r) => spkTenagaIds.has(r.idSPK)));
+      if (sendiri) hasil[cat] += hitungHPPKategori(p, spkProducts, cat, spkTenagaIds) * qty;
+    });
+  });
+  return hasil;
 };
 
 /**

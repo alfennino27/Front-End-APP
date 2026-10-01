@@ -3,7 +3,7 @@
 // angka di layar dan di PDF selalu sama. Semua fungsi murni: kasih data mentah
 // yang sudah di-fetch + bulan "YYYY-MM", balikannya siap dirender.
 
-import { hitungFinansialInvoice } from './invoiceFinancial';
+import { hitungFinansialInvoice, hitungBengkelDiGP } from './invoiceFinancial';
 
 const rupiah = (n) => `Rp. ${Number(n || 0).toLocaleString('id-ID')}`;
 
@@ -78,6 +78,67 @@ const sectionPengeluaran = (judul, dataAkun, dataJurnal, jenisAkun, bulan) => {
   };
 };
 
+// --- HPP di luar invoice (metode biaya standar, sejak 2026-10-01) ---
+// GP invoice memakai estimasi bengkel (Finishing/Jok; kosong → budget Cek Finishing & Jok). Biaya riilnya ada di
+// jurnal akun HPP berikut, jadi Laba Rugi mengurangkan SELISIH-nya saja (real − estimasi)
+// plus HPP jurnal lain yang tidak pernah masuk invoice. Mirror config/varianceEstimasi.js.
+export const AKUN_BENGKEL = { Finishing: ['6165', '6190'], Jok: ['6181', '6182'] };
+export const AKUN_HPP_LAIN = ['6119', '6185', '6150', '6173']; // ongkir, packing, hardware, servis barang
+
+/** Mutasi debet − kredit satu akun di bulan itu (tanpa saldo awal — akun laba rugi). */
+const mutasiAkun = (kodeAkun, dataJurnal, bulan) =>
+  dataJurnal.reduce((total, j) => {
+    if ((j.tanggal || '').substring(0, 7) !== bulan) return total;
+    const debet = j.kodeAkunDebet === kodeAkun ? Number(j.nominalDebet || 0) : 0;
+    const kredit = j.kodeAkunKredit === kodeAkun ? Number(j.nominalKredit || 0) : 0;
+    return total + debet - kredit;
+  }, 0);
+
+/**
+ * Hitung HPP di luar invoice untuk satu bulan.
+ * @param {Array} invoices - invoice yang GP-nya dipakai laporan ini
+ * @returns {{ bengkel: Array, lain: Array, total: number }}
+ */
+export const hitungHppLuarInvoice = (invoices, data, bulan) => {
+  const idInvoice = new Set(invoices.map((i) => i.id));
+  const products = data.dataProject.filter((p) => idInvoice.has(p.idInvoice));
+  const idProducts = new Set(products.map((p) => p.id));
+  const spkProducts = data.dataSPKProduct.filter((s) => idProducts.has(s.idProduct));
+  const diGP = hitungBengkelDiGP(products, spkProducts, data.spkTenagaIds);
+
+  const bengkel = Object.entries(AKUN_BENGKEL).map(([kategori, akun]) => {
+    const real = akun.reduce((sum, k) => sum + mutasiAkun(k, data.dataJurnal, bulan), 0);
+    return { kategori, akun, real, budget: diGP[kategori], selisih: real - diGP[kategori] };
+  });
+  const lain = AKUN_HPP_LAIN.map((kodeAkun) => {
+    const akun = data.dataAkun.find((a) => a.kodeAkun === kodeAkun);
+    return { kodeAkun, namaAkun: akun?.namaAkun || kodeAkun, nominal: mutasiAkun(kodeAkun, data.dataJurnal, bulan) };
+  });
+  // Pengeluaran Lain bertanda "sudah dijurnal": tetap mengurangi GP invoice (supaya
+  // profit riil invoice terlihat), tapi uangnya sudah ada di jurnal → dikoreksi di sini.
+  const sudahDijurnal = (data.dataInvoicePengeluaran || [])
+    .filter((x) => x.sudahDijurnal && idInvoice.has(x.idInvoice))
+    .reduce((s, x) => s + Number(x.nominalPengeluaran || 0), 0);
+  const total = bengkel.reduce((s, b) => s + b.selisih, 0) + lain.reduce((s, l) => s + l.nominal, 0) - sudahDijurnal;
+  return { bengkel, lain, sudahDijurnal, total };
+};
+
+const sectionHppLuarInvoice = (hpp) => ({
+  judul: 'HPP di Luar Invoice',
+  kolom: ['Pos', 'Akun', 'Riil', 'Sudah di GP', 'Dikurangkan'],
+  align: ['left', 'left', 'right', 'right', 'right'],
+  baris: [
+    ...hpp.bengkel.map((b) => [
+      `Selisih bengkel ${b.kategori}`, b.akun.join(', '), rupiah(b.real), rupiah(b.budget), rupiah(b.selisih),
+    ]),
+    ...hpp.lain.map((l) => [l.namaAkun, l.kodeAkun, rupiah(l.nominal), '-', rupiah(l.nominal)]),
+    ...(hpp.sudahDijurnal
+      ? [['Koreksi: Pengeluaran Lain sudah dijurnal', '-', '-', rupiah(hpp.sudahDijurnal), rupiah(-hpp.sudahDijurnal)]]
+      : []),
+  ],
+  total: { label: 'Total :', labelSpan: 4, nilai: [rupiah(hpp.total)] },
+});
+
 /** Gross profit & nilai penjualan satu invoice, ambil data terkaitnya dulu. */
 const finansialInvoice = (invoice, data) => {
   const projects = data.dataProject.filter((p) => p.idInvoice === invoice.id);
@@ -118,6 +179,7 @@ export const buatLaporanPenjualan = (bulan, data) => {
     ];
   });
 
+  const hppLuar = hitungHppLuarInvoice(invoices, data, bulan);
   const operasional = sectionPengeluaran(
     'Pengeluaran (Operasional)', data.dataAkun, data.dataJurnal, 'Operasional', bulan
   );
@@ -141,10 +203,11 @@ export const buatLaporanPenjualan = (bulan, data) => {
           ],
         },
       },
+      sectionHppLuarInvoice(hppLuar),
       operasional.section,
     ],
     ringkasan: [
-      { label: 'Keuntungan Penjualan', nilai: rupiah(totalGrossProfit - operasional.total) },
+      { label: 'Keuntungan Penjualan', nilai: rupiah(totalGrossProfit - hppLuar.total - operasional.total) },
     ],
   };
 };
@@ -233,6 +296,7 @@ export const buatLaporanProfit = (bulan, data) => {
     ];
   });
 
+  const hppLuar = hitungHppLuarInvoice(invoices, data, bulan);
   const operasional = sectionPengeluaran(
     'Pengeluaran (Operasional)', data.dataAkun, data.dataJurnal, 'Operasional', bulan
   );
@@ -252,10 +316,11 @@ export const buatLaporanProfit = (bulan, data) => {
           nilai: [rupiah(totalPenjualan), rupiah(totalGrossProfit)],
         },
       },
+      sectionHppLuarInvoice(hppLuar),
       operasional.section,
     ],
     ringkasan: [
-      { label: 'Keuntungan Penjualan', nilai: rupiah(totalGrossProfit - operasional.total) },
+      { label: 'Keuntungan Penjualan', nilai: rupiah(totalGrossProfit - hppLuar.total - operasional.total) },
     ],
   };
 };

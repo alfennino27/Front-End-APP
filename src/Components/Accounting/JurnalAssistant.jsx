@@ -78,7 +78,7 @@ const BarisKartu = memo(({ r, opsiAkun, opsiInvoice, opsiSpk, dipilih, onPilih, 
   return (
     <div style={kotak}>
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-        {r.status === 'siap' && <Checkbox checked={dipilih} onChange={(e) => onPilih(r.no, e.target.checked)} style={{ marginTop: 2 }} />}
+        {(r.status === 'siap' || r.status === 'perlu_cek') && <Checkbox checked={dipilih} onChange={(e) => onPilih(r.no, e.target.checked)} style={{ marginTop: 2 }} />}
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
             <span style={{ fontSize: 13 }}>
@@ -332,7 +332,7 @@ const JurnalAssistant = () => {
     try {
       const row = await kirim(`/jurnal-assistant/batch/${batch.id}/row/${r.no}`, 'PUT', patch);
       gantiBaris(row);
-      if (row.status !== 'siap') setPilih((p) => { const n = { ...p }; delete n[r.no]; return n; });
+      if (row.status !== 'siap' && row.status !== 'perlu_cek') setPilih((p) => { const n = { ...p }; delete n[r.no]; return n; });
     } catch (e) { message.error(e.message); } finally { setSibuk((s) => ({ ...s, [r.no]: false })); }
   }, [batch?.id]);
   const onPilih = useCallback((no, v) => setPilih((p) => ({ ...p, [no]: v })), []);
@@ -344,8 +344,12 @@ const JurnalAssistant = () => {
     return rows.filter((r) => tabDari(r.status) === tab && (!q || `${r.uraian} ${r.keterangan} ${r.nominal} ${r.debet} ${r.kredit}`.toLowerCase().includes(q)));
   }, [rows, tab, cari]);
   const siap = rows.filter((r) => r.status === 'siap');
-  const nosDipilih = siap.filter((r) => pilih[r.no]).map((r) => r.no);
-  const target = nosDipilih.length ? siap.filter((r) => pilih[r.no]) : siap;
+  // Kartu kuning (perlu_cek) bisa dicentang satuan; "Pilih semua" & default tetap hanya yang siap.
+  const dipilihRows = rows.filter((r) => pilih[r.no] && (r.status === 'siap' || r.status === 'perlu_cek'));
+  const nosDipilih = dipilihRows.map((r) => r.no);
+  const target = nosDipilih.length ? dipilihRows : siap;
+  const kuningDipilih = dipilihRows.filter((r) => r.status === 'perlu_cek').length;
+  const siapDipilih = nosDipilih.length - kuningDipilih;
   const totalTarget = target.reduce((t, r) => t + Number(r.nominalJurnal ?? r.nominal), 0);
 
   const simpan = async () => {
@@ -353,6 +357,8 @@ const JurnalAssistant = () => {
     try {
       const h = await kirim(`/jurnal-assistant/batch/${batch.id}/simpan`, 'POST', { nos: nosDipilih });
       message.success(`${h.disimpan} disimpan${h.sudahAda ? ` · ${h.sudahAda} ternyata sudah tercatat (dilewati)` : ''}${h.gagal ? ` · ${h.gagal} gagal` : ''}`, 6);
+      (h.hasil || []).filter((x) => !['disimpan', 'sudah_ada'].includes(x.status)).slice(0, 3)
+        .forEach((x) => message.warning(`#${x.no}: ${x.pesan || x.status}`, 8));
       setPilih({});
       await muatBatch(batch.id);
     } catch (e) { message.error(e.message); } finally { setMenyimpan(false); }
@@ -472,9 +478,13 @@ const JurnalAssistant = () => {
               {tab === 'belum' && siap.length > 0 && (
                 <div style={{ marginBottom: 8, fontSize: 13 }}>
                   <Checkbox
-                    checked={nosDipilih.length === siap.length}
-                    indeterminate={nosDipilih.length > 0 && nosDipilih.length < siap.length}
-                    onChange={(e) => setPilih(e.target.checked ? Object.fromEntries(siap.map((r) => [r.no, true])) : {})}
+                    checked={siapDipilih === siap.length}
+                    indeterminate={siapDipilih > 0 && siapDipilih < siap.length}
+                    onChange={(e) => setPilih((p) => {
+                      const n = Object.fromEntries(Object.entries(p).filter(([no]) => rows.find((r) => r.no === Number(no))?.status === 'perlu_cek'));
+                      if (e.target.checked) siap.forEach((r) => { n[r.no] = true; });
+                      return n;
+                    })}
                   >
                     Pilih semua
                   </Checkbox>
@@ -499,7 +509,7 @@ const JurnalAssistant = () => {
             </>
           )}
 
-          {batch.status === 'siap' && siap.length > 0 && (
+          {batch.status === 'siap' && (siap.length > 0 || nosDipilih.length > 0) && (
             <div style={{ position: 'fixed', left: 0, right: 0, bottom: 0, background: '#fff', borderTop: '1px solid #ddd', padding: '10px 16px', zIndex: 20, boxShadow: '0 -2px 8px rgba(0,0,0,0.06)' }}>
               <div style={{ maxWidth: 1000, margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
                 <span style={{ fontSize: 13 }}>
@@ -507,7 +517,7 @@ const JurnalAssistant = () => {
                 </span>
                 <Popconfirm
                   title={`Simpan ${target.length} baris?`}
-                  description="Jurnal & payment langsung masuk. Server mengecek dobel sekali lagi sebelum menulis."
+                  description={`Jurnal & payment langsung masuk. Server mengecek dobel sekali lagi sebelum menulis.${kuningDipilih ? ` ${kuningDipilih} baris kuning ikut — pastikan akun & peringatannya sudah dicek.` : ''}`}
                   okText="Simpan"
                   cancelText="Batal"
                   onConfirm={simpan}

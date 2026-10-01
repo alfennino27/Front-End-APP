@@ -17,14 +17,12 @@ const rp = (v) => `Rp ${Number(v || 0).toLocaleString('id-ID', { maximumFraction
 const tglPendek = (t) => (t ? `${Number(t.slice(8, 10))} ${NAMA_BULAN[Number(t.slice(5, 7)) - 1]} ${t.slice(2, 4)}` : '-');
 const NAMA_AKUN_SUMBER = { 1110: 'Kas', 1120: 'BCA', 1125: 'Rek CV' };
 
-const STATUS = [
-  { key: 'perlu_cek', label: 'Perlu cek', warna: '#d46b08' },
-  { key: 'siap', label: 'Siap', warna: '#1d39c4' },
-  { key: 'sudah_ada', label: 'Sudah ada', warna: '#389e0d' },
-  { key: 'duplikat', label: 'Duplikat', warna: '#8c8c8c' },
-  { key: 'disimpan', label: 'Disimpan', warna: '#237804' },
-  { key: 'dilewati', label: 'Dilewati', warna: '#8c8c8c' },
+// 2 tab saja: status detail tetap ada di baris (perlu_cek = kartu kuning).
+const TAB = [
+  { key: 'belum', label: 'Belum ada', warna: '#1d39c4', status: ['perlu_cek', 'siap', 'dilewati'] },
+  { key: 'sudah', label: 'Sudah ada', warna: '#389e0d', status: ['sudah_ada', 'duplikat', 'disimpan'] },
 ];
+const tabDari = (status) => (TAB.find((t) => t.status.includes(status)) || TAB[0]).key;
 const AKSI = [
   { value: 'jurnal', label: 'Jurnal biasa' },
   { value: 'payment_invoice', label: 'Payment invoice (uang masuk customer)' },
@@ -60,7 +58,8 @@ const BarisKartu = memo(({ r, opsiAkun, opsiInvoice, opsiSpk, dipilih, onPilih, 
   const masuk = r.arah === 'CR';
   const nominal = r.nominalJurnal ?? r.nominal;
 
-  const kotak = { border: '1px solid #e5e5e5', borderRadius: 10, padding: mobile ? '10px 12px' : '12px 16px', background: '#fff', marginBottom: 10, opacity: sibuk ? 0.6 : 1 };
+  const ragu = r.status === 'perlu_cek'; // AI tidak yakin → kartu kuning
+  const kotak = { border: `1px solid ${ragu ? '#ffe58f' : '#e5e5e5'}`, borderRadius: 10, padding: mobile ? '10px 12px' : '12px 16px', background: ragu ? '#fffbe6' : '#fff', marginBottom: 10, opacity: sibuk ? 0.6 : 1 };
   const kecil = { fontSize: 12, color: '#777' };
   const label = { fontSize: 11, color: '#888', marginBottom: 2 };
   const grid = { display: 'grid', gridTemplateColumns: mobile ? '1fr' : '1fr 1fr', gap: 8, marginTop: 8 };
@@ -206,7 +205,7 @@ const JurnalAssistant = () => {
   const [files, setFiles] = useState([]);
   const [mengunggah, setMengunggah] = useState(false);
   const [progresUpload, setProgresUpload] = useState('');
-  const [tab, setTab] = useState('perlu_cek');
+  const [tab, setTab] = useState('belum');
   const [cari, setCari] = useState('');
   const [pilih, setPilih] = useState({});
   const [sibuk, setSibuk] = useState({});
@@ -278,8 +277,8 @@ const JurnalAssistant = () => {
         poll.current = setTimeout(() => muatBatch(id), 3000);
       } else {
         muatDaftar();
-        const ada = (k) => b.rows.some((r) => r.status === k);
-        setTab((t) => (ada(t) ? t : ['perlu_cek', 'siap', 'sudah_ada', 'disimpan'].find(ada) || 'perlu_cek'));
+        const ada = (k) => b.rows.some((r) => tabDari(r.status) === k);
+        setTab((t) => (ada(t) ? t : ['belum', 'sudah'].find(ada) || 'belum'));
       }
     } catch (e) { setError(e.message); }
   }, [api, muatDaftar]);
@@ -339,10 +338,10 @@ const JurnalAssistant = () => {
   const onPilih = useCallback((no, v) => setPilih((p) => ({ ...p, [no]: v })), []);
 
   const rows = batch?.rows || [];
-  const hitung = useMemo(() => { const h = {}; rows.forEach((r) => { h[r.status] = (h[r.status] || 0) + 1; }); return h; }, [rows]);
+  const hitung = useMemo(() => { const h = {}; rows.forEach((r) => { const k = tabDari(r.status); h[k] = (h[k] || 0) + 1; }); return h; }, [rows]);
   const tampil = useMemo(() => {
     const q = cari.trim().toLowerCase();
-    return rows.filter((r) => r.status === tab && (!q || `${r.uraian} ${r.keterangan} ${r.nominal} ${r.debet} ${r.kredit}`.toLowerCase().includes(q)));
+    return rows.filter((r) => tabDari(r.status) === tab && (!q || `${r.uraian} ${r.keterangan} ${r.nominal} ${r.debet} ${r.kredit}`.toLowerCase().includes(q)));
   }, [rows, tab, cari]);
   const siap = rows.filter((r) => r.status === 'siap');
   const nosDipilih = siap.filter((r) => pilih[r.no]).map((r) => r.no);
@@ -455,7 +454,7 @@ const JurnalAssistant = () => {
             )}
             {batch.status === 'siap' && (
               <div style={{ fontSize: 12, color: '#888', marginTop: 6 }}>
-                "Sudah ada" = transaksi yang sudah punya jurnal/payment (termasuk payment invoice & SPK otomatis) — tidak akan dijurnal lagi.
+                Kartu <span style={{ background: '#fffbe6', border: '1px solid #ffe58f', borderRadius: 4, padding: '0 4px' }}>kuning</span> = AI belum yakin, cek dulu (tidak ikut tersimpan sampai diperbaiki). "Sudah ada" = transaksi yang sudah punya jurnal/payment (termasuk payment invoice & SPK otomatis) — tidak akan dijurnal lagi.
               </div>
             )}
           </div>
@@ -466,11 +465,11 @@ const JurnalAssistant = () => {
                 <Segmented
                   value={tab}
                   onChange={setTab}
-                  options={STATUS.filter((s) => hitung[s.key]).map((s) => ({ value: s.key, label: <span style={{ color: s.warna }}>{s.label} {hitung[s.key]}</span> }))}
+                  options={TAB.map((s) => ({ value: s.key, label: <span style={{ color: s.warna }}>{s.label} {hitung[s.key] || 0}</span> }))}
                 />
               </div>
               <Input.Search allowClear placeholder="Cari uraian / nominal / akun…" value={cari} onChange={(e) => setCari(e.target.value)} style={{ marginBottom: 10 }} />
-              {tab === 'siap' && siap.length > 0 && (
+              {tab === 'belum' && siap.length > 0 && (
                 <div style={{ marginBottom: 8, fontSize: 13 }}>
                   <Checkbox
                     checked={nosDipilih.length === siap.length}

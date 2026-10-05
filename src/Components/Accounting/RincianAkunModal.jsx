@@ -116,8 +116,16 @@ const AkunPicker = ({ value, onChange, opsi, disabled }) => {
   );
 };
 
-const RincianAkunModal = ({ akun, filterDate, dataJurnal, dataAkun, onHide, onJurnalUpdated }) => {
+const RincianAkunModal = ({ akun, filterDate, bulanList, dataJurnal, dataAkun, onHide, onJurnalUpdated }) => {
   const kodeAkun = akun?.kodeAkun;
+  // Bisa satu bulan (filterDate) atau rentang bulan (bulanList) — isinya sama:
+  // daftar "YYYY-MM" yang jurnalnya ikut dihitung.
+  const bulan = useMemo(
+    () => (bulanList?.length ? bulanList : filterDate ? [filterDate] : []),
+    [bulanList, filterDate]
+  );
+  const labelPeriode =
+    bulan.length === 0 ? '' : bulan.length === 1 ? namaBulan(bulan[0]) : `${namaBulan(bulan[0])} s/d ${namaBulan(bulan[bulan.length - 1])}`;
   // Form edit akun: hanya satu transaksi yang terbuka sekaligus.
   const [editId, setEditId] = useState(null);
   const [editDebet, setEditDebet] = useState('');
@@ -170,15 +178,16 @@ const RincianAkunModal = ({ akun, filterDate, dataJurnal, dataAkun, onHide, onJu
   );
 
   const { entries, saldoAwal, totalDebet, totalKredit, total } = useMemo(() => {
-    if (!akun || !filterDate) return { entries: [], saldoAwal: 0, totalDebet: 0, totalKredit: 0, total: 0 };
+    if (!akun || bulan.length === 0) return { entries: [], saldoAwal: 0, totalDebet: 0, totalKredit: 0, total: 0 };
 
-    // Saldo awal bulan dihitung dari jurnal (pengganti isian "tutup buku").
-    const saldoAwal = saldoAkunBulan(akun, dataJurnal, filterDate).awal;
+    // Saldo awal bulan pertama dihitung dari jurnal (pengganti isian "tutup buku").
+    const saldoAwal = saldoAkunBulan(akun, dataJurnal, bulan[0]).awal;
+    const setBulan = new Set(bulan);
 
     const entries = dataJurnal
       .filter((j) =>
         (j.kodeAkunDebet === kodeAkun || j.kodeAkunKredit === kodeAkun) &&
-        String(j.tanggal || '').substring(0, 7) === filterDate
+        setBulan.has(String(j.tanggal || '').substring(0, 7))
       )
       .map((j) => {
         const debet = j.kodeAkunKredit === kodeAkun ? 0 : Number(j.nominalDebet || 0);
@@ -191,7 +200,7 @@ const RincianAkunModal = ({ akun, filterDate, dataJurnal, dataAkun, onHide, onJu
     const totalDebet = entries.reduce((s, e) => s + e.debet, 0);
     const totalKredit = entries.reduce((s, e) => s + e.kredit, 0);
     return { entries, saldoAwal, totalDebet, totalKredit, total: saldoAwal + totalDebet - totalKredit };
-  }, [akun, filterDate, dataJurnal, kodeAkun]);
+  }, [akun, bulan, dataJurnal, kodeAkun]);
 
   const namaAkun = (kode) => dataAkun?.find((a) => a.kodeAkun === kode)?.namaAkun || '';
 
@@ -219,7 +228,7 @@ const RincianAkunModal = ({ akun, filterDate, dataJurnal, dataAkun, onHide, onJu
       <Modal.Header closeButton>
         <Modal.Title style={{ fontSize: 17 }}>
           {kodeAkun} · {akun?.namaAkun}
-          <div style={{ fontSize: 13, fontWeight: 400, color: '#666' }}>{namaBulan(filterDate)}</div>
+          <div style={{ fontSize: 13, fontWeight: 400, color: '#666' }}>{labelPeriode}</div>
         </Modal.Title>
       </Modal.Header>
       <Modal.Body style={{ background: '#FAFAFA' }}>
@@ -256,7 +265,7 @@ const RincianAkunModal = ({ akun, filterDate, dataJurnal, dataAkun, onHide, onJu
 
         {entries.length === 0 ? (
           <div className="text-center text-muted py-4" style={{ fontSize: 14 }}>
-            Tidak ada transaksi jurnal untuk akun ini di {namaBulan(filterDate)}.
+            Tidak ada transaksi jurnal untuk akun ini di {labelPeriode}.
           </div>
         ) : (
           entries.map((e, i) => (

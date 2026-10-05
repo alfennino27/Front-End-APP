@@ -7,12 +7,22 @@ import { getApiBaseUrl } from '../../Config/APIurl';
 import { useNavigate } from 'react-router-dom';
 import { FaPaste } from 'react-icons/fa';
 import { DatePicker, Space } from 'antd';
-import { hitungFinansialInvoice, ambilSpkTenagaIds } from '../../Utils/invoiceFinancial';
+import dayjs from 'dayjs';
+import { useMemo } from 'react';
+import { ambilSpkTenagaIds } from '../../Utils/invoiceFinancial';
 import ExportLabaRugiPdf from './ExportLabaRugiPdf';
 import RincianAkunModal from './RincianAkunModal';
 import InvoiceBiayaModal from './InvoiceBiayaModal';
-import { buatLaporanPenjualan, buatLaporanPenjualanRange, persenGrossProfit, hitungHppLuarInvoice } from '../../Utils/labaRugiReport';
+import {
+  buatLaporanPenjualan, buatLaporanPenjualanRange, persenGrossProfit,
+  hitungPenjualanPerBulan, daftarBulan, labelBulan, labelRange,
+} from '../../Utils/labaRugiReport';
 import HppLuarInvoiceTable from './HppLuarInvoiceTable';
+import GrafikBulanan from './GrafikBulanan';
+
+const { RangePicker } = DatePicker;
+
+const rp = (n) => `Rp. ${Math.round(Number(n || 0)).toLocaleString('id-ID')}`;
 
 const Jurnal = () => {
   const baseUrl = getApiBaseUrl();
@@ -170,87 +180,51 @@ const Jurnal = () => {
     ambilSpkTenagaIds(baseUrl).then(setSpkTenagaIds);
   }, []);
 
+  // Periode laporan: satu bulan ("bulan") atau rentang beberapa bulan ("range").
+  const [mode, setMode] = useState('bulan');
   const [filterDate, setFilterDate] = useState(null);
+  const [rangeBulan, setRangeBulan] = useState([null, null]);
   // Akun yang diklik di tabel Pengeluaran → popup rincian jurnalnya.
   const [akunDipilih, setAkunDipilih] = useState(null);
   // Invoice yang diklik di tabel Penjualan → popup biaya/estimasi HPP.
   const [invoiceDipilih, setInvoiceDipilih] = useState(null);
 
-  const handleDateChange = (date, dateString) => {
-    setFilterDate(dateString); // Format dateString: "YYYY-MM"
+  // Daftar bulan yang sedang ditampilkan — satu-satunya sumber periode untuk
+  // semua tabel, grafik, dan popup rincian.
+  const bulanList = useMemo(() => {
+    if (mode === 'range') return daftarBulan(rangeBulan[0], rangeBulan[1]);
+    return filterDate ? [filterDate] : [];
+  }, [mode, filterDate, rangeBulan]);
+
+  const adaPeriode = bulanList.length > 0;
+  const modeRange = bulanList.length > 1;
+  const labelPeriode = adaPeriode ? labelRange(bulanList[0], bulanList[bulanList.length - 1]) : '-';
+
+  const dataMentah = {
+    dataInvoice, dataProject, dataSPKProduct, dataInvoicePengeluaran, dataAkun, dataJurnal, spkTenagaIds,
   };
 
-  const filteredInvoices = dataInvoice.filter(item => {
-    if (!filterDate) return true; // Jika tidak ada filter, tampilkan semua
-    const [year, month] = filterDate.split('-');
-    const itemYearMonth = item.tanggalMulaiInvoice.substring(0, 7); // Ambil "YYYY-MM"
-    return itemYearMonth === `${year}-${month}`;
-  });
+  // Semua angka halaman (penjualan, HPP di luar invoice, operasional, rekap per
+  // bulan) dihitung oleh util yang sama dengan PDF → layar & laporan tidak bisa beda.
+  const hasil = useMemo(
+    () => (adaPeriode ? hitungPenjualanPerBulan(bulanList, dataMentah) : null),
+    [bulanList, dataInvoice, dataProject, dataSPKProduct, dataInvoicePengeluaran, dataAkun, dataJurnal, spkTenagaIds]
+  );
 
+  const handleDateChange = (_, dateString) => setFilterDate(dateString || null); // "YYYY-MM"
 
-
-  const [keuntunganPenjualan, setKeuntunganPenjualan] = useState(0);
-
-  // HPP di luar invoice: selisih bengkel (real − estimasi di GP) + ongkir/packing/hardware
-  // − koreksi Pengeluaran Lain yang sudah dijurnal.
-  const hppLuar = filterDate
-    ? hitungHppLuarInvoice(filteredInvoices, { dataProject, dataSPKProduct, dataJurnal, dataAkun, dataInvoicePengeluaran, spkTenagaIds }, filterDate)
-    : null;
-  const totalHppLuar = hppLuar ? hppLuar.total : 0;
-
-  useEffect(() => {
-    if (!filterDate) {
-      setKeuntunganPenjualan(0);
-      return;
-    }
-
-    const totalGrossProfit = filteredInvoices.reduce((sum, item) => sum + (item.totalGrossProfit || 0), 0);
-
-    const totalPengeluaran = dataAkun
-      .filter(item => item.jenisAkun === "Operasional")
-      .reduce((total, item) => {
-        const saldoAwal = Number(item.saldoAwalDebit?.[filterDate] || 0) || Number(item.saldoAwalKredit?.[filterDate] || 0);
-        const saldoAkhir = dataJurnal
-          .filter(jurnal => {
-            const isKodeAkunMatched = jurnal.kodeAkunDebet === item.kodeAkun || jurnal.kodeAkunKredit === item.kodeAkun;
-            if (filterDate) {
-              const [filterYear, filterMonth] = filterDate.split('-');
-              const jurnalYearMonth = jurnal.tanggal?.substring(0, 7) || ""; // Pastikan jurnal.tanggal tidak undefined
-              return isKodeAkunMatched && jurnalYearMonth === `${filterYear}-${filterMonth}`;
-            }
-            return isKodeAkunMatched;
-          })
-          .reduce((saldo, jurnal) => {
-            const adjustedNominalDebet = jurnal.kodeAkunKredit === item.kodeAkun ? 0 : Number(jurnal.nominalDebet || 0);
-            const adjustedNominalKredit = jurnal.kodeAkunDebet === item.kodeAkun ? 0 : Number(jurnal.nominalKredit || 0);
-            return saldo + adjustedNominalDebet - adjustedNominalKredit;
-          }, saldoAwal);
-
-        return total + saldoAkhir;
-      }, 0);
-
-    setKeuntunganPenjualan(totalGrossProfit - totalHppLuar - totalPengeluaran);
-  }, [filteredInvoices, dataAkun, dataJurnal, filterDate, totalHppLuar]); // Perbarui saat data berubah
-
-
+  // Klik satu bulan di grafik / rekap → zoom ke bulan itu.
+  const pilihBulan = (bulan) => {
+    setMode('bulan');
+    setFilterDate(bulan);
+  };
 
   // Data untuk export PDF — bulan dipilih di modal, jadi laporannya dihitung
   // ulang dari data mentah yang sudah ter-fetch (bukan dari tabel di layar).
-  const dataLaporan = () => ({
-    dataInvoice,
-    dataProject,
-    dataSPKProduct,
-    dataInvoicePengeluaran,
-    dataAkun,
-    dataJurnal,
-    spkTenagaIds,
-  });
-
-  const buatLaporanPdf = (bulan) => buatLaporanPenjualan(bulan, dataLaporan());
+  const buatLaporanPdf = (bulan) => buatLaporanPenjualan(bulan, dataMentah);
 
   // Mode range: bulan-bulan dalam rentang digabung + grafik bulanan.
-  const buatLaporanPdfRange = (awal, akhir) =>
-    buatLaporanPenjualanRange(awal, akhir, dataLaporan());
+  const buatLaporanPdfRange = (awal, akhir) => buatLaporanPenjualanRange(awal, akhir, dataMentah);
 
   return (
     <>
@@ -262,7 +236,43 @@ const Jurnal = () => {
 
               <div className="d-flex flex-wrap align-items-center gap-2">
                 <ExportLabaRugiPdf bulanAktif={filterDate} buatLaporan={buatLaporanPdf} buatLaporanRange={buatLaporanPdfRange} />
-                <DatePicker picker="month" style={{ borderColor: 'blue', color: 'blue' }} onChange={handleDateChange} />
+
+                {/* Pilih periode: satu bulan atau rentang beberapa bulan */}
+                <div className="d-flex" role="group">
+                  {[['bulan', 'Bulan'], ['range', 'Rentang']].map(([nilai, label], i) => (
+                    <button
+                      key={nilai}
+                      type="button"
+                      onClick={() => setMode(nilai)}
+                      style={{
+                        border: '1px solid blue',
+                        background: mode === nilai ? 'blue' : '#fff',
+                        color: mode === nilai ? '#fff' : 'blue',
+                        fontSize: 13, padding: '4px 12px',
+                        borderRadius: i === 0 ? '5px 0 0 5px' : '0 5px 5px 0',
+                        borderLeftWidth: i === 0 ? 1 : 0,
+                      }}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+
+                {mode === 'range' ? (
+                  <RangePicker
+                    picker="month"
+                    style={{ borderColor: 'blue', color: 'blue' }}
+                    value={rangeBulan[0] && rangeBulan[1] ? [dayjs(rangeBulan[0], 'YYYY-MM'), dayjs(rangeBulan[1], 'YYYY-MM')] : null}
+                    onChange={(_, dateStrings) => setRangeBulan(dateStrings || [null, null])}
+                  />
+                ) : (
+                  <DatePicker
+                    picker="month"
+                    style={{ borderColor: 'blue', color: 'blue' }}
+                    value={filterDate ? dayjs(filterDate, 'YYYY-MM') : null}
+                    onChange={handleDateChange}
+                  />
+                )}
               </div>
 
             </div>
@@ -272,7 +282,64 @@ const Jurnal = () => {
 
         </div>
         <div className='mt-3' style={{ maxHeight: '77vh', overflowY: 'auto' }}>
-          <p className='fw-semibold px-4 mb-2'>Penjualan <span className='fw-normal text-muted' style={{ fontSize: 12 }}>· klik invoice untuk lihat / isi biaya</span></p>
+          {!adaPeriode && (
+            <p className='px-4 text-muted' style={{ fontSize: 13 }}>
+              Pilih bulan (atau rentang bulan) dulu untuk menampilkan laporan.
+            </p>
+          )}
+
+          {modeRange && hasil && (
+            <>
+              <GrafikBulanan rekap={hasil.rekap} onPilihBulan={pilihBulan} />
+
+              <p className='fw-semibold px-4 mt-4 mb-2'>
+                Rekap per Bulan{' '}
+                <span className='fw-normal text-muted' style={{ fontSize: 12 }}>· klik bulan untuk lihat detail bulan itu</span>
+              </p>
+              <div style={tableContainerStyle}>
+                <table style={tableStyle}>
+                  <thead>
+                    <tr>
+                      <th style={thStyle}>Bulan</th>
+                      <th style={thStyle}>Penjualan</th>
+                      <th style={thStyle}>Gross Profit</th>
+                      <th style={thStyle}>Pengeluaran</th>
+                      <th style={thStyle}>Keuntungan</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {hasil.rekap.map((r, index) => (
+                      <tr
+                        key={r.bulan}
+                        className='tr-hover-effect'
+                        onClick={() => pilihBulan(r.bulan)}
+                        title='Klik untuk lihat detail bulan ini'
+                        style={{ ...(index % 2 === 0 ? tbodyTrEvenStyle : tbodyTrOddStyle), cursor: 'pointer' }}
+                      >
+                        <td style={thTdStyle}><span style={{ color: 'blue' }}>{labelBulan(r.bulan)} ›</span></td>
+                        <td style={thTdStyle}>{rp(r.penjualan)}</td>
+                        <td style={thTdStyle}>{rp(r.grossProfit)}</td>
+                        <td style={thTdStyle}>{rp(r.pengeluaran)}</td>
+                        <td style={{ ...thTdStyle, color: r.keuntungan < 0 ? '#c0392b' : undefined }}>{rp(r.keuntungan)}</td>
+                      </tr>
+                    ))}
+                    <tr style={{ backgroundColor: '#E7E7E8' }} className='fw-semibold'>
+                      <td style={thTdStyle}>Total :</td>
+                      <td style={thTdStyle}>{rp(hasil.totalPenjualan)}</td>
+                      <td style={thTdStyle}>{rp(hasil.totalGrossProfit)}</td>
+                      <td style={thTdStyle}>{rp(hasil.totalPenjualan - hasil.keuntungan)}</td>
+                      <td style={thTdStyle}>{rp(hasil.keuntungan)}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+
+          <p className='fw-semibold px-4 mt-4 mb-2'>
+            Penjualan{' '}
+            <span className='fw-normal text-muted' style={{ fontSize: 12 }}>· klik invoice untuk lihat / isi biaya</span>
+          </p>
           <div style={{ ...tableContainerStyle, maxHeight: '60vh', overflowY: 'auto' }}>
             <table style={tableStyle}>
               <thead>
@@ -286,79 +353,53 @@ const Jurnal = () => {
                 </tr>
               </thead>
               <tbody>
-                {filterDate &&
-                  filteredInvoices.map((item, index) => {
-                    // Filter dataProject sesuai idInvoice
-                    const relatedProjects = dataProject.filter(project => project.idInvoice === item.id);
-
-                    // Ambil semua id dari relatedProjects
-                    const relatedProjectIds = relatedProjects.map(project => project.id);
-
-                    // Filter dataSPKProduct yang idProduct-nya ada di relatedProjectIds
-                    const relatedSPKProducts = dataSPKProduct.filter(spk => relatedProjectIds.includes(spk.idProduct));
-
-                    // Filter dataInvoicePengeluaran sesuai idInvoice
-                    const relatedPengeluaran = dataInvoicePengeluaran.filter(pengeluaran => pengeluaran.idInvoice === item.id);
-
-                    // Hitung nilai penjualan & gross profit (HPP = SPK per kategori, fallback estimasi)
-                    const { totalPenjualan, totalGrossProfit } = hitungFinansialInvoice(
-                      item, relatedProjects, relatedSPKProducts, relatedPengeluaran, spkTenagaIds
-                    );
-
-                    item.totalPenjualan = totalPenjualan;
-                    item.totalGrossProfit = totalGrossProfit;
-
-                    return (
-                      <tr
-                        key={index}
-                        className='tr-hover-effect'
-                        onClick={() => setInvoiceDipilih(item)}
-                        title='Klik untuk lihat / isi biaya'
-                        style={{ ...(index % 2 === 0 ? tbodyTrEvenStyle : tbodyTrOddStyle), cursor: 'pointer' }}
-                      >
-                        <td style={thTdStyle} className="text-center">
-                          {index + 1}
-                        </td>
-                        <td style={thTdStyle}>
-                          {new Date(item.tanggalMulaiInvoice).toLocaleDateString('id-ID', {
-                            day: 'numeric',
-                            month: 'long',
-                            year: 'numeric',
-                          })}
-                        </td>
-                        <td style={thTdStyle}><span style={{ color: 'blue' }}>{item.kodeInvoice} ›</span></td>
-                        <td style={thTdStyle}>Rp. {totalPenjualan.toLocaleString('id-ID')}</td>
-                        <td style={thTdStyle}>Rp. {totalGrossProfit.toLocaleString('id-ID')}</td>
-                        <td style={thTdStyle}>{persenGrossProfit(totalGrossProfit, totalPenjualan)}</td>
-                      </tr>
-                    );
-                  })}
+                {hasil &&
+                  hasil.invoices.map(({ invoice, totalPenjualan, totalGrossProfit }, index) => (
+                    <tr
+                      key={invoice.id || index}
+                      className='tr-hover-effect'
+                      onClick={() => setInvoiceDipilih(invoice)}
+                      title='Klik untuk lihat / isi biaya'
+                      style={{ ...(index % 2 === 0 ? tbodyTrEvenStyle : tbodyTrOddStyle), cursor: 'pointer' }}
+                    >
+                      <td style={thTdStyle} className="text-center">{index + 1}</td>
+                      <td style={thTdStyle}>
+                        {new Date(invoice.tanggalMulaiInvoice).toLocaleDateString('id-ID', {
+                          day: 'numeric', month: 'long', year: 'numeric',
+                        })}
+                      </td>
+                      <td style={thTdStyle}><span style={{ color: 'blue' }}>{invoice.kodeInvoice} ›</span></td>
+                      <td style={thTdStyle}>{rp(totalPenjualan)}</td>
+                      <td style={thTdStyle}>{rp(totalGrossProfit)}</td>
+                      <td style={thTdStyle}>{persenGrossProfit(totalGrossProfit, totalPenjualan)}</td>
+                    </tr>
+                  ))}
                 <tr style={{ backgroundColor: '#E7E7E8' }} className='fw-semibold'>
                   <td style={thTdStyle} colSpan={3}>Total : </td>
-                  <td style={thTdStyle}>Rp.{" "} {!filterDate ? "0" : filteredInvoices.reduce((sum, item) => sum + item.totalPenjualan, 0).toLocaleString('id-ID')}</td>
-                  <td style={thTdStyle}>Rp.{" "} {!filterDate ? "0" : filteredInvoices.reduce((sum, item) => sum + item.totalGrossProfit, 0).toLocaleString('id-ID')}</td>
-                  <td style={thTdStyle}>{!filterDate ? "-" : persenGrossProfit(
-                    filteredInvoices.reduce((sum, item) => sum + item.totalGrossProfit, 0),
-                    filteredInvoices.reduce((sum, item) => sum + item.totalPenjualan, 0)
-                  )}</td>
+                  <td style={thTdStyle}>{rp(hasil?.totalPenjualan)}</td>
+                  <td style={thTdStyle}>{rp(hasil?.totalGrossProfit)}</td>
+                  <td style={thTdStyle}>
+                    {hasil ? persenGrossProfit(hasil.totalGrossProfit, hasil.totalPenjualan) : '-'}
+                  </td>
                 </tr>
-
-
               </tbody>
             </table>
-
-
           </div>
 
-          {hppLuar && (
+          {hasil && (
             <HppLuarInvoiceTable
-              hpp={hppLuar}
+              hpp={hasil.hppLuar}
               styles={{ tableContainerStyle, tableStyle, thStyle, thTdStyle, tbodyTrEvenStyle, tbodyTrOddStyle }}
               onPilihAkun={(kode) => setAkunDipilih(dataAkun.find((a) => a.kodeAkun === kode) || null)}
             />
           )}
 
-          <p className='fw-semibold px-4 mt-4 mb-2'>Pengeluaran (Operasional) <span className='fw-normal text-muted' style={{ fontSize: 12 }}>· klik akun untuk lihat rincian</span></p>
+          <p className='fw-semibold px-4 mt-4 mb-2'>
+            Pengeluaran (Operasional){' '}
+            <span className='fw-normal text-muted' style={{ fontSize: 12 }}>
+              · klik akun untuk lihat rincian{modeRange ? ' seluruh rentang' : ''}
+            </span>
+          </p>
           <div style={{ ...tableContainerStyle, maxHeight: '60vh', overflowY: 'auto' }}>
             <table style={tableStyle}>
               <thead>
@@ -370,113 +411,31 @@ const Jurnal = () => {
                 </tr>
               </thead>
               <tbody>
-                {filterDate &&
-                  dataAkun
-                    .filter((item) => item.jenisAkun === "Operasional")
-                    .map((item, index) => {
-                      // Fungsi untuk menghitung saldo awal
-                      const getSaldoAwal = (saldoAwalDebit, saldoAwalKredit) => {
-                        const debit = Number(saldoAwalDebit || 0);
-                        const kredit = Number(saldoAwalKredit || 0);
-                        return debit || kredit; // Menggunakan saldoAwalDebit jika ada, jika tidak gunakan saldoAwalKredit
-                      };
-
-                      // Fungsi untuk menghitung saldo akhir
-                      const calculateSaldoAkhir = (kodeAkun, saldoAwal) => {
-                        return dataJurnal
-                          .filter((jurnal) => {
-                            // Filter berdasarkan kodeAkun
-                            const isKodeAkunMatched =
-                              jurnal.kodeAkunDebet === kodeAkun || jurnal.kodeAkunKredit === kodeAkun;
-
-                            // Filter berdasarkan tanggal jika filterDate ada
-                            if (filterDate) {
-                              const [filterYear, filterMonth] = filterDate.split('-');
-                              const jurnalYearMonth = jurnal.tanggal.substring(0, 7); // Ambil "YYYY-MM"
-                              return isKodeAkunMatched && jurnalYearMonth === `${filterYear}-${filterMonth}`;
-                            }
-
-                            // Jika filterDate tidak ada, hanya cek kodeAkun
-                            return isKodeAkunMatched;
-                          })
-                          .reduce((saldo, jurnal) => {
-                            const adjustedNominalDebet =
-                              jurnal.kodeAkunKredit === kodeAkun ? 0 : Number(jurnal.nominalDebet || 0);
-                            const adjustedNominalKredit =
-                              jurnal.kodeAkunDebet === kodeAkun ? 0 : Number(jurnal.nominalKredit || 0);
-                            return saldo + adjustedNominalDebet - adjustedNominalKredit;
-                          }, saldoAwal); // Memulai dengan saldo awal yang dihitung
-                      };
-
-                      // Hitung saldo awal
-                      const saldoAwal = getSaldoAwal(item.saldoAwalDebit?.[filterDate], item.saldoAwalKredit?.[filterDate]);
-
-                      // Hitung saldo akhir untuk akun ini
-                      const saldoAkhir = calculateSaldoAkhir(item.kodeAkun, saldoAwal);
-
-                      return (
-                        <tr
-                          key={index}
-                          className='tr-hover-effect'
-                          onClick={() => setAkunDipilih(item)}
-                          title='Klik untuk lihat rincian'
-                          style={{ ...(index % 2 === 0 ? tbodyTrEvenStyle : tbodyTrOddStyle), cursor: 'pointer' }}
-                        >
-                          <td style={thTdStyle} className="text-center">
-                            {index + 1}
-                          </td>
-                          <td style={thTdStyle}>{item.kodeAkun}</td>
-                          <td style={thTdStyle}><span style={{ color: 'blue' }}>{item.namaAkun} ›</span></td>
-                          <td style={thTdStyle}>
-                            Rp. {saldoAkhir.toLocaleString('id-ID')}
-                          </td>
-                        </tr>
-                      );
-                    })}
-
+                {hasil &&
+                  hasil.operasional.map(({ akun, nominal }, index) => (
+                    <tr
+                      key={akun.kodeAkun}
+                      className='tr-hover-effect'
+                      onClick={() => setAkunDipilih(akun)}
+                      title='Klik untuk lihat rincian'
+                      style={{ ...(index % 2 === 0 ? tbodyTrEvenStyle : tbodyTrOddStyle), cursor: 'pointer' }}
+                    >
+                      <td style={thTdStyle} className="text-center">{index + 1}</td>
+                      <td style={thTdStyle}>{akun.kodeAkun}</td>
+                      <td style={thTdStyle}><span style={{ color: 'blue' }}>{akun.namaAkun} ›</span></td>
+                      <td style={thTdStyle}>{rp(nominal)}</td>
+                    </tr>
+                  ))}
                 <tr style={{ backgroundColor: '#E7E7E8' }} className='fw-semibold'>
                   <td style={thTdStyle} colSpan={3}>Total : </td>
-                  <td style={thTdStyle}>
-                    Rp.{" "} {!filterDate ? "0" :
-                      dataAkun
-                        .filter((item) => item.jenisAkun === "Operasional")
-                        .reduce((total, item) => {
-                          const saldoAwal = Number(item.saldoAwalDebit?.[filterDate] || 0) || Number(item.saldoAwalKredit?.[filterDate] || 0);
-                          const saldoAkhir = dataJurnal
-                            .filter((jurnal) => {
-                              const isKodeAkunMatched =
-                                jurnal.kodeAkunDebet === item.kodeAkun || jurnal.kodeAkunKredit === item.kodeAkun;
-
-                              if (filterDate) {
-                                const [filterYear, filterMonth] = filterDate.split('-');
-                                const jurnalYearMonth = jurnal.tanggal.substring(0, 7); // Ambil "YYYY-MM"
-                                return isKodeAkunMatched && jurnalYearMonth === `${filterYear}-${filterMonth}`;
-                              }
-
-                              return isKodeAkunMatched;
-                            })
-                            .reduce((saldo, jurnal) => {
-                              const adjustedNominalDebet =
-                                jurnal.kodeAkunKredit === item.kodeAkun ? 0 : Number(jurnal.nominalDebet || 0);
-                              const adjustedNominalKredit =
-                                jurnal.kodeAkunDebet === item.kodeAkun ? 0 : Number(jurnal.nominalKredit || 0);
-                              return saldo + adjustedNominalDebet - adjustedNominalKredit;
-                            }, saldoAwal);
-
-                          return total + saldoAkhir;
-                        }, 0).toLocaleString('id-ID')}
-                  </td>
+                  <td style={thTdStyle}>{rp(hasil?.totalOperasional)}</td>
                 </tr>
-
-
               </tbody>
             </table>
-
-
           </div>
 
           <p className='fw-semibold px-4 mt-3'>
-            Keuntungan Penjualan : Rp. {" "} {!filterDate ? "0" : keuntunganPenjualan.toLocaleString('id-ID')}
+            Keuntungan Penjualan {adaPeriode ? `(${labelPeriode})` : ''} : {rp(hasil?.keuntungan)}
           </p>
 
 
@@ -498,7 +457,7 @@ const Jurnal = () => {
 
       <RincianAkunModal
         akun={akunDipilih}
-        filterDate={filterDate}
+        bulanList={bulanList}
         dataJurnal={dataJurnal}
         dataAkun={dataAkun}
         onHide={() => setAkunDipilih(null)}

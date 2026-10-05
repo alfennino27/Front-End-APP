@@ -324,3 +324,181 @@ export const buatLaporanProfit = (bulan, data) => {
     ],
   };
 };
+
+// ============================================================================
+// Laporan RANGE (beberapa bulan digabung) — dipakai tombol "Export PDF" mode
+// Range di halaman Laba Rugi Penjualan. Angkanya = penjumlahan laporan bulanan,
+// jadi total range selalu sama dengan menjumlahkan PDF bulanan satu per satu.
+// ============================================================================
+
+/** Daftar bulan "YYYY-MM" dari awal s/d akhir (inklusif). */
+export const daftarBulan = (awal, akhir) => {
+  if (!awal || !akhir) return [];
+  let [y, m] = awal.split('-').map(Number);
+  const [ya, ma] = akhir.split('-').map(Number);
+  if (!y || !m || !ya || !ma) return [];
+  const out = [];
+  while ((y < ya || (y === ya && m <= ma)) && out.length < 120) {
+    out.push(`${y}-${String(m).padStart(2, '0')}`);
+    m += 1;
+    if (m > 12) { m = 1; y += 1; }
+  }
+  return out;
+};
+
+/** "Januari 2026 s/d Mei 2026" */
+export const labelRange = (awal, akhir) =>
+  awal === akhir ? labelBulan(awal) : `${labelBulan(awal)} s/d ${labelBulan(akhir)}`;
+
+/** "Jan 26" — label sumbu X grafik. */
+export const labelBulanPendek = (bulan) => {
+  if (!bulan) return '-';
+  const [y, m] = bulan.split('-');
+  const d = new Date(Number(y), Number(m) - 1, 1);
+  if (isNaN(d)) return bulan;
+  return `${d.toLocaleDateString('id-ID', { month: 'short' })} ${String(y).slice(-2)}`;
+};
+
+/** Jumlahkan hasil hitungHppLuarInvoice beberapa bulan jadi satu. */
+const gabungHppLuar = (list) => {
+  const bengkel = [];
+  const lain = [];
+  list.forEach((h) => {
+    h.bengkel.forEach((b, i) => {
+      if (!bengkel[i]) bengkel[i] = { kategori: b.kategori, akun: b.akun, real: 0, budget: 0, selisih: 0 };
+      bengkel[i].real += b.real;
+      bengkel[i].budget += b.budget;
+      bengkel[i].selisih += b.selisih;
+    });
+    h.lain.forEach((l, i) => {
+      if (!lain[i]) lain[i] = { kodeAkun: l.kodeAkun, namaAkun: l.namaAkun, nominal: 0 };
+      lain[i].nominal += l.nominal;
+    });
+  });
+  return {
+    bengkel,
+    lain,
+    sudahDijurnal: list.reduce((s, h) => s + h.sudahDijurnal, 0),
+    total: list.reduce((s, h) => s + h.total, 0),
+  };
+};
+
+/**
+ * Laporan Laba Rugi Penjualan untuk rentang bulan.
+ * Penjualan & pengeluaran digabung jadi satu tabel, plus rekap + data grafik
+ * per bulan (penjualan, pengeluaran, keuntungan).
+ */
+export const buatLaporanPenjualanRange = (bulanAwal, bulanAkhir, data) => {
+  const bulanList = daftarBulan(bulanAwal, bulanAkhir);
+  const akunOperasional = data.dataAkun.filter((a) => a.jenisAkun === 'Operasional');
+
+  const barisPenjualan = [];
+  const nominalAkun = new Map(); // kodeAkun -> total operasional seluruh range
+  const hppPerBulan = [];
+  const grafik = [];
+  let totalPenjualan = 0;
+  let totalGrossProfit = 0;
+  let totalOperasional = 0;
+
+  bulanList.forEach((bulan) => {
+    const invoices = data.dataInvoice.filter(
+      (i) => (i.tanggalMulaiInvoice || '').substring(0, 7) === bulan
+    );
+
+    let penjualanBulan = 0;
+    let gpBulan = 0;
+    invoices.forEach((item) => {
+      const f = finansialInvoice(item, data);
+      penjualanBulan += f.totalPenjualan;
+      gpBulan += f.totalGrossProfit;
+      barisPenjualan.push([
+        String(barisPenjualan.length + 1),
+        tanggalPanjang(item.tanggalMulaiInvoice),
+        item.kodeInvoice,
+        rupiah(f.totalPenjualan),
+        rupiah(f.totalGrossProfit),
+        persenGrossProfit(f.totalGrossProfit, f.totalPenjualan),
+      ]);
+    });
+
+    const hpp = hitungHppLuarInvoice(invoices, data, bulan);
+    hppPerBulan.push(hpp);
+
+    let operasionalBulan = 0;
+    akunOperasional.forEach((a) => {
+      const nominal = saldoAkhirAkun(a, data.dataJurnal, bulan);
+      operasionalBulan += nominal;
+      nominalAkun.set(a.kodeAkun, (nominalAkun.get(a.kodeAkun) || 0) + nominal);
+    });
+
+    totalPenjualan += penjualanBulan;
+    totalGrossProfit += gpBulan;
+    totalOperasional += operasionalBulan;
+
+    const keuntungan = gpBulan - hpp.total - operasionalBulan;
+    grafik.push({
+      bulan,
+      penjualan: penjualanBulan,
+      // Semua biaya: HPP yang sudah masuk GP invoice + HPP di luar invoice + operasional,
+      // supaya Penjualan − Pengeluaran = Keuntungan di grafik.
+      pengeluaran: penjualanBulan - keuntungan,
+      keuntungan,
+    });
+  });
+
+  const hppLuar = gabungHppLuar(hppPerBulan);
+  const barisOperasional = akunOperasional.map((a, i) => [
+    String(i + 1), a.kodeAkun, a.namaAkun, rupiah(nominalAkun.get(a.kodeAkun) || 0),
+  ]);
+  const keuntunganTotal = totalGrossProfit - hppLuar.total - totalOperasional;
+
+  return {
+    judul: 'Laba Rugi Penjualan',
+    periode: labelRange(bulanAwal, bulanAkhir),
+    periodeFile: bulanAwal === bulanAkhir ? bulanAwal : `${bulanAwal}_sd_${bulanAkhir}`,
+    grafik,
+    sections: [
+      {
+        judul: 'Rekap per Bulan',
+        kolom: ['Bulan', 'Penjualan', 'Pengeluaran', 'Keuntungan'],
+        align: ['left', 'right', 'right', 'right'],
+        baris: grafik.map((g) => [
+          labelBulan(g.bulan), rupiah(g.penjualan), rupiah(g.pengeluaran), rupiah(g.keuntungan),
+        ]),
+        total: {
+          label: 'Total :',
+          labelSpan: 1,
+          nilai: [
+            rupiah(totalPenjualan),
+            rupiah(totalPenjualan - keuntunganTotal),
+            rupiah(keuntunganTotal),
+          ],
+        },
+      },
+      {
+        judul: 'Penjualan',
+        kolom: ['No', 'Tanggal', 'Kode Invoice', 'Nominal', 'Gross Profit', '% Gross Profit'],
+        align: ['center', 'left', 'left', 'right', 'right', 'right'],
+        baris: barisPenjualan,
+        total: {
+          label: 'Total :',
+          labelSpan: 3,
+          nilai: [
+            rupiah(totalPenjualan),
+            rupiah(totalGrossProfit),
+            persenGrossProfit(totalGrossProfit, totalPenjualan),
+          ],
+        },
+      },
+      sectionHppLuarInvoice(hppLuar),
+      {
+        judul: 'Pengeluaran (Operasional)',
+        kolom: ['No', 'Kode Akun', 'Nama Akun', 'Nominal'],
+        align: ['center', 'left', 'left', 'right'],
+        baris: barisOperasional,
+        total: { label: 'Total :', labelSpan: 3, nilai: [rupiah(totalOperasional)] },
+      },
+    ],
+    ringkasan: [{ label: 'Keuntungan Penjualan', nilai: rupiah(keuntunganTotal) }],
+  };
+};

@@ -11,7 +11,7 @@ import { hitungFinansialInvoice, ambilSpkTenagaIds } from '../../Utils/invoiceFi
 import ExportLabaRugiPdf from './ExportLabaRugiPdf';
 import RincianAkunModal from './RincianAkunModal';
 import InvoiceBiayaModal from './InvoiceBiayaModal';
-import { buatLaporanPenjualan, persenGrossProfit, hitungHppLuarInvoice } from '../../Utils/labaRugiReport';
+import { buatLaporanPenjualan, buatLaporanPenjualanRange, persenGrossProfit, hitungHppLuarInvoice } from '../../Utils/labaRugiReport';
 import HppLuarInvoiceTable from './HppLuarInvoiceTable';
 
 const Jurnal = () => {
@@ -236,16 +236,21 @@ const Jurnal = () => {
 
   // Data untuk export PDF — bulan dipilih di modal, jadi laporannya dihitung
   // ulang dari data mentah yang sudah ter-fetch (bukan dari tabel di layar).
-  const buatLaporanPdf = (bulan) =>
-    buatLaporanPenjualan(bulan, {
-      dataInvoice,
-      dataProject,
-      dataSPKProduct,
-      dataInvoicePengeluaran,
-      dataAkun,
-      dataJurnal,
-      spkTenagaIds,
-    });
+  const dataLaporan = () => ({
+    dataInvoice,
+    dataProject,
+    dataSPKProduct,
+    dataInvoicePengeluaran,
+    dataAkun,
+    dataJurnal,
+    spkTenagaIds,
+  });
+
+  const buatLaporanPdf = (bulan) => buatLaporanPenjualan(bulan, dataLaporan());
+
+  // Mode range: bulan-bulan dalam rentang digabung + grafik bulanan.
+  const buatLaporanPdfRange = (awal, akhir) =>
+    buatLaporanPenjualanRange(awal, akhir, dataLaporan());
 
   return (
     <>
@@ -256,7 +261,7 @@ const Jurnal = () => {
               <AccountingMenu />
 
               <div className="d-flex flex-wrap align-items-center gap-2">
-                <ExportLabaRugiPdf bulanAktif={filterDate} buatLaporan={buatLaporanPdf} />
+                <ExportLabaRugiPdf bulanAktif={filterDate} buatLaporan={buatLaporanPdf} buatLaporanRange={buatLaporanPdfRange} />
                 <DatePicker picker="month" style={{ borderColor: 'blue', color: 'blue' }} onChange={handleDateChange} />
               </div>
 

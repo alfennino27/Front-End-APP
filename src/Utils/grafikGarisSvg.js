@@ -24,8 +24,9 @@ export const SERI_GRAFIK = [
 
 /**
  * @param {Array<{bulan:string, penjualan:number, pengeluaran:number, keuntungan:number}>} grafik
- * @param {{interaktif?: boolean}} opsi - interaktif: tambah area klik per bulan
- *        (atribut data-bulan) untuk dipakai halaman ERP.
+ * @param {{hrefBulan?: (bulan: string) => string}} opsi - kalau diisi, tiap bulan
+ *        dapat area klik berupa <a target="_blank"> ke laporan bulan itu
+ *        (dipakai halaman ERP; di PDF tidak dirender).
  */
 export const svgGrafikGaris = (grafik, opsi = {}) => {
   if (!grafik || grafik.length < 2) return '';
@@ -90,10 +91,11 @@ export const svgGrafikGaris = (grafik, opsi = {}) => {
     );
   }).join('');
 
-  // Pita klik selebar satu bulan — hanya di layar (ERP), supaya bisa drill-down
-  // ke bulan itu. Di PDF tidak dirender sama sekali.
+  // Pita klik selebar satu bulan — hanya di layar (ERP). Pakai <a target="_blank">
+  // supaya laporan bulan itu terbuka di tab baru dan halaman rentang ini tetap utuh
+  // (sekaligus bisa klik-tengah / ⌘-klik seperti link biasa).
   const lebarPita = plotW / Math.max(n - 1, 1);
-  const pita = opsi.interaktif
+  const pita = opsi.hrefBulan
     ? grafik
         .map((g, i) => {
           const px = Math.max(ML, x(i) - lebarPita / 2);
@@ -101,9 +103,11 @@ export const svgGrafikGaris = (grafik, opsi = {}) => {
           const judul = `${labelBulanPendek(g.bulan)}\nPenjualan ${singkatRupiah(g.penjualan)}\nPengeluaran ${singkatRupiah(
             g.pengeluaran
           )}\nKeuntungan ${singkatRupiah(g.keuntungan)}`;
-          return `<rect data-bulan="${escapeHtml(g.bulan)}" x="${px.toFixed(1)}" y="${MT}" width="${lebar.toFixed(
-            1
-          )}" height="${plotH}" fill="transparent" style="cursor:pointer"><title>${escapeHtml(judul)}</title></rect>`;
+          return (
+            `<a href="${escapeHtml(opsi.hrefBulan(g.bulan))}" target="_blank" rel="noopener">` +
+            `<rect x="${px.toFixed(1)}" y="${MT}" width="${lebar.toFixed(1)}" height="${plotH}" fill="transparent" style="cursor:pointer">` +
+            `<title>${escapeHtml(judul)}</title></rect></a>`
+          );
         })
         .join('')
     : '';

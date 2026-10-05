@@ -181,9 +181,21 @@ const Jurnal = () => {
   }, []);
 
   // Periode laporan: satu bulan ("bulan") atau rentang beberapa bulan ("range").
-  const [mode, setMode] = useState('bulan');
-  const [filterDate, setFilterDate] = useState(null);
-  const [rangeBulan, setRangeBulan] = useState([null, null]);
+  // Disimpan juga di query URL (?bulan= / ?awal=&akhir=) supaya periode tidak
+  // hilang saat refresh dan bisa dibuka di tab baru.
+  const periodeAwal = useMemo(() => {
+    const q = new URLSearchParams(window.location.search);
+    const bulan = q.get('bulan');
+    const awal = q.get('awal');
+    const akhir = q.get('akhir');
+    if (awal && akhir) return { mode: 'range', filterDate: null, range: [awal, akhir] };
+    if (bulan) return { mode: 'bulan', filterDate: bulan, range: [null, null] };
+    return { mode: 'bulan', filterDate: null, range: [null, null] };
+  }, []);
+
+  const [mode, setMode] = useState(periodeAwal.mode);
+  const [filterDate, setFilterDate] = useState(periodeAwal.filterDate);
+  const [rangeBulan, setRangeBulan] = useState(periodeAwal.range);
   // Akun yang diklik di tabel Pengeluaran → popup rincian jurnalnya.
   const [akunDipilih, setAkunDipilih] = useState(null);
   // Invoice yang diklik di tabel Penjualan → popup biaya/estimasi HPP.
@@ -213,11 +225,23 @@ const Jurnal = () => {
 
   const handleDateChange = (_, dateString) => setFilterDate(dateString || null); // "YYYY-MM"
 
-  // Klik satu bulan di grafik / rekap → zoom ke bulan itu.
-  const pilihBulan = (bulan) => {
-    setMode('bulan');
-    setFilterDate(bulan);
-  };
+  // Periode ikut ditulis ke URL (replace, bukan push) — tab ini tidak menambah
+  // riwayat back, tapi link-nya bisa di-copy / dibuka ulang.
+  useEffect(() => {
+    const q = new URLSearchParams();
+    if (mode === 'range') {
+      if (rangeBulan[0] && rangeBulan[1]) { q.set('awal', rangeBulan[0]); q.set('akhir', rangeBulan[1]); }
+    } else if (filterDate) {
+      q.set('bulan', filterDate);
+    }
+    const url = q.toString() ? `${window.location.pathname}?${q}` : window.location.pathname;
+    window.history.replaceState(null, '', url);
+  }, [mode, filterDate, rangeBulan]);
+
+  // Klik satu bulan di grafik / rekap → laporan bulan itu dibuka di TAB BARU
+  // (link biasa, bukan window.open), supaya rentang di tab ini tidak hilang dan
+  // tetap bisa klik-tengah / ⌘-klik.
+  const hrefBulan = (bulan) => `${window.location.pathname}?bulan=${bulan}`;
 
   // Data untuk export PDF — bulan dipilih di modal, jadi laporannya dihitung
   // ulang dari data mentah yang sudah ter-fetch (bukan dari tabel di layar).
@@ -290,11 +314,11 @@ const Jurnal = () => {
 
           {modeRange && hasil && (
             <>
-              <GrafikBulanan rekap={hasil.rekap} onPilihBulan={pilihBulan} />
+              <GrafikBulanan rekap={hasil.rekap} hrefBulan={hrefBulan} />
 
               <p className='fw-semibold px-4 mt-4 mb-2'>
                 Rekap per Bulan{' '}
-                <span className='fw-normal text-muted' style={{ fontSize: 12 }}>· klik bulan untuk lihat detail bulan itu</span>
+                <span className='fw-normal text-muted' style={{ fontSize: 12 }}>· klik bulan untuk buka detailnya di tab baru</span>
               </p>
               <div style={tableContainerStyle}>
                 <table style={tableStyle}>
@@ -312,11 +336,19 @@ const Jurnal = () => {
                       <tr
                         key={r.bulan}
                         className='tr-hover-effect'
-                        onClick={() => pilihBulan(r.bulan)}
-                        title='Klik untuk lihat detail bulan ini'
-                        style={{ ...(index % 2 === 0 ? tbodyTrEvenStyle : tbodyTrOddStyle), cursor: 'pointer' }}
+                        style={{ ...(index % 2 === 0 ? tbodyTrEvenStyle : tbodyTrOddStyle) }}
                       >
-                        <td style={thTdStyle}><span style={{ color: 'blue' }}>{labelBulan(r.bulan)} ›</span></td>
+                        <td style={{ ...thTdStyle, padding: 0 }}>
+                          <a
+                            href={hrefBulan(r.bulan)}
+                            target='_blank'
+                            rel='noopener'
+                            title='Buka laporan bulan ini di tab baru'
+                            style={{ display: 'block', padding: '8px', color: 'blue', textDecoration: 'none' }}
+                          >
+                            {labelBulan(r.bulan)} ›
+                          </a>
+                        </td>
                         <td style={thTdStyle}>{rp(r.penjualan)}</td>
                         <td style={thTdStyle}>{rp(r.grossProfit)}</td>
                         <td style={thTdStyle}>{rp(r.pengeluaran)}</td>

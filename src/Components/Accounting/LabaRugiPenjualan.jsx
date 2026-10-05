@@ -19,6 +19,7 @@ import {
 } from '../../Utils/labaRugiReport';
 import HppLuarInvoiceTable from './HppLuarInvoiceTable';
 import GrafikBulanan from './GrafikBulanan';
+import SelisihBengkelModal from './SelisihBengkelModal';
 
 const { RangePicker } = DatePicker;
 
@@ -56,6 +57,8 @@ const Jurnal = () => {
   const [spkTenagaIds, setSpkTenagaIds] = useState(new Set());
   const [dataJurnal, setDataJurnal] = useState([]);
   const [dataAkun, setDataAkun] = useState([]);
+  // Header SPK (kode + pengrajin) — untuk rincian selisih bengkel.
+  const [dataSPK, setDataSPK] = useState([]);
 
 
 
@@ -170,7 +173,17 @@ const Jurnal = () => {
 
 
 
+  const fetchDataSPK = async () => {
+    try {
+      const res = await fetch(`${baseUrl}/accounting/spk/get`);
+      setDataSPK(await res.json());
+    } catch (err) {
+      console.error('Gagal mengambil data SPK:', err);
+    }
+  };
+
   useEffect(() => {
+    fetchDataSPK();
     fetchDataJurnal();
     fetchDataAkun();
     fetchDataInvoice();
@@ -200,6 +213,8 @@ const Jurnal = () => {
   const [akunDipilih, setAkunDipilih] = useState(null);
   // Invoice yang diklik di tabel Penjualan → popup biaya/estimasi HPP.
   const [invoiceDipilih, setInvoiceDipilih] = useState(null);
+  // Baris "Selisih bengkel Finishing/Jok" yang diklik → popup cek selisih.
+  const [bengkelDipilih, setBengkelDipilih] = useState(null);
 
   // Daftar bulan yang sedang ditampilkan — satu-satunya sumber periode untuk
   // semua tabel, grafik, dan popup rincian.
@@ -237,6 +252,12 @@ const Jurnal = () => {
     const url = q.toString() ? `${window.location.pathname}?${q}` : window.location.pathname;
     window.history.replaceState(null, '', url);
   }, [mode, filterDate, rangeBulan]);
+
+  // Data popup selisih bengkel — di-memo supaya rincian tidak dihitung ulang tiap render.
+  const dataBengkel = useMemo(
+    () => ({ ...dataMentah, dataSPK }),
+    [dataInvoice, dataProject, dataSPKProduct, dataInvoicePengeluaran, dataAkun, dataJurnal, spkTenagaIds, dataSPK]
+  );
 
   // Klik satu bulan di grafik / rekap → laporan bulan itu dibuka di TAB BARU
   // (link biasa, bukan window.open), supaya rentang di tab ini tidak hilang dan
@@ -423,6 +444,7 @@ const Jurnal = () => {
               hpp={hasil.hppLuar}
               styles={{ tableContainerStyle, tableStyle, thStyle, thTdStyle, tbodyTrEvenStyle, tbodyTrOddStyle }}
               onPilihAkun={(kode) => setAkunDipilih(dataAkun.find((a) => a.kodeAkun === kode) || null)}
+              onPilihBengkel={setBengkelDipilih}
             />
           )}
 
@@ -485,6 +507,13 @@ const Jurnal = () => {
         onEstimasiSaved={(idProduct, cat, value) =>
           setDataProject((prev) => prev.map((p) => (p.id === idProduct ? { ...p, [`estimasi${cat}`]: value } : p)))
         }
+      />
+
+      <SelisihBengkelModal
+        kategori={bengkelDipilih}
+        bulanList={bulanList}
+        data={dataBengkel}
+        onHide={() => setBengkelDipilih(null)}
       />
 
       <RincianAkunModal

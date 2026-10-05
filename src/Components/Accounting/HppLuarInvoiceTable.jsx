@@ -7,7 +7,7 @@ import React from 'react';
 
 const rp = (n) => `Rp. ${Math.round(Number(n || 0)).toLocaleString('id-ID')}`;
 
-const HppLuarInvoiceTable = ({ hpp, styles, onPilihAkun }) => {
+const HppLuarInvoiceTable = ({ hpp, styles, onPilihAkun, onPilihBengkel }) => {
   const { tableContainerStyle, tableStyle, thStyle, thTdStyle, tbodyTrEvenStyle, tbodyTrOddStyle } = styles;
   const kanan = { ...thTdStyle, textAlign: 'right', whiteSpace: 'nowrap' };
 
@@ -32,8 +32,18 @@ const HppLuarInvoiceTable = ({ hpp, styles, onPilihAkun }) => {
           </thead>
           <tbody>
             {hpp.bengkel.map((b, i) => (
-              <tr key={b.kategori} style={i % 2 === 0 ? tbodyTrEvenStyle : tbodyTrOddStyle}>
-                <td style={thTdStyle}>Selisih bengkel {b.kategori}</td>
+              <tr
+                key={b.kategori}
+                className={onPilihBengkel ? 'tr-hover-effect' : undefined}
+                onClick={onPilihBengkel ? () => onPilihBengkel(b.kategori) : undefined}
+                title={onPilihBengkel ? 'Klik untuk cek rincian selisih' : undefined}
+                style={{ ...(i % 2 === 0 ? tbodyTrEvenStyle : tbodyTrOddStyle), cursor: onPilihBengkel ? 'pointer' : undefined }}
+              >
+                <td style={thTdStyle}>
+                  {onPilihBengkel
+                    ? <span style={{ color: 'blue' }}>Selisih bengkel {b.kategori} ›</span>
+                    : <>Selisih bengkel {b.kategori}</>}
+                </td>
                 <td style={thTdStyle}>{b.akun.join(', ')}</td>
                 <td style={kanan}>{rp(b.real)}</td>
                 <td style={kanan}>{rp(b.budget)}</td>

@@ -3,6 +3,8 @@ import ReactDOM from 'react-dom/client';
 import App from './App.jsx';
 import './index.css';
 import 'bootstrap/dist/css/bootstrap.min.css';
+// Dropdown navbar memakai data-bs-toggle → butuh JS Bootstrap (dulu dari CDN).
+import 'bootstrap/dist/js/bootstrap.bundle.min.js';
 import { HelmetProvider } from 'react-helmet-async';
 import { ThemeProvider } from './ThemeContext';
 import ErrorBoundary from './Components/ErrorBoundary';

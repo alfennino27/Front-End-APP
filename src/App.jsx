@@ -1,66 +1,77 @@
-import { useState } from 'react';
+import { Suspense } from 'react';
+import lazyPage from './Utils/lazyPage';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import './App.css';
-import DashboardPage from './Pages/DashboardPage';
-import DashboardFinancePage from './Pages/DashboardFinancePage';
-import InvoicePage from './Pages/InvoicePage';
-import PekerjaanPage from './Pages/PekerjaanPage';
-import CalendarPage from './Pages/CalendarPage';
-import CetakLabelPage from './Pages/CetakLabelPage';
-import CetakLabelQCPage from './Pages/CetakLabelQCPage';
-import CetakLabelSupplierPage from './Pages/CetakLabelSupplierPage';
-import CetakSPKPage from './Pages/CetakSPKPage';
-import CetakGambarKerjaPage from './Pages/CetakGambarKerjaPage';
-import TestimoniLamaPage from './Pages/TestimoniLamaPage';
-import KLFAIPage from './Pages/KLFAIPage';
-import AccountingPage from './Pages/AccountingPage';
-import AccountingJurnalPage from './Pages/AccountingJurnalPage';
-import AccountingAkunPage from './Pages/AccountingAkunPage';
-import AccountingCustomerPage from './Pages/AccountingCustomerPage';
-import AccountingSupplierPage from './Pages/AccountingSupplierPage';
-import AccountingPiutangPage from './Pages/AccountingPiutangPage';
-import AccountingHutangPage from './Pages/AccountingHutangPage';
-import AccountingBukuBesarPage from './Pages/AccountingBukuBesarPage';
-import AccountingNeracaSaldoPage from './Pages/AccountingNeracaSaldoPage';
-import AccountingLabaRugiPenjualanPage from './Pages/AccountingLabaRugiPenjualanPage';
-import AccountingLabaRugiCashPage from './Pages/AccountingLabaRugiCashPage';
-import AccountingLabaRugiProfitPage from './Pages/AccountingLabaRugiProfitPage';
-import AccountingEvaluasiEstimasiPage from './Pages/AccountingEvaluasiEstimasiPage';
-import AccountingCekFinishingJokPage from './Pages/AccountingCekFinishingJokPage';
-import AccountingTemuanKoreksiPage from './Pages/AccountingTemuanKoreksiPage';
-import AccountingJurnalAssistantPage from './Pages/AccountingJurnalAssistantPage';
-import AccountingCashFlowPage from './Pages/AccountingCashFlowPage';
-import AccountingBalanceSheetPage from './Pages/AccountingBalanceSheetPage';
-import BooksPage from './Pages/BooksPage';
-import NotesPage from './Pages/NotesPage';
-import StoragePage from './Pages/StoragePage';
-import CrmPage from './Pages/CrmPage';
-import QuotePage from './Pages/QuotePage';
-import PengirimanPage from './Pages/PengirimanPage';
-import AbsensiPage from './Pages/AbsensiPage';
-import KnowledgePage from './Pages/KnowledgePage';
-import StockPage from './Pages/StockPage';
-import AssetsPage from './Pages/AssetsPage';
-import UserManagementPage from './Pages/UserManagementPage';
-import SpkPage from './Pages/SpkPage';
-import DetailPekerjaan from './Components/Pekerjaan/DetailPekerjaan';
 import Login from './Components/Auth/Login';
-import Logout from './Components/Auth/Logout';
-import DirectLogin from './Components/Auth/DirectLogin';
-import Register from './Components/Auth/Register';
-import AppraisalPage from './Pages/AppraisalPage';
-import PriceListPage from './Pages/PriceListPage';
-import ProductsPage from './Pages/ProductsPage';
-import ProductNewPage from './Pages/ProductNewPage';
-import DesainProdukPage from './Pages/DesainProdukPage';
-import CategoryPage from './Pages/CategoryPage';
-import TodoPage from './Pages/TodoPage';
 import ModalGuard from './Components/ModalGuard';
+
+// Tiap halaman dimuat saat dibuka (code splitting). Dulu ke-64 halaman ada di
+// SATU file JS 4 MB yang harus diunduh & di-parse sebelum ERP tampil.
+const DashboardPage = lazyPage(() => import('./Pages/DashboardPage'));
+const DashboardFinancePage = lazyPage(() => import('./Pages/DashboardFinancePage'));
+const InvoicePage = lazyPage(() => import('./Pages/InvoicePage'));
+const PekerjaanPage = lazyPage(() => import('./Pages/PekerjaanPage'));
+const CalendarPage = lazyPage(() => import('./Pages/CalendarPage'));
+const CetakLabelPage = lazyPage(() => import('./Pages/CetakLabelPage'));
+const CetakLabelQCPage = lazyPage(() => import('./Pages/CetakLabelQCPage'));
+const CetakLabelSupplierPage = lazyPage(() => import('./Pages/CetakLabelSupplierPage'));
+const CetakSPKPage = lazyPage(() => import('./Pages/CetakSPKPage'));
+const CetakGambarKerjaPage = lazyPage(() => import('./Pages/CetakGambarKerjaPage'));
+const TestimoniLamaPage = lazyPage(() => import('./Pages/TestimoniLamaPage'));
+const KLFAIPage = lazyPage(() => import('./Pages/KLFAIPage'));
+const AccountingPage = lazyPage(() => import('./Pages/AccountingPage'));
+const AccountingJurnalPage = lazyPage(() => import('./Pages/AccountingJurnalPage'));
+const AccountingAkunPage = lazyPage(() => import('./Pages/AccountingAkunPage'));
+const AccountingCustomerPage = lazyPage(() => import('./Pages/AccountingCustomerPage'));
+const AccountingSupplierPage = lazyPage(() => import('./Pages/AccountingSupplierPage'));
+const AccountingPiutangPage = lazyPage(() => import('./Pages/AccountingPiutangPage'));
+const AccountingHutangPage = lazyPage(() => import('./Pages/AccountingHutangPage'));
+const AccountingBukuBesarPage = lazyPage(() => import('./Pages/AccountingBukuBesarPage'));
+const AccountingNeracaSaldoPage = lazyPage(() => import('./Pages/AccountingNeracaSaldoPage'));
+const AccountingLabaRugiPenjualanPage = lazyPage(() => import('./Pages/AccountingLabaRugiPenjualanPage'));
+const AccountingLabaRugiCashPage = lazyPage(() => import('./Pages/AccountingLabaRugiCashPage'));
+const AccountingLabaRugiProfitPage = lazyPage(() => import('./Pages/AccountingLabaRugiProfitPage'));
+const AccountingEvaluasiEstimasiPage = lazyPage(() => import('./Pages/AccountingEvaluasiEstimasiPage'));
+const AccountingCekFinishingJokPage = lazyPage(() => import('./Pages/AccountingCekFinishingJokPage'));
+const AccountingTemuanKoreksiPage = lazyPage(() => import('./Pages/AccountingTemuanKoreksiPage'));
+const AccountingJurnalAssistantPage = lazyPage(() => import('./Pages/AccountingJurnalAssistantPage'));
+const AccountingCashFlowPage = lazyPage(() => import('./Pages/AccountingCashFlowPage'));
+const AccountingBalanceSheetPage = lazyPage(() => import('./Pages/AccountingBalanceSheetPage'));
+const BooksPage = lazyPage(() => import('./Pages/BooksPage'));
+const NotesPage = lazyPage(() => import('./Pages/NotesPage'));
+const StoragePage = lazyPage(() => import('./Pages/StoragePage'));
+const CrmPage = lazyPage(() => import('./Pages/CrmPage'));
+const QuotePage = lazyPage(() => import('./Pages/QuotePage'));
+const PengirimanPage = lazyPage(() => import('./Pages/PengirimanPage'));
+const AbsensiPage = lazyPage(() => import('./Pages/AbsensiPage'));
+const KnowledgePage = lazyPage(() => import('./Pages/KnowledgePage'));
+const StockPage = lazyPage(() => import('./Pages/StockPage'));
+const AssetsPage = lazyPage(() => import('./Pages/AssetsPage'));
+const UserManagementPage = lazyPage(() => import('./Pages/UserManagementPage'));
+const SpkPage = lazyPage(() => import('./Pages/SpkPage'));
+const DetailPekerjaan = lazyPage(() => import('./Components/Pekerjaan/DetailPekerjaan'));
+const Logout = lazyPage(() => import('./Components/Auth/Logout'));
+const DirectLogin = lazyPage(() => import('./Components/Auth/DirectLogin'));
+const Register = lazyPage(() => import('./Components/Auth/Register'));
+const AppraisalPage = lazyPage(() => import('./Pages/AppraisalPage'));
+const PriceListPage = lazyPage(() => import('./Pages/PriceListPage'));
+const ProductsPage = lazyPage(() => import('./Pages/ProductsPage'));
+const ProductNewPage = lazyPage(() => import('./Pages/ProductNewPage'));
+const DesainProdukPage = lazyPage(() => import('./Pages/DesainProdukPage'));
+const CategoryPage = lazyPage(() => import('./Pages/CategoryPage'));
+const TodoPage = lazyPage(() => import('./Pages/TodoPage'));
+
+const PageLoading = () => (
+  <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
+    <div className="spinner-border text-primary" role="status" aria-label="Memuat halaman" />
+  </div>
+);
 
 function App() {
   return (
     <Router>
       <ModalGuard />
+      <Suspense fallback={<PageLoading />}>
       <Routes>
         <Route path="/" element={<Login />} />
         {/* <Route path="/" element={<PekerjaanPage />} /> */}
@@ -127,6 +138,7 @@ function App() {
         <Route path="/category" element={<CategoryPage />} />
         <Route path="/todo" element={<TodoPage />} />
       </Routes>
+      </Suspense>
     </Router>
   );
 }

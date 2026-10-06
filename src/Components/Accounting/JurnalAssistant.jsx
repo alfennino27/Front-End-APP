@@ -31,6 +31,7 @@ const AKSI = [
   { value: 'jurnal', label: 'Jurnal biasa' },
   { value: 'payment_invoice', label: 'Payment invoice (uang masuk customer)' },
   { value: 'payment_spk', label: 'Payment SPK (bayar supplier)' },
+  { value: 'piutang', label: 'Bon supplier → piutang' },
   { value: 'lewati', label: 'Lewati (tidak dijurnal)' },
 ];
 const LABEL_AKSI = { tautkan_payment_invoice: 'Tautkan payment invoice yang sudah ada', tautkan_payment_spk: 'Tautkan payment SPK yang sudah ada' };
@@ -106,7 +107,7 @@ const PecahEditor = ({ total, onBatal, onPecah, sibuk }) => {
 // ---------------------------------------------------------------------------
 // Satu baris (kartu). memo: batch bisa 250+ baris.
 // ---------------------------------------------------------------------------
-const BarisKartu = memo(({ r, opsiAkun, opsiInvoice, opsiSpk, dipilih, onPilih, onUbah, onPecah, onGabung, anak, sibuk, mobile, gambar }) => {
+const BarisKartu = memo(({ r, opsiAkun, opsiInvoice, opsiSpk, opsiPiutang, dipilih, onPilih, onUbah, onPecah, onGabung, anak, sibuk, mobile, gambar }) => {
   const [modePecah, setModePecah] = useState(false);
   const [ket, setKet] = useState(r.keterangan || '');
   useEffect(() => { setKet(r.keterangan || ''); }, [r.keterangan]);
@@ -127,6 +128,14 @@ const BarisKartu = memo(({ r, opsiAkun, opsiInvoice, opsiSpk, dipilih, onPilih, 
     const ids = new Set(kand.map((o) => o.value));
     return [...kand, ...opsiSpk.filter((o) => !ids.has(o.value))];
   }, [r.kandidatSpk, opsiSpk]);
+  const [namaBaru, setNamaBaru] = useState(r.piutangBaru || '');
+  useEffect(() => { setNamaBaru(r.piutangBaru || ''); }, [r.piutangBaru]);
+  const opsiPiutangBaris = useMemo(() => {
+    const kand = (r.kandidatPiutang || []).map((p) => ({ value: p.id, label: `★ ${p.nama} — sisa ${rp(p.sisa)}` }));
+    const ids = new Set(kand.map((o) => o.value));
+    return [...kand, ...opsiPiutang.filter((o) => !ids.has(o.value))];
+  }, [r.kandidatPiutang, opsiPiutang]);
+  const opsiPos = [{ value: '1131', label: '1131 Piutang Usaha (supplier / borongan)' }, { value: '1132', label: '1132 Piutang Pegawai' }];
   const opsiInvoiceBaris = useMemo(() => {
     const kand = (r.kandidatInvoice || []).map((i) => ({ value: i.id, label: `★ ${i.kode} — ${i.customer} — sisa ${rp(i.sisa)}` }));
     const ids = new Set(kand.map((o) => o.value));
@@ -242,6 +251,22 @@ const BarisKartu = memo(({ r, opsiAkun, opsiInvoice, opsiSpk, dipilih, onPilih, 
                 <div style={label}>Invoice (★ = nama/nominal mirip)</div>
                 <Select showSearch value={r.invoice?.id || undefined} placeholder="Pilih invoice…" options={opsiInvoiceBaris} filterOption={filterOpsi} style={{ width: '100%' }} onChange={(v) => onUbah(r, { invoiceId: v })} />
               </div>
+            )}
+            {r.aksi === 'piutang' && (
+              <>
+                <div>
+                  <div style={label}>Piutang {masuk ? '(dikembalikan oleh)' : 'atas nama'} (★ = nama mirip)</div>
+                  <Select showSearch allowClear value={r.piutang?.id || undefined} placeholder="Pilih piutang…" options={opsiPiutangBaris} filterOption={filterOpsi} style={{ width: '100%' }} onChange={(v) => onUbah(r, { piutangId: v || '' })} />
+                  {!masuk && !r.piutang && (
+                    <Input style={{ marginTop: 6 }} placeholder="…atau nama piutang baru" value={namaBaru} onChange={(e) => setNamaBaru(e.target.value)} onBlur={() => namaBaru.trim() !== (r.piutangBaru || '') && onUbah(r, { piutangBaru: namaBaru.trim() })} />
+                  )}
+                </div>
+                <div>
+                  <div style={label}>Akun piutang</div>
+                  <Select value={masuk ? r.kredit : r.debet} options={opsiPos} style={{ width: '100%' }} onChange={(v) => onUbah(r, masuk ? { kredit: v } : { debet: v })} />
+                  <div style={{ ...kecil, marginTop: 4 }}>Jurnal: D {r.debet} / K {r.kredit} · masuk daftar Piutang, nanti dipotong dari SPK</div>
+                </div>
+              </>
             )}
             {r.aksi === 'payment_spk' && (
               <div style={{ gridColumn: '1 / -1' }}>
@@ -468,6 +493,7 @@ const JurnalAssistant = () => {
   const opsiInvoice = useMemo(() => ref.invoice.map((i) => ({ value: i.id, label: `${i.kode} — ${i.customer} — sisa ${rp(i.sisa)}` })), [ref.invoice]);
   // SPK yang menurut data sudah lunas tetap bisa dipilih (dicari dengan mengetik) — server
   // memberi peringatan lebih bayar. Nilai item SPK kadang belum lengkap.
+  const opsiPiutang = useMemo(() => (ref.piutang || []).map((p) => ({ value: p.id, label: `${p.nama} — sisa ${rp(p.sisa)}` })), [ref.piutang]);
   const opsiSpk = useMemo(() => [
     ...ref.spk.map((s) => ({ value: s.id, label: `${s.kode} — ${s.pengrajin} — sisa ${rp(s.sisa)}` })),
     ...(ref.spkLunas || []).map((s) => ({ value: s.id, label: `${s.kode} — ${s.pengrajin} — LUNAS menurut data (lebih bayar)` })),
@@ -602,6 +628,7 @@ const JurnalAssistant = () => {
                   opsiAkun={opsiAkun}
                   opsiInvoice={opsiInvoice}
                   opsiSpk={opsiSpk}
+                  opsiPiutang={opsiPiutang}
                   gambar={gambarFile[r.file]}
                   dipilih={!!pilih[r.no]}
                   onPilih={onPilih}

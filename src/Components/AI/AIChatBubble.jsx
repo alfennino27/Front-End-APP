@@ -182,6 +182,19 @@ const AIChatBubble = ({ seedContext = '', greeting = '', onActivity = null } = {
           }),
         });
         updateProposal(msgId, idx, { _status: res.ok ? 'saved' : 'error' });
+      } else if (prop.type === 'hutang_piutang') {
+        const res = await fetch(`${baseUrl}/ai/chat/hutang-piutang/confirm`, {
+          method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
+          body: JSON.stringify({
+            jenis: prop.jenis, aksi: prop.aksi, id_ref: prop.id_ref, nama_baru: prop.nama_baru,
+            nominal: prop.nominal, tanggal: prop.tanggal, keterangan: prop.keterangan,
+            akun_lawan: prop.akun_lawan, akun_pos: prop.akun_pos,
+            bukti_base64: paymentImgBase64Ref.current,
+            created_by_uid: getUid(),
+          }),
+        });
+        if (res.ok) paymentImgBase64Ref.current = null;
+        updateProposal(msgId, idx, { _status: res.ok ? 'saved' : 'error' });
       } else if (prop.type === 'target_kirim') {
         const res = await fetch(`${baseUrl}/ai/chat/target-kirim/confirm`, {
           method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
@@ -251,6 +264,7 @@ const AIChatBubble = ({ seedContext = '', greeting = '', onActivity = null } = {
             jumlah: prop.jumlah, tanggal: prop.tanggal, detail: prop.detail,
             akun_penerima: prop.akun_penerima,
             akun_sumber: prop.akun_sumber, beban_kode_akun: prop.beban_kode_akun,
+            lebih_ke_piutang_id: prop.lebih_ke_piutang?.id_piutang, lebih_ke_piutang_nama_baru: prop.lebih_ke_piutang?.nama_baru,
             bukti_base64: paymentImgBase64Ref.current,
             created_by_uid: getUid(),
           }),
@@ -523,6 +537,7 @@ const AIChatBubble = ({ seedContext = '', greeting = '', onActivity = null } = {
                     {m.proposals.map((p, i) => {
                       const isPayment = p.type === 'invoice_payment' || p.type === 'spk_payment';
                       const isPotong = p.type === 'potong_piutang_spk';
+                      const isHP = p.type === 'hutang_piutang';
                       const isTarget = p.type === 'target_kirim';
                       const isTodo = p.type === 'todo';
                       const isAlamat = p.type === 'alamat_kirim';
@@ -532,8 +547,8 @@ const AIChatBubble = ({ seedContext = '', greeting = '', onActivity = null } = {
                       const formatRp = (n) => 'Rp ' + Number(n || 0).toLocaleString('id-ID');
                       return (
                         <div key={i} style={{ fontSize: 13, padding: '8px 10px', marginBottom: 6, borderRadius: 8,
-                          background: isPengeluaran ? (isLight ? '#fdecea' : '#2a1414') : isSpkEdit ? (isLight ? '#fff3cd' : '#2a2108') : isTarget || isBulk || isTodo || isAlamat ? (isLight ? '#e8f5e9' : '#0f2417') : isPotong ? (isLight ? '#e7f1ff' : '#0d1b2a') : isPayment ? (isLight ? '#fff3cd' : '#2a2108') : (isLight ? '#fff8e1' : '#2a2620'),
-                          border: isPengeluaran ? '2px solid #dc3545' : isSpkEdit ? '2px solid #ffc107' : isTarget || isBulk || isTodo || isAlamat ? '2px solid #2e9e5b' : isPotong ? '2px solid #0d6efd' : isPayment ? '2px solid #ffc107' : '1px solid #f0c000' }}>
+                          background: isPengeluaran ? (isLight ? '#fdecea' : '#2a1414') : isHP ? (isLight ? '#e7f1ff' : '#0d1b2a') : isSpkEdit ? (isLight ? '#fff3cd' : '#2a2108') : isTarget || isBulk || isTodo || isAlamat ? (isLight ? '#e8f5e9' : '#0f2417') : isPotong ? (isLight ? '#e7f1ff' : '#0d1b2a') : isPayment ? (isLight ? '#fff3cd' : '#2a2108') : (isLight ? '#fff8e1' : '#2a2620'),
+                          border: isPengeluaran ? '2px solid #dc3545' : isHP ? '2px solid #0d6efd' : isSpkEdit ? '2px solid #ffc107' : isTarget || isBulk || isTodo || isAlamat ? '2px solid #2e9e5b' : isPotong ? '2px solid #0d6efd' : isPayment ? '2px solid #ffc107' : '1px solid #f0c000' }}>
                           {isPengeluaran ? (
                             <>
                               <div style={{ fontWeight: 700, marginBottom: 4 }}>
@@ -659,6 +674,22 @@ const AIChatBubble = ({ seedContext = '', greeting = '', onActivity = null } = {
                                 <div style={{ marginTop: 4, fontSize: 11.5, color: '#dc3545' }}>{p.skipped.length} item dilewati (tidak valid / bukan Ongoing).</div>
                               )}
                             </>
+                          ) : isHP ? (
+                            <>
+                              <div style={{ fontWeight: 700, marginBottom: 4 }}>
+                                {p.aksi === 'tambah' ? '➕' : '➖'} {p.aksi === 'tambah' ? 'Tambah' : 'Bayar'} {p.jenis === 'hutang' ? 'Hutang' : 'Piutang'}
+                              </div>
+                              <div><b>{p.nama}</b> {p.nama_baru && <span style={{ color: '#0d6efd' }}>(baru)</span>}</div>
+                              <div>Nominal: <b>{formatRp(p.nominal)}</b> &nbsp;·&nbsp; Tgl: {p.tanggal}</div>
+                              <div>Ket: {p.keterangan}</div>
+                              <div style={{ marginTop: 4, padding: '4px 8px', borderRadius: 6, background: isLight ? '#f3f8ff' : '#0a1420', fontSize: 12 }}>
+                                Jurnal: D <b>{p.jurnal?.debet?.kode} {p.jurnal?.debet?.nama}</b> / K <b>{p.jurnal?.kredit?.kode} {p.jurnal?.kredit?.nama}</b>
+                              </div>
+                              <div style={{ marginTop: 4, fontSize: 12, opacity: 0.85 }}>
+                                Sisa {p.jenis}: {formatRp(p.sisa_sebelum)} → <b>{formatRp(p.sisa_sesudah)}</b>
+                              </div>
+                              {p.peringatan && <div style={{ marginTop: 4, fontSize: 11.5, color: '#dc3545' }}>⚠ {p.peringatan}</div>}
+                            </>
                           ) : isPotong ? (
                             <>
                               <div style={{ fontWeight: 700, marginBottom: 4 }}>🧾 Bayar Bon / Potong Piutang Supplier</div>
@@ -692,6 +723,12 @@ const AIChatBubble = ({ seedContext = '', greeting = '', onActivity = null } = {
                               <div style={{ marginTop: 4, padding: '4px 8px', borderRadius: 6, background: isLight ? '#fff9e6' : '#1a1500', fontSize: 12 }}>
                                 Sisa sebelum: {formatRp(p.sisa_sekarang)} → <b>Sisa sesudah: {formatRp(Math.max(0, p.sisa_sekarang - p.jumlah))}</b>
                               </div>
+                              {p.lebih_ke_piutang && (
+                                <div style={{ marginTop: 4, padding: '4px 8px', borderRadius: 6, background: isLight ? '#f3f8ff' : '#0a1420', fontSize: 12 }}>
+                                  Ke SPK: <b>{formatRp(p.jumlah_ke_spk)}</b> · Kelebihan <b>{formatRp(p.lebih_ke_piutang.nominal)}</b> → piutang <b>{p.lebih_ke_piutang.nama_piutang}</b>
+                                  {p.lebih_ke_piutang.nama_baru && ' (baru)'} (sisa piutang jadi {formatRp(p.lebih_ke_piutang.sisa_piutang_sesudah)}) · jurnal D 1131 / K {p.akun_sumber}
+                                </div>
+                              )}
                             </>
                           ) : (
                             <>
@@ -718,7 +755,7 @@ const AIChatBubble = ({ seedContext = '', greeting = '', onActivity = null } = {
                             </div>
                           )}
                           {p._status === 'saving' && <span style={{ opacity: 0.7 }}>Menyimpan…</span>}
-                          {p._status === 'saved' && <span style={{ color: '#198754' }}>✅ {isTarget ? 'Target kirim diperbarui' : isBulk ? `Tersimpan ke ${(p.items || []).length} item` : isPotong ? 'Bon dibayar — jurnal, SPK & piutang terpotong' : isPayment ? 'Payment berhasil dicatat' : 'Tersimpan oleh "AI Chatbot"'}</span>}
+                          {p._status === 'saved' && <span style={{ color: '#198754' }}>✅ {isTarget ? 'Target kirim diperbarui' : isBulk ? `Tersimpan ke ${(p.items || []).length} item` : isPotong ? 'Bon dibayar — jurnal, SPK & piutang terpotong' : isHP ? `${p.jenis === 'hutang' ? 'Hutang' : 'Piutang'} + jurnal tercatat` : isPayment ? 'Payment berhasil dicatat' : 'Tersimpan oleh "AI Chatbot"'}</span>}
                           {p._status === 'rejected' && <span style={{ opacity: 0.6 }}>Ditolak</span>}
                           {p._status === 'error' && <span style={{ color: '#dc3545' }}>❌ Gagal menyimpan</span>}
                         </div>

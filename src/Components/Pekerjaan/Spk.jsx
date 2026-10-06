@@ -775,6 +775,8 @@ useEffect(() => {
       }
       // Pembayaran sudah tercatat dari mutasi bank (Jurnal Assistant) → server hanya menempel bukti.
       if (data.buktiDitempel) alert(data.message);
+      // Transfer sudah dijurnal dari sisi bank (mis. bon 1132) → jurnal itu ditautkan & dikoreksi, bukan jurnal baru.
+      if (data.jurnalDitautkan) alert(data.message);
       console.log('Berhasil:', data);
 
       // Reset state

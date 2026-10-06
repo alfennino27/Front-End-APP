@@ -723,6 +723,11 @@ const AIChatBubble = ({ seedContext = '', greeting = '', onActivity = null } = {
                               <div style={{ marginTop: 4, padding: '4px 8px', borderRadius: 6, background: isLight ? '#fff9e6' : '#1a1500', fontSize: 12 }}>
                                 Sisa sebelum: {formatRp(p.sisa_sekarang)} → <b>Sisa sesudah: {formatRp(Math.max(0, p.sisa_sekarang - p.jumlah))}</b>
                               </div>
+                              {p.jurnal_bank_ada && (
+                                <div style={{ marginTop: 4, padding: '4px 8px', borderRadius: 6, background: isLight ? '#f3f8ff' : '#0a1420', fontSize: 12 }}>
+                                  Sudah dijurnal: "{p.jurnal_bank_ada.keterangan}" ({p.jurnal_bank_ada.tanggal}) — ditautkan, debet {p.jurnal_bank_ada.debet_lama} → <b>{p.jurnal_bank_ada.debet_baru}</b>, tanpa jurnal baru
+                                </div>
+                              )}
                               {p.lebih_ke_piutang && (
                                 <div style={{ marginTop: 4, padding: '4px 8px', borderRadius: 6, background: isLight ? '#f3f8ff' : '#0a1420', fontSize: 12 }}>
                                   Ke SPK: <b>{formatRp(p.jumlah_ke_spk)}</b> · Kelebihan <b>{formatRp(p.lebih_ke_piutang.nominal)}</b> → piutang <b>{p.lebih_ke_piutang.nama_piutang}</b>

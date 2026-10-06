@@ -23,6 +23,10 @@ const TAB = [
   { key: 'sudah', label: 'Sudah ada', warna: '#389e0d', status: ['sudah_ada', 'duplikat', 'disimpan'] },
 ];
 const tabDari = (status) => (TAB.find((t) => t.status.includes(status)) || TAB[0]).key;
+// Baris induk yang dipecah ikut tab "Belum ada" selama masih ada entri bagian yang belum beres.
+const tabBaris = (r, anakPer) => (r.status === 'dipecah'
+  ? ((anakPer[r.no] || []).some((c) => tabDari(c.status) === 'belum') ? 'belum' : 'sudah')
+  : tabDari(r.status));
 const AKSI = [
   { value: 'jurnal', label: 'Jurnal biasa' },
   { value: 'payment_invoice', label: 'Payment invoice (uang masuk customer)' },
@@ -47,9 +51,63 @@ const BISA_DIBACA = (f) => /^(application\/pdf|image\/(jpeg|png|webp|heic|heif))
 const filterOpsi = (input, option) => String(option?.label || '').toLowerCase().includes(input.toLowerCase());
 
 // ---------------------------------------------------------------------------
+// Pecah satu mutasi jadi beberapa entri (mis. satu transfer membayar dua SPK).
+// Entri terakhir otomatis diisi sisa supaya totalnya selalu pas.
+// ---------------------------------------------------------------------------
+const angka = (v) => Number(String(v || '').replace(/[^\d]/g, '')) || 0;
+const PecahEditor = ({ total, onBatal, onPecah, sibuk }) => {
+  const [isi, setIsi] = useState(['', '']);
+  const sisaUntukTerakhir = (list) => total - list.slice(0, -1).reduce((a, v) => a + angka(v), 0);
+  const ubahIsi = (i, v) => setIsi((l) => {
+    const n = [...l];
+    n[i] = v.replace(/[^\d]/g, '');
+    if (i < n.length - 1) { const sisa = sisaUntukTerakhir(n); n[n.length - 1] = sisa > 0 ? String(sisa) : ''; }
+    return n;
+  });
+  const tambah = () => setIsi((l) => { const n = [...l.slice(0, -1), '', l[l.length - 1]]; const sisa = sisaUntukTerakhir(n); n[n.length - 1] = sisa > 0 ? String(sisa) : ''; return n; });
+  const hapus = (i) => setIsi((l) => { const n = l.filter((_, k) => k !== i); const sisa = sisaUntukTerakhir(n); n[n.length - 1] = sisa > 0 ? String(sisa) : ''; return n; });
+  const jumlah = isi.reduce((a, v) => a + angka(v), 0);
+  const selisih = Math.round((total - jumlah) * 100) / 100;
+  const valid = isi.length >= 2 && isi.every((v) => angka(v) > 0) && Math.abs(selisih) < 0.01;
+
+  return (
+    <div style={{ marginTop: 8, border: '1px dashed #adc6ff', background: '#f0f5ff', borderRadius: 8, padding: 10 }}>
+      <div style={{ fontSize: 12, color: '#1d39c4', marginBottom: 6 }}>
+        Pecah {rp(total)} jadi beberapa entri — tiap entri dipilih aksinya sendiri (jurnal / payment SPK / invoice) dan dicek dobel otomatis.
+      </div>
+      {isi.map((v, i) => (
+        <div key={i} style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 6 }}>
+          <span style={{ fontSize: 12, color: '#888', width: 54 }}>Entri {i + 1}</span>
+          <Input
+            inputMode="numeric"
+            prefix="Rp"
+            value={v ? Number(v).toLocaleString('id-ID') : ''}
+            placeholder={i === isi.length - 1 ? 'otomatis = sisa' : 'nominal'}
+            onChange={(e) => ubahIsi(i, e.target.value)}
+            style={{ flex: 1 }}
+          />
+          {isi.length > 2 && <Button size="small" type="text" onClick={() => hapus(i)} aria-label="Hapus entri">✕</Button>}
+        </div>
+      ))}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
+        <Button size="small" onClick={tambah} disabled={isi.length >= 9}>+ Tambah entri</Button>
+        <span style={{ fontSize: 12, color: Math.abs(selisih) < 0.01 ? '#389e0d' : '#cf1322' }}>
+          {Math.abs(selisih) < 0.01 ? '✓ Total pas' : selisih > 0 ? `Kurang ${rp(selisih)}` : `Lebih ${rp(-selisih)}`}
+        </span>
+      </div>
+      <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 8 }}>
+        <Button size="small" onClick={onBatal}>Batal</Button>
+        <Button size="small" type="primary" disabled={!valid} loading={sibuk} onClick={() => onPecah(isi.map(angka))}>Pecah jadi {isi.length} entri</Button>
+      </div>
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
 // Satu baris (kartu). memo: batch bisa 250+ baris.
 // ---------------------------------------------------------------------------
-const BarisKartu = memo(({ r, opsiAkun, opsiInvoice, opsiSpk, dipilih, onPilih, onUbah, sibuk, mobile, gambar }) => {
+const BarisKartu = memo(({ r, opsiAkun, opsiInvoice, opsiSpk, dipilih, onPilih, onUbah, onPecah, onGabung, anak, sibuk, mobile, gambar }) => {
+  const [modePecah, setModePecah] = useState(false);
   const [ket, setKet] = useState(r.keterangan || '');
   useEffect(() => { setKet(r.keterangan || ''); }, [r.keterangan]);
   const [nom, setNom] = useState(String(r.nominal ?? ''));
@@ -82,7 +140,7 @@ const BarisKartu = memo(({ r, opsiAkun, opsiInvoice, opsiSpk, dipilih, onPilih, 
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
             <span style={{ fontSize: 13 }}>
-              <b>#{r.no}</b> · {tglPendek(r.tanggal)} ·{' '}
+              <b>#{r.no}</b>{r.induk != null && <span style={{ fontSize: 11, color: '#1d39c4' }}> (bagian dari #{r.induk})</span>} · {tglPendek(r.tanggal)} ·{' '}
               <span style={{ background: '#f0f5ff', color: '#1d39c4', borderRadius: 4, padding: '0 6px', fontSize: 11 }}>{NAMA_AKUN_SUMBER[r.akunSumber] || r.akunSumber}</span>
             </span>
             <span style={{ fontWeight: 700, color: masuk ? '#389e0d' : '#cf1322', whiteSpace: 'nowrap' }}>
@@ -110,6 +168,18 @@ const BarisKartu = memo(({ r, opsiAkun, opsiInvoice, opsiSpk, dipilih, onPilih, 
           <Popconfirm title="Tandai sebagai transaksi baru?" description="Hanya kalau yakin pencocokan ini salah — kalau tidak, jurnal jadi dobel." okText="Ya, transaksi lain" cancelText="Batal" onConfirm={() => onUbah(r, { paksaBaru: true, aksi: 'jurnal' })}>
             <a style={{ marginLeft: 8, fontSize: 11, color: '#999' }}>bukan ini?</a>
           </Popconfirm>
+        </div>
+      )}
+
+      {r.status === 'dipecah' && (
+        <div style={{ marginTop: 8, fontSize: 12, background: '#f0f5ff', border: '1px solid #adc6ff', borderRadius: 6, padding: '6px 8px' }}>
+          ✂ Dipecah jadi {(anak || []).length} entri:{' '}
+          {(anak || []).map((c) => `#${c.no} ${rp(c.nominal)} (${c.status === 'sudah_ada' ? 'sudah ada' : c.status === 'disimpan' ? 'disimpan' : c.status === 'dilewati' ? 'dilewati' : 'belum'})`).join(' · ')}
+          {!(anak || []).some((c) => c.status === 'disimpan') && (
+            <Popconfirm title="Gabungkan lagi jadi satu mutasi?" okText="Gabungkan" cancelText="Batal" onConfirm={() => onGabung(r)}>
+              <a style={{ marginLeft: 8, fontSize: 11 }}>gabungkan lagi</a>
+            </Popconfirm>
+          )}
         </div>
       )}
 
@@ -181,6 +251,13 @@ const BarisKartu = memo(({ r, opsiAkun, opsiInvoice, opsiSpk, dipilih, onPilih, 
             )}
           </div>
           {r.alasan && <div style={{ ...kecil, marginTop: 6 }}>AI: {r.alasan}{r.keyakinan != null ? ` (${Math.round(r.keyakinan * 100)}%)` : ''}</div>}
+          {r.induk == null && (
+            modePecah ? (
+              <PecahEditor total={Number(r.nominal)} sibuk={sibuk} onBatal={() => setModePecah(false)} onPecah={(bagian) => onPecah(r, bagian).then((ok) => ok && setModePecah(false))} />
+            ) : (
+              <a style={{ display: 'inline-block', marginTop: 6, fontSize: 12 }} onClick={() => setModePecah(true)}>✂ Satu transfer untuk beberapa keperluan? Pecah jadi beberapa entri</a>
+            )
+          )}
         </>
       )}
     </div>
@@ -201,7 +278,7 @@ const JurnalAssistant = () => {
 
   const [batches, setBatches] = useState([]);
   const [batch, setBatch] = useState(null);
-  const [ref, setRef] = useState({ akun: [], invoice: [], spk: [] });
+  const [ref, setRef] = useState({ akun: [], invoice: [], spk: [], spkLunas: [] });
   const [files, setFiles] = useState([]);
   const [mengunggah, setMengunggah] = useState(false);
   const [progresUpload, setProgresUpload] = useState('');
@@ -337,12 +414,35 @@ const JurnalAssistant = () => {
   }, [batch?.id]);
   const onPilih = useCallback((no, v) => setPilih((p) => ({ ...p, [no]: v })), []);
 
+  // Pecah / gabung mengubah susunan baris → muat ulang batch.
+  const pecah = useCallback(async (r, bagian) => {
+    setSibuk((s) => ({ ...s, [r.no]: true }));
+    try {
+      const h = await kirim(`/jurnal-assistant/batch/${batch.id}/row/${r.no}/pecah`, 'POST', { bagian });
+      const ada = (h.rows || []).slice(1).filter((c) => c.status === 'sudah_ada').length;
+      message.success(`Dipecah jadi ${bagian.length} entri${ada ? ` · ${ada} ternyata sudah tercatat` : ''}`);
+      setPilih((p) => { const n = { ...p }; delete n[r.no]; return n; });
+      await muatBatch(batch.id);
+      return true;
+    } catch (e) { message.error(e.message); return false; } finally { setSibuk((s) => ({ ...s, [r.no]: false })); }
+  }, [batch?.id]);
+  const gabung = useCallback(async (r) => {
+    try {
+      await kirim(`/jurnal-assistant/batch/${batch.id}/row/${r.no}/gabung`, 'POST', {});
+      message.success('Digabung lagi jadi satu mutasi');
+      await muatBatch(batch.id);
+    } catch (e) { message.error(e.message); }
+  }, [batch?.id]);
+
   const rows = batch?.rows || [];
-  const hitung = useMemo(() => { const h = {}; rows.forEach((r) => { const k = tabDari(r.status); h[k] = (h[k] || 0) + 1; }); return h; }, [rows]);
+  // Entri hasil pecah per nomor induk (identitas array stabil selama rows tidak berubah → memo aman).
+  const anakPer = useMemo(() => { const m = {}; rows.forEach((r) => { if (r.induk != null) (m[r.induk] = m[r.induk] || []).push(r); }); return m; }, [rows]);
+  // Induk yang dipecah tidak dihitung (yang dihitung entri-entrinya).
+  const hitung = useMemo(() => { const h = {}; rows.forEach((r) => { if (r.status === 'dipecah') return; const k = tabDari(r.status); h[k] = (h[k] || 0) + 1; }); return h; }, [rows]);
   const tampil = useMemo(() => {
     const q = cari.trim().toLowerCase();
-    return rows.filter((r) => tabDari(r.status) === tab && (!q || `${r.uraian} ${r.keterangan} ${r.nominal} ${r.debet} ${r.kredit}`.toLowerCase().includes(q)));
-  }, [rows, tab, cari]);
+    return rows.filter((r) => tabBaris(r, anakPer) === tab && (!q || `${r.uraian} ${r.keterangan} ${r.nominal} ${r.debet} ${r.kredit}`.toLowerCase().includes(q)));
+  }, [rows, tab, cari, anakPer]);
   const siap = rows.filter((r) => r.status === 'siap');
   // Kartu kuning (perlu_cek) bisa dicentang satuan; "Pilih semua" & default tetap hanya yang siap.
   const dipilihRows = rows.filter((r) => pilih[r.no] && (r.status === 'siap' || r.status === 'perlu_cek'));
@@ -366,7 +466,12 @@ const JurnalAssistant = () => {
 
   const opsiAkun = useMemo(() => ref.akun.map((a) => ({ value: a.kodeAkun, label: `${a.kodeAkun} ${a.namaAkun}` })), [ref.akun]);
   const opsiInvoice = useMemo(() => ref.invoice.map((i) => ({ value: i.id, label: `${i.kode} — ${i.customer} — sisa ${rp(i.sisa)}` })), [ref.invoice]);
-  const opsiSpk = useMemo(() => ref.spk.map((s) => ({ value: s.id, label: `${s.kode} — ${s.pengrajin} — sisa ${rp(s.sisa)}` })), [ref.spk]);
+  // SPK yang menurut data sudah lunas tetap bisa dipilih (dicari dengan mengetik) — server
+  // memberi peringatan lebih bayar. Nilai item SPK kadang belum lengkap.
+  const opsiSpk = useMemo(() => [
+    ...ref.spk.map((s) => ({ value: s.id, label: `${s.kode} — ${s.pengrajin} — sisa ${rp(s.sisa)}` })),
+    ...(ref.spkLunas || []).map((s) => ({ value: s.id, label: `${s.kode} — ${s.pengrajin} — LUNAS menurut data (lebih bayar)` })),
+  ], [ref.spk, ref.spkLunas]);
 
   const kartu = { border: '1px solid #dddddd', borderRadius: 10, padding: mobile ? 12 : 16, background: '#fff', marginBottom: 12 };
 
@@ -501,6 +606,9 @@ const JurnalAssistant = () => {
                   dipilih={!!pilih[r.no]}
                   onPilih={onPilih}
                   onUbah={ubah}
+                  onPecah={pecah}
+                  onGabung={gabung}
+                  anak={anakPer[r.no]}
                   sibuk={!!sibuk[r.no]}
                   mobile={mobile}
                 />

@@ -11,8 +11,9 @@ import { hitungFinansialInvoice, ambilSpkTenagaIds } from '../../Utils/invoiceFi
 import ExportLabaRugiPdf from './ExportLabaRugiPdf';
 import RincianAkunModal from './RincianAkunModal';
 import InvoiceBiayaModal from './InvoiceBiayaModal';
-import { buatLaporanProfit, hitungHppLuarInvoice } from '../../Utils/labaRugiReport';
+import { buatLaporanProfit, hitungHppLuarInvoice, hitungPemasukanLain } from '../../Utils/labaRugiReport';
 import HppLuarInvoiceTable from './HppLuarInvoiceTable';
+import PemasukanLainTable from './PemasukanLainTable';
 
 const Jurnal = () => {
   const baseUrl = getApiBaseUrl();
@@ -302,7 +303,11 @@ const Jurnal = () => {
     ? hitungHppLuarInvoice(processedInvoices, { dataProject, dataSPKProduct, dataJurnal, dataAkun, dataInvoicePengeluaran, spkTenagaIds }, filterDate)
     : null;
 
-  const keuntunganPenjualan = totalGrossProfitPenjualan - (hppLuar ? hppLuar.total : 0) - totalSaldoAkhir;
+  // Pemasukan lain (uang masuk di luar invoice, mis. customer ganti ongkir) menambah keuntungan.
+  const pemasukanLain = filterDate ? hitungPemasukanLain(dataJurnal, filterDate) : null;
+
+  const keuntunganPenjualan = totalGrossProfitPenjualan - (hppLuar ? hppLuar.total : 0)
+    + (pemasukanLain ? pemasukanLain.total : 0) - totalSaldoAkhir;
 
 
   // Data untuk export PDF — bulan dipilih di modal, jadi laporannya dihitung
@@ -429,6 +434,14 @@ const Jurnal = () => {
           {hppLuar && (
             <HppLuarInvoiceTable
               hpp={hppLuar}
+              styles={{ tableContainerStyle, tableStyle, thStyle, thTdStyle, tbodyTrEvenStyle, tbodyTrOddStyle }}
+              onPilihAkun={(kode) => setAkunDipilih(dataAkun.find((a) => a.kodeAkun === kode) || null)}
+            />
+          )}
+
+          {pemasukanLain && (
+            <PemasukanLainTable
+              pemasukan={pemasukanLain}
               styles={{ tableContainerStyle, tableStyle, thStyle, thTdStyle, tbodyTrEvenStyle, tbodyTrOddStyle }}
               onPilihAkun={(kode) => setAkunDipilih(dataAkun.find((a) => a.kodeAkun === kode) || null)}
             />

@@ -18,6 +18,7 @@ import {
   hitungPenjualanPerBulan, daftarBulan, labelBulan, labelRange,
 } from '../../Utils/labaRugiReport';
 import HppLuarInvoiceTable from './HppLuarInvoiceTable';
+import PemasukanLainTable from './PemasukanLainTable';
 import GrafikBulanan from './GrafikBulanan';
 import SelisihBengkelModal from './SelisihBengkelModal';
 
@@ -348,6 +349,7 @@ const Jurnal = () => {
                       <th style={thStyle}>Bulan</th>
                       <th style={thStyle}>Penjualan</th>
                       <th style={thStyle}>Gross Profit</th>
+                      <th style={thStyle}>Pemasukan Lain</th>
                       <th style={thStyle}>Pengeluaran</th>
                       <th style={thStyle}>Keuntungan</th>
                     </tr>
@@ -372,6 +374,7 @@ const Jurnal = () => {
                         </td>
                         <td style={thTdStyle}>{rp(r.penjualan)}</td>
                         <td style={thTdStyle}>{rp(r.grossProfit)}</td>
+                        <td style={thTdStyle}>{rp(r.pemasukanLain)}</td>
                         <td style={thTdStyle}>{rp(r.pengeluaran)}</td>
                         <td style={{ ...thTdStyle, color: r.keuntungan < 0 ? '#c0392b' : undefined }}>{rp(r.keuntungan)}</td>
                       </tr>
@@ -380,7 +383,8 @@ const Jurnal = () => {
                       <td style={thTdStyle}>Total :</td>
                       <td style={thTdStyle}>{rp(hasil.totalPenjualan)}</td>
                       <td style={thTdStyle}>{rp(hasil.totalGrossProfit)}</td>
-                      <td style={thTdStyle}>{rp(hasil.totalPenjualan - hasil.keuntungan)}</td>
+                      <td style={thTdStyle}>{rp(hasil.totalPemasukanLain)}</td>
+                      <td style={thTdStyle}>{rp(hasil.totalPenjualan + hasil.totalPemasukanLain - hasil.keuntungan)}</td>
                       <td style={thTdStyle}>{rp(hasil.keuntungan)}</td>
                     </tr>
                   </tbody>
@@ -445,6 +449,14 @@ const Jurnal = () => {
               styles={{ tableContainerStyle, tableStyle, thStyle, thTdStyle, tbodyTrEvenStyle, tbodyTrOddStyle }}
               onPilihAkun={(kode) => setAkunDipilih(dataAkun.find((a) => a.kodeAkun === kode) || null)}
               onPilihBengkel={setBengkelDipilih}
+            />
+          )}
+
+          {hasil && (
+            <PemasukanLainTable
+              pemasukan={hasil.pemasukanLain}
+              styles={{ tableContainerStyle, tableStyle, thStyle, thTdStyle, tbodyTrEvenStyle, tbodyTrOddStyle }}
+              onPilihAkun={(kode) => setAkunDipilih(dataAkun.find((a) => a.kodeAkun === kode) || null)}
             />
           )}
 

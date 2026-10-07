@@ -123,6 +123,46 @@ export const hitungHppLuarInvoice = (invoices, data, bulan) => {
   return { bengkel, lain, sudahDijurnal, total };
 };
 
+// --- Pemasukan lain (sejak 2026-10-07) ---
+// Uang masuk yang bukan dari invoice (mis. customer ganti ongkir, transfer lain):
+// jurnal akun 4200, plus jurnal 4100/4101 yang TIDAK tertaut invoice (Jurnal
+// Assistant mencatat "Pendapatan lain" ke 4100). Sebelum 2026 jurnal 4100 manual
+// adalah penjualan invoice, jadi hanya 4200 yang dihitung untuk bulan-bulan itu.
+export const AKUN_PEMASUKAN_LAIN = '4200';
+const AKUN_PENJUALAN = ['4100', '4101'];
+const MULAI_PENJUALAN_OTOMATIS = '2026-01';
+
+const akunPemasukanLain = (kodeAkun, j, bulan) => {
+  if (!kodeAkun) return false;
+  if (kodeAkun === AKUN_PEMASUKAN_LAIN) return true;
+  return AKUN_PENJUALAN.includes(kodeAkun) && bulan >= MULAI_PENJUALAN_OTOMATIS &&
+    !j.idInvoice && !j.kodeInvoice && j.otomatis !== 'penjualan-invoice';
+};
+
+/** Jurnal pemasukan lain di bulan itu → { baris: [{ jurnal, kodeAkun, nominal }], total }. */
+export const hitungPemasukanLain = (dataJurnal, bulan) => {
+  const baris = [];
+  dataJurnal.forEach((j) => {
+    if ((j.tanggal || '').substring(0, 7) !== bulan) return;
+    const kredit = akunPemasukanLain(j.kodeAkunKredit, j, bulan) ? Number(j.nominalKredit || 0) : 0;
+    const debet = akunPemasukanLain(j.kodeAkunDebet, j, bulan) ? Number(j.nominalDebet || 0) : 0;
+    if (!kredit && !debet) return;
+    baris.push({ jurnal: j, kodeAkun: kredit ? j.kodeAkunKredit : j.kodeAkunDebet, nominal: kredit - debet });
+  });
+  baris.sort((a, b) => String(a.jurnal.tanggal).localeCompare(String(b.jurnal.tanggal)));
+  return { baris, total: baris.reduce((s, b) => s + b.nominal, 0) };
+};
+
+const sectionPemasukanLain = (pemasukan) => ({
+  judul: 'Pemasukan Lain',
+  kolom: ['No', 'Tanggal', 'Keterangan', 'Akun', 'Nominal'],
+  align: ['center', 'left', 'left', 'left', 'right'],
+  baris: pemasukan.baris.map((b, i) => [
+    String(i + 1), tanggalPanjang(b.jurnal.tanggal), b.jurnal.keterangan || '-', b.kodeAkun, rupiah(b.nominal),
+  ]),
+  total: { label: 'Total :', labelSpan: 4, nilai: [rupiah(pemasukan.total)] },
+});
+
 const sectionHppLuarInvoice = (hpp) => ({
   judul: 'HPP di Luar Invoice',
   kolom: ['Pos', 'Akun', 'Riil', 'Sudah di GP', 'Dikurangkan'],
@@ -180,6 +220,7 @@ export const buatLaporanPenjualan = (bulan, data) => {
   });
 
   const hppLuar = hitungHppLuarInvoice(invoices, data, bulan);
+  const pemasukanLain = hitungPemasukanLain(data.dataJurnal, bulan);
   const operasional = sectionPengeluaran(
     'Pengeluaran (Operasional)', data.dataAkun, data.dataJurnal, 'Operasional', bulan
   );
@@ -204,10 +245,11 @@ export const buatLaporanPenjualan = (bulan, data) => {
         },
       },
       sectionHppLuarInvoice(hppLuar),
+      sectionPemasukanLain(pemasukanLain),
       operasional.section,
     ],
     ringkasan: [
-      { label: 'Keuntungan Penjualan', nilai: rupiah(totalGrossProfit - hppLuar.total - operasional.total) },
+      { label: 'Keuntungan Penjualan', nilai: rupiah(totalGrossProfit - hppLuar.total + pemasukanLain.total - operasional.total) },
     ],
   };
 };
@@ -297,6 +339,7 @@ export const buatLaporanProfit = (bulan, data) => {
   });
 
   const hppLuar = hitungHppLuarInvoice(invoices, data, bulan);
+  const pemasukanLain = hitungPemasukanLain(data.dataJurnal, bulan);
   const operasional = sectionPengeluaran(
     'Pengeluaran (Operasional)', data.dataAkun, data.dataJurnal, 'Operasional', bulan
   );
@@ -317,10 +360,11 @@ export const buatLaporanProfit = (bulan, data) => {
         },
       },
       sectionHppLuarInvoice(hppLuar),
+      sectionPemasukanLain(pemasukanLain),
       operasional.section,
     ],
     ringkasan: [
-      { label: 'Keuntungan Penjualan', nilai: rupiah(totalGrossProfit - hppLuar.total - operasional.total) },
+      { label: 'Keuntungan Penjualan', nilai: rupiah(totalGrossProfit - hppLuar.total + pemasukanLain.total - operasional.total) },
     ],
   };
 };
@@ -394,10 +438,12 @@ export const hitungPenjualanPerBulan = (bulanList, data) => {
   const invoices = [];
   const nominalAkun = new Map(); // kodeAkun -> total operasional seluruh rentang
   const hppPerBulan = [];
+  const pemasukanLainBaris = [];
   const rekap = [];
   let totalPenjualan = 0;
   let totalGrossProfit = 0;
   let totalOperasional = 0;
+  let totalPemasukanLain = 0;
 
   bulanList.forEach((bulan) => {
     const invoiceBulan = data.dataInvoice.filter(
@@ -415,6 +461,8 @@ export const hitungPenjualanPerBulan = (bulanList, data) => {
 
     const hpp = hitungHppLuarInvoice(invoiceBulan, data, bulan);
     hppPerBulan.push(hpp);
+    const pemasukan = hitungPemasukanLain(data.dataJurnal, bulan);
+    pemasukanLainBaris.push(...pemasukan.baris);
 
     let operasionalBulan = 0;
     akunOperasional.forEach((a) => {
@@ -426,17 +474,19 @@ export const hitungPenjualanPerBulan = (bulanList, data) => {
     totalPenjualan += penjualanBulan;
     totalGrossProfit += gpBulan;
     totalOperasional += operasionalBulan;
+    totalPemasukanLain += pemasukan.total;
 
-    const keuntungan = gpBulan - hpp.total - operasionalBulan;
+    const keuntungan = gpBulan - hpp.total + pemasukan.total - operasionalBulan;
     rekap.push({
       bulan,
       penjualan: penjualanBulan,
       grossProfit: gpBulan,
       hppLuar: hpp.total,
+      pemasukanLain: pemasukan.total,
       operasional: operasionalBulan,
       // Semua biaya: HPP yang sudah masuk GP invoice + HPP di luar invoice + operasional,
-      // supaya Penjualan − Pengeluaran = Keuntungan (dipakai grafik & rekap).
-      pengeluaran: penjualanBulan - keuntungan,
+      // supaya Penjualan + Pemasukan Lain − Pengeluaran = Keuntungan (dipakai grafik & rekap).
+      pengeluaran: penjualanBulan + pemasukan.total - keuntungan,
       keuntungan,
     });
   });
@@ -448,12 +498,14 @@ export const hitungPenjualanPerBulan = (bulanList, data) => {
     bulanList,
     invoices,
     hppLuar,
+    pemasukanLain: { baris: pemasukanLainBaris, total: totalPemasukanLain },
     operasional,
     rekap,
     totalPenjualan,
     totalGrossProfit,
     totalOperasional,
-    keuntungan: totalGrossProfit - hppLuar.total - totalOperasional,
+    totalPemasukanLain,
+    keuntungan: totalGrossProfit - hppLuar.total + totalPemasukanLain - totalOperasional,
   };
 };
 
@@ -473,17 +525,18 @@ export const buatLaporanPenjualanRange = (bulanAwal, bulanAkhir, data) => {
     sections: [
       {
         judul: 'Rekap per Bulan',
-        kolom: ['Bulan', 'Penjualan', 'Pengeluaran', 'Keuntungan'],
-        align: ['left', 'right', 'right', 'right'],
+        kolom: ['Bulan', 'Penjualan', 'Pemasukan Lain', 'Pengeluaran', 'Keuntungan'],
+        align: ['left', 'right', 'right', 'right', 'right'],
         baris: h.rekap.map((r) => [
-          labelBulan(r.bulan), rupiah(r.penjualan), rupiah(r.pengeluaran), rupiah(r.keuntungan),
+          labelBulan(r.bulan), rupiah(r.penjualan), rupiah(r.pemasukanLain), rupiah(r.pengeluaran), rupiah(r.keuntungan),
         ]),
         total: {
           label: 'Total :',
           labelSpan: 1,
           nilai: [
             rupiah(h.totalPenjualan),
-            rupiah(h.totalPenjualan - h.keuntungan),
+            rupiah(h.totalPemasukanLain),
+            rupiah(h.totalPenjualan + h.totalPemasukanLain - h.keuntungan),
             rupiah(h.keuntungan),
           ],
         },
@@ -511,6 +564,7 @@ export const buatLaporanPenjualanRange = (bulanAwal, bulanAkhir, data) => {
         },
       },
       sectionHppLuarInvoice(h.hppLuar),
+      sectionPemasukanLain(h.pemasukanLain),
       {
         judul: 'Pengeluaran (Operasional)',
         kolom: ['No', 'Kode Akun', 'Nama Akun', 'Nominal'],

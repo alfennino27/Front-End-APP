@@ -12,6 +12,7 @@ import { CiEdit } from 'react-icons/ci';
 import { Image, Select } from 'antd';
 import { useTheme } from '../../ThemeContext';
 import { getImageUrl } from '../../Utils/image';
+import { bukaTab } from '../../Utils/bukaTab';
 
 const Stock = () => {
   const baseUrl = getApiBaseUrl();
@@ -41,7 +42,7 @@ const Stock = () => {
   // jadi project yang sudah completed pun tetap bisa dibuka dari sini.
   const bukaProject = (item) => {
     if (!item?.id) return;
-    window.open(`/project/${item.id}`, '_blank', 'noopener');
+    bukaTab(`/project/${item.id}`);
   };
 
 

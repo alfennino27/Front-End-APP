@@ -3,6 +3,7 @@ import { getApiBaseUrl } from '../../Config/APIurl';
 import { useTheme } from '../../ThemeContext';
 import { getImageUrl } from '../../Utils/image';
 import CatatanPenerimaanInput from './CatatanPenerimaanInput';
+import { bukaTab } from '../../Utils/bukaTab';
 
 // ============================================================================
 // PENGIRIMAN — satu kali serah barang ke ekspedisi, banyak alamat tujuan.
@@ -369,7 +370,7 @@ const Pengiriman = () => {
           <div style={{ color: C.muted, marginBottom: 14 }}>{fmtTgl(done.tanggalKirim)} · {done.ekspedisi?.nama} · {done.tujuan.length} tujuan</div>
           <div style={{ display: 'grid', gap: 8 }}>
             <button type="button" disabled={busy} style={sBtn('#16a34a')} onClick={() => bagikanPdf(done)}>{busy ? 'Menyiapkan PDF…' : '📤 Bagikan / Unduh PDF'}</button>
-            <button type="button" style={sBtn('#2563eb')} onClick={() => window.open(pdfUrl(done), '_blank')}>👁 Lihat PDF</button>
+            <button type="button" style={sBtn('#2563eb')} onClick={() => bukaTab(pdfUrl(done))}>👁 Lihat PDF</button>
             <button type="button" style={sBtn('#25D366')} onClick={() => chatEkspedisi(done)}>💬 Chat WA {done.ekspedisi?.nama}</button>
             <button type="button" style={sBtn(C.soft, C.text)} onClick={() => salinTeks(done)}>📋 Salin teks untuk WA</button>
             <button type="button" style={sBtn(C.soft, C.text)} onClick={() => setMode('list')}>Selesai</button>
@@ -412,7 +413,7 @@ const Pengiriman = () => {
             </div>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               <button type="button" disabled={busy} style={sBtn('#16a34a')} onClick={() => bagikanPdf(doc)}>📤 PDF</button>
-              <button type="button" style={sBtn(C.soft, C.text)} onClick={() => window.open(pdfUrl(doc), '_blank')}>👁 Lihat</button>
+              <button type="button" style={sBtn(C.soft, C.text)} onClick={() => bukaTab(pdfUrl(doc))}>👁 Lihat</button>
               <button type="button" style={sBtn(C.soft, C.text)} onClick={() => salinTeks(doc)}>📋 Teks WA</button>
               <button type="button" disabled={busy} style={sBtn(C.soft, C.text)} onClick={() => bukaEdit(doc)}>✏️ Ubah</button>
               <button type="button" style={sBtn(C.soft, '#dc2626')} onClick={() => hapus(doc)}>Hapus</button>

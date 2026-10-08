@@ -59,7 +59,7 @@ const CetakSPK = () => {
   const [data, setData] = useState(null);
 
   useEffect(() => {
-    const stored = sessionStorage.getItem('cetakSPK');
+    const stored = localStorage.getItem('cetakSPK') ?? sessionStorage.getItem('cetakSPK');
     if (stored) setData(JSON.parse(stored));
   }, []);
 

@@ -19,6 +19,7 @@ import { PlusOutlined, DeleteOutlined } from '@ant-design/icons';
 import { NumericFormat } from 'react-number-format';
 import ImageUploadZone from '../Pekerjaan/ImageUploadZone';
 import ProductOptionsEditor from './ProductOptionsEditor';
+import { bukaTab } from '../../Utils/bukaTab';
 
 const { Option } = Select;
 
@@ -1001,7 +1002,7 @@ const Products = () => {
             )}
             <button
               style={{ ...toolbarBtn(true), fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}
-              onClick={() => window.open('/products/new', '_blank')}
+              onClick={() => bukaTab('/products/new')}
               title="Buka halaman tambah produk (tab baru)"
             >
               <FiPlus /> Produk Baru
@@ -2378,7 +2379,7 @@ const Products = () => {
                   {(d.data && d.data.category) || '-'} · {(d.photos || []).length} foto · {(d.data && d.data.varians ? d.data.varians.length : 0)} varian · {d.updated_at ? new Date(d.updated_at).toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''}
                 </div>
               </div>
-              <button className="btn btn-sm btn-primary" onClick={() => { window.open(`/products/new?draft=${d.id}`, '_blank'); setShowDrafts(false); }}>Lanjutkan</button>
+              <button className="btn btn-sm btn-primary" onClick={() => { bukaTab(`/products/new?draft=${d.id}`); setShowDrafts(false); }}>Lanjutkan</button>
               <Popconfirm title="Buang draft ini?" onConfirm={() => deleteDraft(d.id)} okText="Buang" cancelText="Batal">
                 <button className="btn btn-sm btn-outline-danger"><MdDelete /></button>
               </Popconfirm>

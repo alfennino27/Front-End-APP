@@ -17,6 +17,7 @@ import { useTheme } from '../../ThemeContext';
 import { getImageUrl } from '../../Utils/image';
 import { TbTruckDelivery } from 'react-icons/tb';
 import dayjs from 'dayjs';
+import { bukaTab } from '../../Utils/bukaTab';
 
 //tes
 
@@ -513,7 +514,7 @@ const ListPekerjaan = () => {
     // e.stopPropagation();
     if (spkIds.length > 0) {
       spkIds.forEach(spkId => {
-        window.open(`/spk/${spkId}`, '_blank');
+        bukaTab(`/spk/${spkId}`);
       });
     }
   }
@@ -607,19 +608,19 @@ const ListPekerjaan = () => {
           return d >= start && d <= end;
         });
       }
-      sessionStorage.setItem('cetakLabelSupplier', JSON.stringify({
+      localStorage.setItem('cetakLabelSupplier', JSON.stringify({
         items: filtered,
         category: pdfSupplierCategory,
         supplier: pdfSupplierName,
       }));
-      window.open('/cetakLabelSupplier', '_blank');
+      bukaTab('/cetakLabelSupplier');
       return;
     }
-    sessionStorage.setItem('cetakLabel', JSON.stringify(cetakLabel));
+    localStorage.setItem('cetakLabel', JSON.stringify(cetakLabel));
     if (tipeLabel == "Pengiriman") {
-      window.open(`/cetakLabel`, '_blank');
+      bukaTab(`/cetakLabel`);
     } else {
-      window.open(`/cetakLabelQC`, '_blank');
+      bukaTab(`/cetakLabelQC`);
     }
   };
 

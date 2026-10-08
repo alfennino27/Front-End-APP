@@ -28,6 +28,7 @@ import { getImageUrl } from '../../Utils/image';
 import { heicToJpeg } from '../../Utils/heic';
 import noImageAvailable from '../../assets/images/noImageAvailable.png';
 import glbLogoImg from '../../assets/images/glbLogo.webp';
+import { bukaTab } from '../../Utils/bukaTab';
 
 const { Option } = Select;
 
@@ -1407,10 +1408,10 @@ const DetailPekerjaan = () => {
     const project = dataProjectFromDB[0];
     if (category === 'GambarKerja') {
       setShowSPKImagePicker(false);
-      sessionStorage.setItem('cetakGambarKerja', JSON.stringify({
+      localStorage.setItem('cetakGambarKerja', JSON.stringify({
         project, coverImage, pages, printDate: new Date().toISOString(),
       }));
-      window.open('/cetakGambarKerja', '_blank');
+      bukaTab('/cetakGambarKerja');
       return;
     }
     const spkData = {
@@ -1422,8 +1423,8 @@ const DetailPekerjaan = () => {
       printDate: new Date().toISOString(),
     };
     setShowSPKImagePicker(false);
-    sessionStorage.setItem('cetakSPK', JSON.stringify(spkData));
-    window.open('/cetakSPK', '_blank');
+    localStorage.setItem('cetakSPK', JSON.stringify(spkData));
+    bukaTab('/cetakSPK');
   };
 
   const handleAlurKerjaClick = (fieldName, label, currentVal) => {

@@ -4,6 +4,7 @@ import { Badge, Calendar, Modal, Spin } from 'antd';
 // import '../Calendar/Calendar.css';
 import { useTheme } from '../../ThemeContext';
 import { getApiBaseUrl } from '../../Config/APIurl';
+import { bukaTab } from '../../Utils/bukaTab';
 
 const ProjectCalendar = () => {
     const baseUrl = getApiBaseUrl();
@@ -171,7 +172,7 @@ const ProjectCalendar = () => {
                 <div style={{ maxHeight: '70vh', overflowY: 'auto' }}> {/* Add this div for scrolling */}
                     {modalData.length > 0 ? (
                         modalData.map((project) => (
-                            <div key={project.id} style={{ display: 'flex', alignItems: 'center', marginTop: "20px", cursor: "pointer" }} onClick={() => window.open(`/project/${project.id}`, '_blank')}>
+                            <div key={project.id} style={{ display: 'flex', alignItems: 'center', marginTop: "20px", cursor: "pointer" }} onClick={() => bukaTab(`/project/${project.id}`)}>
                                 <img
                                     src={project.image1}
                                     alt={project.NamaBarang}

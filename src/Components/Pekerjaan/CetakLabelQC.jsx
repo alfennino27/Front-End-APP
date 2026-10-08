@@ -6,7 +6,7 @@ const CetakLabel = () => {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    const storedLabels = sessionStorage.getItem('cetakLabel');
+    const storedLabels = localStorage.getItem('cetakLabel') ?? sessionStorage.getItem('cetakLabel');
     if (storedLabels) {
       setLabels(JSON.parse(storedLabels));
     }

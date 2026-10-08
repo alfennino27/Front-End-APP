@@ -10,42 +10,16 @@ export const escapeHtml = (val) =>
     .replace(/"/g, '&quot;');
 
 /**
- * Tulis `html` ke jendela baru lalu panggil print. Kalau popup diblokir,
- * fallback ke iframe tersembunyi supaya tetap bisa dicetak.
+ * Buka `html` di tab baru (tanpa opener) yang langsung memanggil print.
+ * Tab dibuat dari blob URL + 'noopener' supaya berjalan di proses terpisah:
+ * kalau tidak, dialog print di tab cetak ikut membekukan tab ERP asal
+ * (lihat Utils/bukaTab.js).
  */
 export const bukaJendelaCetak = (html) => {
-  const win = window.open('', '_blank');
-  if (win) {
-    win.document.open();
-    win.document.write(html);
-    win.document.close();
-    // Tunggu layout & font siap; kalau print() kepagian hasilnya bisa kosong.
-    const cetak = () => {
-      win.focus();
-      win.print();
-    };
-    if (win.document.readyState === 'complete') setTimeout(cetak, 300);
-    else win.onload = () => setTimeout(cetak, 300);
-    return;
-  }
-
-  const iframe = document.createElement('iframe');
-  iframe.style.position = 'fixed';
-  iframe.style.right = '0';
-  iframe.style.bottom = '0';
-  iframe.style.width = '0';
-  iframe.style.height = '0';
-  iframe.style.border = '0';
-  document.body.appendChild(iframe);
-
-  const doc = iframe.contentWindow.document;
-  doc.open();
-  doc.write(html);
-  doc.close();
-
-  setTimeout(() => {
-    iframe.contentWindow.focus();
-    iframe.contentWindow.print();
-    setTimeout(() => iframe.remove(), 1000);
-  }, 400);
+  // Tunggu layout & font siap; kalau print() kepagian hasilnya bisa kosong.
+  const skrip = '<script>window.addEventListener("load",function(){setTimeout(function(){window.focus();window.print();},300);});<\/script>';
+  const isi = /<\/body>/i.test(html) ? html.replace(/<\/body>/i, `${skrip}</body>`) : html + skrip;
+  const url = URL.createObjectURL(new Blob([isi], { type: 'text/html;charset=utf-8' }));
+  window.open(url, '_blank', 'noopener');
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
 };

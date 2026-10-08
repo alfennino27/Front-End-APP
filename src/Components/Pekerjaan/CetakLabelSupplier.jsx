@@ -42,7 +42,7 @@ const CetakLabelSupplier = () => {
   const [supplier, setSupplier] = useState('');
 
   useEffect(() => {
-    const stored = sessionStorage.getItem('cetakLabelSupplier');
+    const stored = localStorage.getItem('cetakLabelSupplier') ?? sessionStorage.getItem('cetakLabelSupplier');
     if (stored) {
       const data = JSON.parse(stored);
       setItems(data.items || []);

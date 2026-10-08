@@ -26,7 +26,7 @@ const CetakGambarKerja = () => {
   const [data, setData] = useState(null);
 
   useEffect(() => {
-    const stored = sessionStorage.getItem('cetakGambarKerja');
+    const stored = localStorage.getItem('cetakGambarKerja') ?? sessionStorage.getItem('cetakGambarKerja');
     if (stored) setData(JSON.parse(stored));
   }, []);
 

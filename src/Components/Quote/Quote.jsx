@@ -5,6 +5,7 @@ import { useTheme } from '../../ThemeContext';
 import { isHeic, heicToJpegAll } from '../../Utils/heic';
 import { labelBulan, toMonth, campaignsForMonth, monthChoices } from '../../Utils/campaignMonth';
 import CatatanPenerimaanInput from '../Pengiriman/CatatanPenerimaanInput';
+import { bukaTab } from '../../Utils/bukaTab';
 
 // Dropdown dengan search bar (dipakai untuk pilih customer & template).
 const SearchableSelect = ({ options, value, onChange, placeholder, ui }) => {
@@ -653,7 +654,7 @@ const Quote = () => {
       fetchFolders();
       try { setCustList(await (await fetch(`${baseUrl}/accounting/cust/get`)).json()); } catch (e) { /* ignore */ }
       if (thenPdf && saved.id) {
-        window.open(pdfUrl(baseUrl, saved), '_blank');
+        bukaTab(pdfUrl(baseUrl, saved));
       }
       // stay on form in edit mode
       setForm((f) => ({

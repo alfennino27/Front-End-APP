@@ -24,6 +24,7 @@ import { getImageUrl } from '../../Utils/image';
 import { labelBulan, toMonth, campaignsForMonth, monthChoices } from '../../Utils/campaignMonth';
 import { RiFileExcel2Line } from "react-icons/ri";
 import OrderAssistant from '../AI/OrderAssistant';
+import { bukaTab } from '../../Utils/bukaTab';
 
 //tes
 // Rekening penerima pembayaran customer (mirror REKENING_PENERIMA di server utils/jurnalPembayaran.js).
@@ -3042,7 +3043,7 @@ const Invoice = () => {
                     return (
                       <tr key={index}>
                         <td className="text-center">{index + 1}</td>
-                        <td className="text-center text-primary" style={{ cursor: 'pointer' }} onClick={() => { window.open(`/invoice/${invoice.id}`, '_blank'); }}>
+                        <td className="text-center text-primary" style={{ cursor: 'pointer' }} onClick={() => { bukaTab(`/invoice/${invoice.id}`); }}>
                           {invoice.kodeInvoice}
                         </td>
                         <td className="text-center">Rp. {nilaiOrder.toLocaleString('id-ID')}</td>
@@ -3208,7 +3209,7 @@ const Invoice = () => {
                       return (
                         <tr key={index} style={{ display: filterPaymentSummary === "All" ? "" : (status === filterPaymentSummary ? "" : "none") }}>
                           <td className="text-center">{index + 1}</td>
-                          <td className="text-center text-primary" style={{ cursor: 'pointer' }} onClick={() => { window.open(`/invoice/${item.idInvoice}`, '_blank'); }}>
+                          <td className="text-center text-primary" style={{ cursor: 'pointer' }} onClick={() => { bukaTab(`/invoice/${item.idInvoice}`); }}>
                             {item.KodeInvoice}
                           </td>
                           <td className="text-center">Rp. {Number(item.jumlah).toLocaleString('id-ID')}</td>

@@ -6,6 +6,7 @@ import { isHeic, heicToJpegAll } from '../../Utils/heic';
 import { labelBulan, toMonth, campaignsForMonth, monthChoices } from '../../Utils/campaignMonth';
 import CatatanPenerimaanInput from '../Pengiriman/CatatanPenerimaanInput';
 import { bukaTab } from '../../Utils/bukaTab';
+import TncEditor, { PdfArsip } from './TncEditor';
 
 // Dropdown dengan search bar (dipakai untuk pilih customer & template).
 const SearchableSelect = ({ options, value, onChange, placeholder, ui }) => {
@@ -261,6 +262,10 @@ const Quote = () => {
   const [prodCats, setProdCats] = useState([]);
   const [search, setSearch] = useState('');
   const [tplMgr, setTplMgr] = useState(null); // null | 'desc' | 'terms'
+  // Syarat & Ketentuan: { sections, templates, defaultTnc } dari backend
+  const [tncCfg, setTncCfg] = useState(null);
+  // quote lain yang punya T&C → sumber "pakai T&C dari quote lain"
+  const [tncSources, setTncSources] = useState([]);
   const [dragIdx, setDragIdx] = useState(null); // item index yang sedang di-drag-over
   const [renamingFolder, setRenamingFolder] = useState(false);
   const [folderDraft, setFolderDraft] = useState({ namaCust: '', waCust: '', alamatCust: '' });
@@ -294,6 +299,7 @@ const Quote = () => {
     items: [emptyItem()],
     // lampiran PO customer: lama {url,name,type} | baru {file,name,type,preview}
     poAttachments: [],
+    tnc: null,   // snapshot Syarat & Ketentuan (null = quote lama / format lama)
     status: 'quote',
     invoiceId: null,
     isDraft: true,
@@ -327,6 +333,7 @@ const Quote = () => {
   const refreshTemplates = useCallback(async () => {
     try { setTerms(await (await fetch(`${baseUrl}/quotation/terms/get`)).json()); } catch (e) { /* ignore */ }
     try { setDescTpls(await (await fetch(`${baseUrl}/quotation/desctemplate/get`)).json()); } catch (e) { /* ignore */ }
+    try { setTncCfg(await (await fetch(`${baseUrl}/quotation/tnc/get`)).json()); } catch (e) { /* ignore */ }
   }, [baseUrl]);
 
   const fetchCustomerDetail = useCallback(async (kodeCust) => {
@@ -447,12 +454,30 @@ const Quote = () => {
   const totalMarginReal = itemReal.reduce((a, f) => a + (f ? f.marginTotal : 0), 0) - numParse(form.discount) - totalPengeluaran;
   const totalMarginRealPct = totalPenjualanNet > 0 ? (totalMarginReal / totalPenjualanNet) * 100 : 0;
 
+  // Sumber "pakai T&C dari quote lain": diambil sekali saat form dibuka.
+  // Quote customer yang sama ditaruh paling atas (repeat order).
+  useEffect(() => {
+    if (view !== 'form' || tncSources.length) return;
+    fetch(`${baseUrl}/quotation/get`).then((r) => r.json())
+      .then((arr) => setTncSources((Array.isArray(arr) ? arr : []).filter((q) => q.tnc).map((q) => ({ id: q.id, kodeCust: q.kodeCust, kodeInvoice: q.kodeInvoice, customer: q.customer, tanggal: q.tanggal, tnc: q.tnc }))))
+      .catch(() => {});
+  }, [view, baseUrl, tncSources.length]);
+  const tncCopyOptions = useMemo(() => {
+    const lain = tncSources.filter((q) => q.id !== form.id);
+    const sama = lain.filter((q) => form.kodeCust && q.kodeCust === form.kodeCust);
+    const beda = lain.filter((q) => !(form.kodeCust && q.kodeCust === form.kodeCust));
+    const lbl = (q) => `${q.kodeInvoice || '(tanpa kode)'} — ${q.customer || '-'}${q.tanggal ? ` · ${q.tanggal}` : ''}`;
+    return [...sama.map((q) => ({ value: q.id, label: `★ ${lbl(q)}` })), ...beda.map((q) => ({ value: q.id, label: lbl(q) }))];
+  }, [tncSources, form.id, form.kodeCust]);
+
   // ================= form actions =================
   const setF = (patch) => setForm((f) => ({ ...f, ...patch }));
 
   const openCreate = (prefillCust) => {
     const f = blankForm();
     if (terms[0]) f.termsTemplateId = terms[0].id;
+    // quote baru langsung berisi T&C dari template default (bisa diedit/dimatikan)
+    if (tncCfg && tncCfg.defaultTnc) f.tnc = JSON.parse(JSON.stringify(tncCfg.defaultTnc));
     if (prefillCust) {
       f.kodeCust = prefillCust.kodeCust || '';
       f.customer = prefillCust.namaCust || '';
@@ -637,6 +662,7 @@ const Quote = () => {
     fd.append('leadMonth', form.leadMonth || '');
     fd.append('isRepeatOrder', form.isRepeatOrder);
     fd.append('repeatRefCampaignId', form.repeatRefCampaignId || '');
+    if (form.tnc) fd.append('tnc', JSON.stringify(form.tnc));
     return fd;
   };
 
@@ -1418,6 +1444,21 @@ const Quote = () => {
             )}</label>
         )}
       </div>
+
+      <TncEditor
+        tnc={form.tnc}
+        onChange={(tnc) => setF({ tnc })}
+        cfg={tncCfg}
+        ui={ui}
+        baseUrl={baseUrl}
+        onTemplatesChanged={refreshTemplates}
+        copyOptions={tncCopyOptions}
+        onCopyFrom={(qid) => {
+          const src = tncSources.find((x) => x.id === qid);
+          if (src && src.tnc) setF({ tnc: JSON.parse(JSON.stringify(src.tnc)) });
+        }}
+      />
+      {form.id && <PdfArsip baseUrl={baseUrl} quoteId={form.id} ui={ui} />}
 
       {/* sticky actions */}
       <div className="klf-quote-actions" style={{ background: card, borderTop: `1px solid ${border}` }}>

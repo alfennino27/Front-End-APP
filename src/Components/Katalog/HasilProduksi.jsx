@@ -307,14 +307,20 @@ const HasilProduksi = () => {
                 <button type="button" onClick={() => setPicker(true)} style={{ ...btn(linked.length ? 'none' : '#013175'), flex: 'none', padding: '8px 14px' }}><FiLink /> {linked.length ? 'Ubah' : 'Tautkan'}</button>
               </div>
               {linked.length ? linked.map((p) => (
-                <a key={p.id} href={`/products?id=${p.id}`} target="_blank" rel="noreferrer" style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '6px 0', textDecoration: 'none', color: th.text }}>
-                  <div style={{ width: 52, height: 52, borderRadius: 8, overflow: 'hidden', background: '#eee', flexShrink: 0 }}>{firstImage(p) && <img src={thumb(firstImage(p), 160)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}</div>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: 11, color: th.muted, textTransform: 'uppercase' }}>{p.category}{p.isDisplay ? '' : ' · hidden'}</div>
-                    <div style={{ fontSize: 13, fontWeight: 600 }}>{p.judul}</div>
-                  </div>
-                </a>
-              )) : <div style={{ fontSize: 13, color: th.muted }}>Sudah ada produknya di website? Tautkan — foto barang jadi ini tampil di "Hasil produksi asli" halaman produk. Satu project boleh ke beberapa produk (mis. meja + kursi).</div>}
+                <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <a href={`/products?id=${p.id}`} target="_blank" rel="noreferrer" style={{ flex: 1, minWidth: 0, display: 'flex', gap: 10, alignItems: 'center', padding: '6px 0', textDecoration: 'none', color: th.text }}>
+                    <div style={{ width: 52, height: 52, borderRadius: 8, overflow: 'hidden', background: '#eee', flexShrink: 0 }}>{firstImage(p) && <img src={thumb(firstImage(p), 160)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}</div>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 11, color: th.muted, textTransform: 'uppercase' }}>{p.category}{p.isDisplay ? '' : ' · hidden'}</div>
+                      <div style={{ fontSize: 13, fontWeight: 600 }}>{p.judul}</div>
+                    </div>
+                  </a>
+                  <Popconfirm title="Hapus tautan ke produk ini?" description="Foto barang jadi project ini tidak tampil lagi di halaman produk tsb." okText="Hapus" cancelText="Batal"
+                    onConfirm={() => simpanLink(sel.linkProducts.filter((id) => id !== p.id))}>
+                    <button type="button" disabled={busy} title="Hapus tautan" style={{ flexShrink: 0, border: `1px solid ${th.border}`, background: th.card, color: '#c0392b', borderRadius: 8, padding: '9px 10px', display: 'flex', alignItems: 'center' }}><FiX /></button>
+                  </Popconfirm>
+                </div>
+              )) :<div style={{ fontSize: 13, color: th.muted }}>Sudah ada produknya di website? Tautkan — foto barang jadi ini tampil di "Hasil produksi asli" halaman produk. Satu project boleh ke beberapa produk (mis. meja + kursi).</div>}
             </div>
 
             <div style={box}>

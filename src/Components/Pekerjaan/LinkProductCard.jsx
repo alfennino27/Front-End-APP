@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { message } from 'antd';
+import { message, Popconfirm } from 'antd';
 import { getApiBaseUrl } from '../../Config/APIurl';
 import ProductPicker, { firstImage, thumb } from '../Katalog/ProductPicker';
 
@@ -75,7 +75,8 @@ const LinkProductCard = ({ projectId, linkProducts, linkProduct, canEdit, katego
       </div>
       {current.length ? (
         linked.length ? linked.map((p) => (
-          <a key={p.id} href={`https://karyalogamfurniture.com/category/detail?id=${p._id || p.id}`} target="_blank" rel="noreferrer" style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 8, textDecoration: 'none', color: text }}>
+          <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <a href={`https://karyalogamfurniture.com/category/detail?id=${p._id || p.id}`} target="_blank" rel="noreferrer" style={{ flex: 1, minWidth: 0, display: 'flex', gap: 10, alignItems: 'center', marginTop: 8, textDecoration: 'none', color: text }}>
             <div style={{ width: 56, height: 56, borderRadius: 8, overflow: 'hidden', background: '#eee', flexShrink: 0 }}>
               {firstImage(p) && <img src={thumb(firstImage(p), 160)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
             </div>
@@ -84,6 +85,12 @@ const LinkProductCard = ({ projectId, linkProducts, linkProduct, canEdit, katego
               <div style={{ fontWeight: 600, fontSize: 13, lineHeight: 1.3 }}>{p.judul}</div>
             </div>
           </a>
+          {canEdit && (
+            <Popconfirm title="Hapus tautan ke produk ini?" okText="Hapus" cancelText="Batal" onConfirm={() => save(current.filter((id) => id !== p.id))}>
+              <button className="btn btn-sm btn-outline-danger" disabled={saving} style={{ marginTop: 8 }} title="Hapus tautan">✕</button>
+            </Popconfirm>
+          )}
+          </div>
         )) : <div style={{ fontSize: 12, color: muted, marginTop: 6 }}>Memuat produk…</div>
       ) : (
         <div style={{ fontSize: 12, color: muted, marginTop: 6 }}>Belum tertaut ke produk katalog.</div>

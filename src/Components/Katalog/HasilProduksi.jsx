@@ -31,7 +31,7 @@ const STATUS_STYLE = {
   tertaut: { label: 'Tertaut', color: '#15803d', bg: '#dcfce7' },
   bukan: { label: 'Bukan katalog', color: '#4b5563', bg: '#e5e7eb' },
 };
-const DESAIN_LABEL = { review: 'menunggu review', revisi: 'perlu revisi', layak: 'layak — draft produk', arsip: 'diarsip' };
+const DESAIN_LABEL = { foto: 'menunggu foto katalog dari desainer', review: 'menunggu review', revisi: 'perlu revisi', layak: 'layak — draft produk', arsip: 'diarsip' };
 
 const statusOf = (r) => {
   if (r.bukanKatalog) return 'bukan';
@@ -332,7 +332,7 @@ const HasilProduksi = () => {
                 </>
               ) : (
                 <>
-                  <div style={{ fontSize: 13, color: th.muted, marginBottom: 10 }}>Ajukan ke Desain Produk: lengkapi <b>foto katalog</b> (wajib), deskripsi & harga/varian. Setelah dikurasi Layak & disimpan jadi produk, project ini otomatis tertaut.</div>
+                  <div style={{ fontSize: 13, color: th.muted, marginBottom: 10 }}>Ajukan ke Desain Produk → desainer membuatkan <b>foto katalog</b>-nya → setelah dikurasi & ditambahkan jadi produk, project ini otomatis tertaut.</div>
                   <button type="button" onClick={() => navigate(`/desain?dariProject=${sel.id}`)} style={{ ...btn(linked.length ? 'none' : '#013175'), width: '100%' }}><FiUpload /> Ajukan ke Desain Produk</button>
                 </>
               )}

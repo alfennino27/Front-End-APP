@@ -19,44 +19,15 @@ import { isHeic } from '../../Utils/heic';
  * Foto real project hanya referensi — yang diupload & dipakai website = foto katalog.
  */
 const STATUS = {
+  foto: { label: 'Perlu Foto Katalog', color: '#1d4ed8', bg: '#dbeafe' },
   review: { label: 'Menunggu Review', color: '#b45309', bg: '#fef3c7' },
   revisi: { label: 'Revisi', color: '#b91c1c', bg: '#fee2e2' },
   layak: { label: 'Layak', color: '#15803d', bg: '#dcfce7' },
   arsip: { label: 'Arsip', color: '#4b5563', bg: '#e5e7eb' },
 };
-const TABS = ['review', 'revisi', 'layak', 'arsip', 'semua'];
+const TABS = ['foto', 'review', 'revisi', 'layak', 'arsip', 'semua'];
 const SUMBER = { desain: 'Desain', produksi: 'Hasil Produksi' };
 const rupiah = (n) => `Rp ${Number(n || 0).toLocaleString('id-ID')}`;
-const angka = (x) => Number(String(x ?? '').replace(/[^\d]/g, '')) || 0;
-// kelengkapan sebelum live: foto katalog wajib, deskripsi & harga/varian dianjurkan
-const cekLengkap = (d) => {
-  const v = (d.versions || []).find((x) => x.v === d.approvedVersion) || (d.versions || [])[d.versions.length - 1] || {};
-  return [
-    ['Foto katalog', (v.photos || []).length > 0],
-    ['Deskripsi', !!(d.deskripsi || d.ukuran || d.material)],
-    ['Harga / varian', (d.varians || []).some((x) => x.jual > 0)],
-  ];
-};
-
-// Editor varian ringkas (nama varian + harga jual). HPP diisi nanti di form produk.
-const VarianEditor = ({ th, value, onChange }) => {
-  const rows = value.length ? value : [{ varian: '', jual: '' }];
-  const set = (i, patch) => onChange(rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
-  const input = { minWidth: 0, padding: '9px 10px', borderRadius: 10, border: `1px solid ${th.border}`, background: th.input, color: th.text, fontSize: 15, outline: 'none' };
-  return (
-    <div>
-      {rows.map((r, i) => (
-        <div key={i} style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr auto', gap: 6, marginBottom: 6 }}>
-          <input style={input} value={r.varian} onChange={(e) => set(i, { varian: e.target.value })} placeholder="Varian (mis. 160x90)" />
-          <input style={input} inputMode="numeric" value={r.jual ? Number(angka(r.jual)).toLocaleString('id-ID') : ''} onChange={(e) => set(i, { jual: String(angka(e.target.value)) })} placeholder="Harga jual" />
-          <button type="button" onClick={() => onChange(rows.filter((_, j) => j !== i))} style={{ border: 'none', background: 'none', color: '#c0392b', padding: 6 }}><FiTrash2 /></button>
-        </div>
-      ))}
-      <button type="button" onClick={() => onChange([...rows, { varian: '', jual: '' }])} style={{ border: `1px dashed ${th.border}`, background: 'transparent', color: th.text, borderRadius: 10, padding: '8px 12px', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}><FiPlus /> Tambah varian</button>
-    </div>
-  );
-};
-
 // Foto real dari project asal (referensi untuk kurator & yang membuat foto katalog)
 const RefProduksi = ({ th, baseUrl, projectIds }) => {
   const [data, setData] = useState([]);
@@ -133,10 +104,8 @@ const UploadForm = ({ th, baseUrl, user, categories, target, prefill, onDone, on
   const dariProduksi = isNew ? prefill?.sumber === 'produksi' : target?.sumber === 'produksi';
   const [nama, setNama] = useState(prefill?.nama || '');
   const [category, setCategory] = useState(prefill?.category || '');
-  const [deskripsi, setDeskripsi] = useState(prefill?.deskripsi || '');
-  const [varians, setVarians] = useState(prefill?.varians || []);
-  const [ukuran, setUkuran] = useState('');
-  const [material, setMaterial] = useState('');
+  // pengajuan hasil produksi (Nanen): cukup nama + kategori + catatan; foto katalog dibuat desainer belakangan
+  const ajukan = isNew && dariProduksi;
   const [catatan, setCatatan] = useState('');
   const [photos, setPhotos] = useState([]); // {key, url, preview, pct, err}
   const [model, setModel] = useState(null); // {url, nama, pct, err}
@@ -191,14 +160,14 @@ const UploadForm = ({ th, baseUrl, user, categories, target, prefill, onDone, on
   const submit = async () => {
     if (isNew && !category) { message.warning('Pilih kategori produk'); return; }
     const okPhotos = photos.filter((p) => p.url).map((p) => p.url);
-    if (!okPhotos.length) { message.warning(dariProduksi ? 'Minimal 1 foto katalog' : 'Minimal 1 foto desain'); return; }
+    if (!ajukan && !okPhotos.length) { message.warning(dariProduksi ? 'Minimal 1 foto katalog' : 'Minimal 1 foto desain'); return; }
     if (uploading) { message.info('Tunggu upload selesai'); return; }
     setSaving(true);
     try {
       const files = { photos: okPhotos, model3d: model?.url || null, gambarKerja: pdfs.filter((p) => p.url).map((p) => ({ url: p.url, nama: p.nama })), catatan, uid: user?.uid, designer: user?.displayName || '' };
-      if (isNew) await axios.post(`${baseUrl}/desain/create`, { ...files, nama, category, ukuran, material, deskripsi, varians, sumber: prefill?.sumber || 'desain', projectIds: prefill?.projectIds || [] });
+      if (isNew) await axios.post(`${baseUrl}/desain/create`, { ...files, nama, category, sumber: prefill?.sumber || 'desain', projectIds: prefill?.projectIds || [] });
       else await axios.post(`${baseUrl}/desain/${target.id}/version`, files);
-      message.success(isNew ? 'Desain terkirim — menunggu review' : 'Versi baru terkirim — menunggu review');
+      message.success(ajukan ? 'Diajukan — menunggu foto katalog dari desainer' : isNew ? 'Desain terkirim — menunggu review' : 'Foto terkirim — menunggu review');
       onDone();
     } catch (e) { message.error(e.response?.data?.message || e.message); }
     finally { setSaving(false); }
@@ -219,26 +188,19 @@ const UploadForm = ({ th, baseUrl, user, categories, target, prefill, onDone, on
               options={categories.map((c) => ({ value: c.name, label: c.name }))} />
           </div>
           <div style={{ marginBottom: 12 }}>{lbl('Nama / kode desain')}<input style={input} value={nama} onChange={(e) => setNama(e.target.value)} placeholder="mis. Kursi Makan Lengkung Rotan" /></div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            <div>{lbl('Ukuran')}<input style={input} value={ukuran} onChange={(e) => setUkuran(e.target.value)} placeholder="P x L x T cm" /></div>
-            <div>{lbl('Material')}<input style={input} value={material} onChange={(e) => setMaterial(e.target.value)} placeholder="Besi, kayu jati…" /></div>
-          </div>
-          <div style={{ marginTop: 12 }}>{lbl('Deskripsi produk')}
-            <textarea style={{ ...input, minHeight: 80, fontFamily: 'inherit', resize: 'vertical' }} value={deskripsi} onChange={(e) => setDeskripsi(e.target.value)} placeholder="Deskripsi untuk halaman produk website" />
-          </div>
-          <div style={{ marginTop: 12 }}>{lbl('Harga / varian')}<VarianEditor th={th} value={varians} onChange={setVarians} /></div>
         </div>
       ) : (
         <div style={{ ...box, fontSize: 13 }}>
-          Versi baru untuk <b>{judulDesain(target)}</b> (v{(target.versions || []).length + 1}).
+          {dariProduksi && !(target.versions || []).length ? <>Foto katalog untuk <b>{judulDesain(target)}</b>.</> : <>Versi baru untuk <b>{judulDesain(target)}</b> (v{(target.versions || []).length + 1}).</>}
           {(() => { const r = [...(target.reviews || [])].reverse().find((x) => x.action === 'revisi'); return r ? <div style={{ marginTop: 8, padding: 10, borderRadius: 10, background: '#fee2e2', color: '#7f1d1d' }}>Catatan revisi: {r.catatan}</div> : null; })()}
         </div>
       )}
 
-      {isNew && dariProduksi && <RefProduksi th={th} baseUrl={baseUrl} projectIds={prefill?.projectIds} />}
+      {dariProduksi && <RefProduksi th={th} baseUrl={baseUrl} projectIds={isNew ? prefill?.projectIds : target?.projectIds} />}
+      {ajukan && <div style={{ ...box, fontSize: 13, color: th.muted }}>Setelah diajukan, desainer (Pakde / Azwad / Nino) membuat & mengupload <b style={{ color: th.text }}>foto katalog</b>-nya di sini, lalu dikurasi sebelum tampil di website.</div>}
 
       {/* bagian 1: bahan halaman produk */}
-      <div style={box}>
+      {!ajukan && <div style={box}>
         <div style={{ fontWeight: 700, color: th.text }}>1 · {dariProduksi ? 'Foto Katalog' : 'Foto & 3D untuk Produk'}{dariProduksi && <span style={{ color: '#c0392b' }}> *</span>}</div>
         <div style={{ fontSize: 12, color: th.muted, marginBottom: 10 }}>{dariProduksi
           ? 'Foto format katalog (latar bersih / render), BUKAN foto real — supaya website tetap rapi. Foto pertama = foto utama.'
@@ -277,10 +239,10 @@ const UploadForm = ({ th, baseUrl, user, categories, target, prefill, onDone, on
           )}
           <input ref={glbRef} type="file" accept=".glb" hidden onChange={(e) => { addModel(e.target.files[0]); e.target.value = ''; }} />
         </div>
-      </div>
+      </div>}
 
       {/* bagian 2: gambar kerja (arsip internal) */}
-      <div style={box}>
+      {!ajukan && <div style={box}>
         <div style={{ fontWeight: 700, color: th.text }}>2 · Gambar Kerja</div>
         <div style={{ fontSize: 12, color: th.muted, marginBottom: 10 }}>PDF gambar kerja / teknik. Tetap di arsip desain, tidak tampil di website.</div>
         {pdfs.map((p) => (
@@ -295,16 +257,16 @@ const UploadForm = ({ th, baseUrl, user, categories, target, prefill, onDone, on
         ))}
         <button type="button" onClick={() => pdfRef.current?.click()} style={{ width: '100%', padding: 12, borderRadius: 10, border: `1px dashed ${th.border}`, background: 'transparent', color: th.text, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}><FiFileText /> Tambah gambar kerja (PDF)</button>
         <input ref={pdfRef} type="file" accept="application/pdf,.pdf,image/jpeg,image/png" multiple hidden onChange={(e) => { addPdfs(e.target.files); e.target.value = ''; }} />
-      </div>
+      </div>}
 
-      <div style={box}>{lbl(dariProduksi ? 'Catatan untuk kurator (opsional)' : 'Catatan untuk kurator')}
-        <textarea style={{ ...input, minHeight: 80, fontFamily: 'inherit', resize: 'vertical' }} value={catatan} onChange={(e) => setCatatan(e.target.value)} placeholder={isNew ? 'Ide desain, finishing yang disarankan, dll.' : 'Apa yang diubah di versi ini?'} />
+      <div style={box}>{lbl(ajukan ? 'Catatan untuk desainer (opsional)' : 'Catatan untuk kurator')}
+        <textarea style={{ ...input, minHeight: 80, fontFamily: 'inherit', resize: 'vertical' }} value={catatan} onChange={(e) => setCatatan(e.target.value)} placeholder={ajukan ? 'mis. warna rangka hitam, kain abu, perlu tampak depan & samping' : isNew ? 'Ide desain, finishing yang disarankan, dll.' : 'Apa yang diubah di versi ini?'} />
       </div>
 
       <div style={{ position: 'sticky', bottom: 0, display: 'flex', gap: 10, padding: '12px 0', background: th.bg }}>
         <button type="button" onClick={onCancel} style={{ flex: 1, padding: 13, borderRadius: 12, border: `1px solid ${th.border}`, background: th.card, color: th.text, fontSize: 15 }}>Batal</button>
         <button type="button" onClick={submit} disabled={saving} style={{ flex: 2, padding: 13, borderRadius: 12, border: 'none', background: uploading ? '#6b7fa3' : '#013175', color: '#fff', fontSize: 15, fontWeight: 600 }}>
-          {saving ? 'Mengirim…' : uploading ? 'Mengupload…' : isNew ? 'Kirim Desain' : 'Kirim Versi Baru'}
+          {saving ? 'Mengirim…' : uploading ? 'Mengupload…' : ajukan ? 'Ajukan — butuh foto katalog' : isNew ? 'Kirim Desain' : (dariProduksi && !(target.versions || []).length ? 'Kirim Foto Katalog' : 'Kirim Versi Baru')}
         </button>
       </div>
     </div>
@@ -349,7 +311,7 @@ const DesainProduk = () => {
     const dari = params.get('dariProject');
     if (dari) {
       axios.get(`${baseUrl}/hasil-produksi/project/${dari}`).then(({ data: p }) => {
-        setPrefill({ sumber: 'produksi', projectIds: [p.id], nama: p.NamaBarang, category: p.KategoriProduk, deskripsi: p.Spesifikasi || '', varians: p.Harga ? [{ varian: '', jual: String(p.Harga) }] : [] });
+        setPrefill({ sumber: 'produksi', projectIds: [p.id], nama: p.NamaBarang, category: p.KategoriProduk });
         setForm('new'); setParams({});
       }).catch(() => message.error('Project tidak ditemukan'));
     }
@@ -363,7 +325,7 @@ const DesainProduk = () => {
   const designers = useMemo(() => [...new Set(rows.map((r) => r.designer).filter(Boolean))].sort(), [rows]);
   const list = useMemo(() => rows.filter((r) => (tab === 'semua' || !tab || r.status === tab)
     && (!fKat || r.category === fKat) && (!fDes || r.designer === fDes) && (!fSumber || (r.sumber || 'desain') === fSumber)
-    && (!q || `${r.nama} ${r.category} ${r.designer} ${r.material}`.toLowerCase().includes(q.toLowerCase()))), [rows, tab, fKat, fDes, fSumber, q]);
+    && (!q || `${r.nama} ${r.category} ${r.designer}`.toLowerCase().includes(q.toLowerCase()))), [rows, tab, fKat, fDes, fSumber, q]);
   // desain dikelompokkan per kategori → "folder" rapi
   const grouped = useMemo(() => {
     const m = {};
@@ -409,11 +371,14 @@ const DesainProduk = () => {
   const drawerStyles = { body: { background: th.bg, padding: 16 }, header: { background: th.card, color: th.text } };
 
   const ver = sel ? (sel.versions || []).find((v) => v.v === selV) || lastVer(sel) : null;
-  const bisaVersiBaru = sel && !sel.productId && sel.status !== 'layak' && (sel.uid === uid || kurator);
+  const hasVer = !!(sel?.versions || []).length;
+  // pengajuan hasil produksi yang belum ada foto: semua desainer boleh upload foto katalognya
+  const bisaVersiBaru = sel && !sel.productId && sel.status !== 'layak' && (sel.uid === uid || kurator || sel.status === 'foto');
   const bisaHapus = sel && !sel.productId && (sel.uid === uid || kurator);
   const riwayat = sel ? [
-    ...(sel.versions || []).map((v) => ({ at: v.created_at, text: `${v.designer || 'Desainer'} upload v${v.v}`, catatan: v.catatan })),
-    ...(sel.reviews || []).map((r) => ({ at: r.at, text: `${r.nama || 'Kurator'}: ${{ layak: 'Layak', revisi: 'Minta revisi', arsip: 'Arsipkan', review: 'Kembalikan ke review' }[r.action]}${r.v ? ` (v${r.v})` : ''}`, catatan: r.catatan, action: r.action })),
+    ...(sel.sumber === 'produksi' ? [{ at: sel.created_at, text: `${sel.designer || 'Admin'} mengajukan dari hasil produksi`, catatan: sel.catatanPengajuan }] : []),
+    ...(sel.versions || []).map((v) => ({ at: v.created_at, text: `${v.designer || 'Desainer'} upload ${sel.sumber === 'produksi' ? 'foto katalog ' : ''}v${v.v}`, catatan: v.catatan })),
+    ...(sel.reviews || []).map((r) => ({ at: r.at, text: `${r.nama || 'Kurator'}: ${{ layak: 'Tambah produk', revisi: 'Minta revisi', arsip: 'Arsipkan', review: 'Kembalikan ke review' }[r.action]}${r.v ? ` (v${r.v})` : ''}`, catatan: r.catatan, action: r.action })),
   ].sort((a, b) => new Date(b.at) - new Date(a.at)) : [];
 
   return (
@@ -439,7 +404,7 @@ const DesainProduk = () => {
         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : '2fr 1fr 1fr 1fr', gap: 8, marginBottom: 14 }}>
           <div style={{ position: 'relative', gridColumn: isMobile ? '1 / -1' : 'auto' }}>
             <FiSearch style={{ position: 'absolute', left: 12, top: 13, color: th.muted }} />
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari nama, material…" style={{ width: '100%', padding: '10px 12px 10px 34px', borderRadius: 10, border: `1px solid ${th.border}`, background: th.input, color: th.text, fontSize: 14, outline: 'none' }} />
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari nama, kategori…" style={{ width: '100%', padding: '10px 12px 10px 34px', borderRadius: 10, border: `1px solid ${th.border}`, background: th.input, color: th.text, fontSize: 14, outline: 'none' }} />
           </div>
           <Select allowClear size="large" placeholder="Kategori" value={fKat || undefined} onChange={(v) => setFKat(v || '')} options={[...new Set(rows.map((r) => r.category).filter(Boolean))].sort().map((c) => ({ value: c, label: c }))} />
           <Select allowClear size="large" placeholder="Desainer" value={fDes || undefined} onChange={(v) => setFDes(v || '')} options={designers.map((d) => ({ value: d, label: d }))} />
@@ -463,7 +428,8 @@ const DesainProduk = () => {
                       <div style={{ position: 'relative', aspectRatio: '1/1', background: '#eee' }}>
                         {cover && <img src={thumb(cover)} alt="" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />}
                         <span style={{ ...pill(r.status), position: 'absolute', top: 8, left: 8 }}>{STATUS[r.status]?.label}{r.status === 'layak' && !r.productId ? ' · draft' : ''}</span>
-                        <span style={{ position: 'absolute', top: 8, right: 8, fontSize: 11, fontWeight: 700, background: 'rgba(0,0,0,.6)', color: '#fff', padding: '2px 7px', borderRadius: 999 }}>v{lv.v}</span>
+                        {!cover && <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#888', fontSize: 12, textAlign: 'center', padding: 10 }}><FaRegImages size={22} style={{ marginRight: 6 }} /> Belum ada foto katalog</div>}
+                        {lv.v && <span style={{ position: 'absolute', top: 8, right: 8, fontSize: 11, fontWeight: 700, background: 'rgba(0,0,0,.6)', color: '#fff', padding: '2px 7px', borderRadius: 999 }}>v{lv.v}</span>}
                         <div style={{ position: 'absolute', bottom: 8, right: 8, display: 'flex', gap: 4 }}>
                           {lv.model3d && <span title="Ada file 3D" style={{ background: 'rgba(0,0,0,.6)', color: '#fff', borderRadius: 6, padding: '3px 5px', display: 'flex' }}><FiBox size={12} /></span>}
                           {(lv.gambarKerja || []).length > 0 && <span title="Ada gambar kerja" style={{ background: 'rgba(0,0,0,.6)', color: '#fff', borderRadius: 6, padding: '3px 5px', display: 'flex' }}><FiFileText size={12} /></span>}
@@ -497,36 +463,20 @@ const DesainProduk = () => {
             {/* info */}
             {editInfo ? (
               <div style={{ background: th.card, border: `1px solid ${th.border}`, borderRadius: 14, padding: 14, marginBottom: 12 }}>
-                {[['nama', 'Nama / kode desain'], ['ukuran', 'Ukuran'], ['material', 'Material']].map(([k, l]) => (
+                {[['nama', 'Nama / kode desain']].map(([k, l]) => (
                   <div key={k} style={{ marginBottom: 10 }}><div style={{ fontSize: 12, color: th.muted, marginBottom: 3 }}>{l}</div>
                     <input value={editInfo[k] || ''} onChange={(e) => setEditInfo({ ...editInfo, [k]: e.target.value })} style={{ width: '100%', padding: '9px 12px', borderRadius: 10, border: `1px solid ${th.border}`, background: th.input, color: th.text, fontSize: 15 }} /></div>
                 ))}
                 <div style={{ fontSize: 12, color: th.muted, marginBottom: 3 }}>Kategori</div>
                 <Select size="large" style={{ width: '100%', marginBottom: 12 }} value={editInfo.category} onChange={(v) => setEditInfo({ ...editInfo, category: v })} options={categories.map((c) => ({ value: c.name, label: c.name }))} />
-                <div style={{ fontSize: 12, color: th.muted, marginBottom: 3 }}>Deskripsi produk</div>
-                <textarea value={editInfo.deskripsi || ''} onChange={(e) => setEditInfo({ ...editInfo, deskripsi: e.target.value })} style={{ width: '100%', minHeight: 80, padding: '9px 12px', borderRadius: 10, border: `1px solid ${th.border}`, background: th.input, color: th.text, fontSize: 15, fontFamily: 'inherit', marginBottom: 10 }} />
-                <div style={{ fontSize: 12, color: th.muted, marginBottom: 3 }}>Harga / varian</div>
-                <div style={{ marginBottom: 12 }}><VarianEditor th={th} value={editInfo.varians || []} onChange={(v) => setEditInfo({ ...editInfo, varians: v })} /></div>
                 <div style={{ display: 'flex', gap: 8 }}><button type="button" style={btn('none')} onClick={() => setEditInfo(null)}>Batal</button><button type="button" style={btn('#013175')} onClick={simpanInfo}>Simpan</button></div>
               </div>
             ) : (
               <div style={{ background: th.card, border: `1px solid ${th.border}`, borderRadius: 14, padding: 14, marginBottom: 12, fontSize: 13, display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: '4px 12px' }}>
                 <span style={{ color: th.muted }}>Kategori</span><b>{sel.category}</b>
-                {!sel.productId && (sel.uid === uid || kurator) ? <button type="button" onClick={() => setEditInfo({ nama: sel.nama, category: sel.category, ukuran: sel.ukuran, material: sel.material, deskripsi: sel.deskripsi || '', varians: (sel.varians || []).map((x) => ({ varian: x.varian, jual: String(x.jual || '') })) })} style={{ gridRow: 'span 4', alignSelf: 'start', border: `1px solid ${th.border}`, background: th.card, color: th.text, borderRadius: 8, padding: '6px 10px' }}><FiEdit2 /></button> : <span style={{ gridRow: 'span 4' }} />}
+                {!sel.productId && (sel.uid === uid || kurator) ? <button type="button" onClick={() => setEditInfo({ nama: sel.nama, category: sel.category })} style={{ gridRow: 'span 2', alignSelf: 'start', border: `1px solid ${th.border}`, background: th.card, color: th.text, borderRadius: 8, padding: '6px 10px' }}><FiEdit2 /></button> : <span style={{ gridRow: 'span 2' }} />}
                 <span style={{ color: th.muted }}>{sel.sumber === 'produksi' ? 'Diajukan' : 'Desainer'}</span><span>{sel.designer || '-'}{sel.sumber === 'produksi' ? ' · dari hasil produksi' : ''}</span>
-                <span style={{ color: th.muted }}>Ukuran</span><span>{sel.ukuran || '-'}</span>
-                <span style={{ color: th.muted }}>Material</span><span>{sel.material || '-'}</span>
-                {sel.deskripsi && <><span style={{ color: th.muted }}>Deskripsi</span><span style={{ gridColumn: 'span 2', whiteSpace: 'pre-wrap' }}>{sel.deskripsi}</span></>}
-                {(sel.varians || []).length > 0 && <><span style={{ color: th.muted }}>Varian</span><span style={{ gridColumn: 'span 2' }}>{sel.varians.map((x) => `${x.varian || '-'}: ${rupiah(x.jual)}`).join(' · ')}</span></>}
-              </div>
-            )}
-
-            {/* kelengkapan sebelum live di website */}
-            {!sel.productId && (
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
-                {cekLengkap(sel).map(([l, ok]) => (
-                  <span key={l} style={{ fontSize: 12, fontWeight: 600, padding: '4px 10px', borderRadius: 999, background: ok ? '#dcfce7' : '#fef3c7', color: ok ? '#15803d' : '#b45309' }}>{ok ? '✓' : '○'} {l}</span>
-                ))}
+                {sel.catatanPengajuan && <><span style={{ color: th.muted }}>Catatan</span><span style={{ gridColumn: 'span 2', whiteSpace: 'pre-wrap' }}>{sel.catatanPengajuan}</span></>}
               </div>
             )}
             {sel.sumber === 'produksi' && <RefProduksi th={th} baseUrl={baseUrl} projectIds={sel.projectIds} />}
@@ -536,7 +486,15 @@ const DesainProduk = () => {
               <button type="button" onClick={() => navigate(`/products?id=${sel.productId}`)} style={{ ...btn('#15803d'), width: '100%', marginBottom: 12 }}><FiExternalLink /> Sudah di Katalog Produk (v{sel.approvedVersion}) — buka</button>
             )}
 
+            {!hasVer && (
+              <div style={{ background: th.card, border: `1px dashed ${th.border}`, borderRadius: 14, padding: 18, marginBottom: 12, textAlign: 'center', color: th.muted, fontSize: 13 }}>
+                <FaRegImages size={26} /><div style={{ marginTop: 6, color: th.text, fontWeight: 600 }}>Belum ada foto katalog</div>
+                Desainer (Pakde / Azwad / Nino) upload foto katalognya lewat tombol di bawah.
+              </div>
+            )}
+
             {/* versi */}
+            {hasVer && <>
             <div style={{ display: 'flex', gap: 6, overflowX: 'auto', marginBottom: 10 }}>
               {(sel.versions || []).map((v) => (
                 <button key={v.v} type="button" style={chip(selV === v.v)} onClick={() => setSelV(v.v)}>
@@ -573,6 +531,7 @@ const DesainProduk = () => {
                 </a>
               )) : <div style={{ fontSize: 13, color: th.muted }}>Belum ada gambar kerja di versi ini.</div>}
             </div>
+            </>}
 
             <div style={{ background: th.card, border: `1px solid ${th.border}`, borderRadius: 14, padding: 14, marginBottom: 12 }}>
               <div style={{ fontWeight: 700, marginBottom: 8 }}>Riwayat</div>
@@ -592,20 +551,20 @@ const DesainProduk = () => {
             {/* aksi */}
             <div style={{ position: 'sticky', bottom: 0, background: th.bg, padding: '10px 0', display: 'grid', gap: 8 }}>
               {bisaVersiBaru && (
-                <button type="button" style={btn(sel.status === 'revisi' && !kurator ? '#013175' : 'none')} onClick={() => setForm(sel)}><FiUpload /> Upload Versi Baru</button>
+                <button type="button" style={btn(!hasVer || (sel.status === 'revisi' && !kurator) ? '#013175' : 'none')} onClick={() => setForm(sel)}><FiUpload /> {hasVer ? 'Upload Versi Baru' : 'Upload Foto Katalog'}</button>
               )}
               {kurator && !sel.productId && sel.status === 'layak' && (
-                <button type="button" disabled={busy} style={btn('#15803d')} onClick={() => layak(sel.approvedVersion)}><FiCheck /> Lanjut isi produk (v{sel.approvedVersion})</button>
+                <button type="button" disabled={busy} style={btn('#15803d')} onClick={() => layak(sel.approvedVersion)}><FiPlus /> Lanjut Tambah Produk (v{sel.approvedVersion})</button>
               )}
               {kurator && !sel.productId && (
                 <div style={{ display: 'flex', gap: 8 }}>
-                  {sel.status !== 'revisi' && <button type="button" disabled={busy} style={btn('none')} onClick={() => setAksi({ action: 'revisi', catatan: '' })}><FiRotateCcw /> Revisi</button>}
+                  {hasVer && sel.status !== 'revisi' && <button type="button" disabled={busy} style={btn('none')} onClick={() => setAksi({ action: 'revisi', catatan: '' })}><FiRotateCcw /> Revisi</button>}
                   {sel.status === 'arsip' || sel.status === 'layak'
                     ? <button type="button" disabled={busy} style={btn('none')} onClick={() => kirimReview('review', '')}><FiRotateCcw /> Ke Review</button>
                     : <button type="button" disabled={busy} style={btn('none')} onClick={() => setAksi({ action: 'arsip', catatan: '' })}><FiArchive /> Arsip</button>}
-                  {!(sel.status === 'layak' && sel.approvedVersion === ver.v) && (
-                    <Popconfirm title={`Versi ${ver.v} layak tampil di website?`} description="Kamu akan diarahkan ke form produk untuk isi judul, harga & varian." okText="Ya, lanjut" cancelText="Batal" onConfirm={() => layak(ver.v)}>
-                      <button type="button" disabled={busy} style={btn('#15803d')}><FiCheck /> Layak (v{ver.v})</button>
+                  {hasVer && !(sel.status === 'layak' && sel.approvedVersion === ver.v) && (
+                    <Popconfirm title={`Tambah produk dari versi ${ver.v}?`} description="Foto katalog versi ini otomatis jadi foto produk. Judul, ukuran, material, harga & varian diisi di halaman Tambah Produk." okText="Ya, lanjut" cancelText="Batal" onConfirm={() => layak(ver.v)}>
+                      <button type="button" disabled={busy} style={btn('#15803d')}><FiPlus /> Tambah Produk (v{ver.v})</button>
                     </Popconfirm>
                   )}
                 </div>

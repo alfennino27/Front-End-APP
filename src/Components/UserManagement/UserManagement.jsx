@@ -390,7 +390,7 @@ const UserManagement = () => {
                                                             <Checkbox
                                                                 checked={getCheckboxState(item.uid, "Price List")}
                                                                 onChange={(e) => handleCheckboxChange(item.uid, "Price List", e.target.checked)}
-                                                            >Price List</Checkbox><br />
+                                                            >Riwayat HPP Produksi (Price List)</Checkbox><br />
                                                             <Checkbox
                                                                 checked={getCheckboxState(item.uid, "Appraisal")}
                                                                 onChange={(e) => handleCheckboxChange(item.uid, "Appraisal", e.target.checked)}
@@ -404,9 +404,13 @@ const UserManagement = () => {
                                                                 onChange={(e) => handleCheckboxChange(item.uid, "Notes", e.target.checked)}
                                                             >Notes</Checkbox><br />
                                                             <Checkbox
-                                                                checked={getCheckboxState(item.uid, "Catalog")}
-                                                                onChange={(e) => handleCheckboxChange(item.uid, "Catalog", e.target.checked)}
-                                                            >Catalog</Checkbox><br />
+                                                                checked={getCheckboxState(item.uid, "Hasil Produksi")}
+                                                                onChange={(e) => handleCheckboxChange(item.uid, "Hasil Produksi", e.target.checked)}
+                                                            >Hasil Produksi → Katalog (kategori, tautkan, ajukan)</Checkbox><br />
+                                                            <Checkbox
+                                                                checked={getCheckboxState(item.uid, "Kelola Kategori")}
+                                                                onChange={(e) => handleCheckboxChange(item.uid, "Kelola Kategori", e.target.checked)}
+                                                            >Kelola Kategori Produk (tambah / ganti nama / gabung — ikut berubah di website)</Checkbox><br />
                                                             <Checkbox
                                                                 checked={getCheckboxState(item.uid, "Books")}
                                                                 onChange={(e) => handleCheckboxChange(item.uid, "Books", e.target.checked)}

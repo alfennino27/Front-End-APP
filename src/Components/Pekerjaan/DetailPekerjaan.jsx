@@ -724,7 +724,7 @@ const DetailPekerjaan = () => {
     const updatedHargaInformation = hargaInformation === undefined ? '0' : hargaInformation;
     const updatedQtyInformation = qtyInformation === undefined ? '0' : qtyInformation;
 
-    const updatedStorageFolder = storageFolder === undefined ? '' : storageFolder;
+    const updatedKategoriProduk = storageFolder === undefined ? '' : (storageFolder || '');
 
     try {
       const res = await fetch(`${baseUrl}/projects/update`, {
@@ -746,7 +746,7 @@ const DetailPekerjaan = () => {
           idInvoice: updatedIdInvoice,
           Harga: updatedHargaInformation,
           Qty: updatedQtyInformation,
-          StorageFolder: updatedStorageFolder,
+          KategoriProduk: updatedKategoriProduk,
           uid: user?.uid || '',
         }),
       });
@@ -1209,7 +1209,7 @@ const DetailPekerjaan = () => {
         setDescriptionInformation(data.Spesifikasi);
         setPercentageInformation(data.Percentage);
         setStatusInformation(data.Status);
-        setStorageFolder(data.StorageFolder);
+        setStorageFolder(data.KategoriProduk || ''); // kategori produk (sama dengan website) — dulu folder Catalog
 
         setKodeInvoiceInformation(data.KodeInvoice);
         setHargaInformation(data.Harga);
@@ -1668,7 +1668,7 @@ const DetailPekerjaan = () => {
   useEffect(() => {
     const getStorageData = async () => {
       try {
-        const res = await fetch(`${baseUrl}/storage/get`);
+        const res = await fetch(`${baseUrl}/products/category/get`);
         const dataStorageFromDB = await res.json();
 
         if (!res.ok) {
@@ -1676,7 +1676,7 @@ const DetailPekerjaan = () => {
           return;
         }
 
-        setDataStorageFromDB(dataStorageFromDB); // Set data storage ke state
+        setDataStorageFromDB(Array.isArray(dataStorageFromDB) ? [...dataStorageFromDB].sort((a, b) => String(a.name).localeCompare(String(b.name))) : []);
       } catch (error) {
         console.error('Error fetching storage data:', error);
       }
@@ -2049,8 +2049,8 @@ const DetailPekerjaan = () => {
           {/* key=slug: pindah project → kartu dibuat ulang. Tanpa ini pilihan project sebelumnya "nempel"
               karena linkProduct lama & baru sama-sama undefined (data halaman belum di-refetch setelah simpan). */}
           {slug && dataProjectFromDB.length > 0 && (
-            <LinkProductCard key={slug} projectId={slug} linkProduct={dataProjectFromDB[0]?.linkProduct} canEdit={canLinkProduct} theme={globalTheme}
-              catalogName={dataStorageFromDB.find((f) => f.id === (dataProjectFromDB[0]?.StorageFolder || storageFolder))?.name} />
+            <LinkProductCard key={slug} projectId={slug} linkProducts={dataProjectFromDB[0]?.linkProducts} linkProduct={dataProjectFromDB[0]?.linkProduct} canEdit={canLinkProduct} theme={globalTheme}
+              kategori={dataProjectFromDB[0]?.KategoriProduk || storageFolder} />
           )}
 
           <div onClick={handleShowInformationModal}>
@@ -2131,10 +2131,11 @@ const DetailPekerjaan = () => {
 
 
 
-          <label className='mt-3 fw-semibold'>Catalog :</label>
+          <label className='mt-3 fw-semibold'>Kategori Produk :</label>
           <Select
             showSearch
-            placeholder="Select Folder"
+            allowClear
+            placeholder="Pilih kategori (sama dengan website)"
             style={{ width: '100%' }}
             onChange={(value) => setStorageFolder(value)}
             value={storageFolder || undefined}
@@ -2142,7 +2143,7 @@ const DetailPekerjaan = () => {
             options={
               dataStorageFromDB?.length
                 ? dataStorageFromDB.map(item => ({
-                  value: item.id,
+                  value: item.name,
                   label: item.name,
                 }))
                 : []

@@ -54,9 +54,10 @@ const Stock = () => {
 
   const fetchDataStorageFolder = async () => {
     try {
-      const res = await fetch(`${baseUrl}/storagefolder/get`);
+      // kategori produk tunggal (sama dengan website), dulu folder Catalog
+      const res = await fetch(`${baseUrl}/products/category/get`);
       const data = await res.json();
-      setDataStorageFolder(data);
+      setDataStorageFolder(Array.isArray(data) ? [...data].sort((a, b) => String(a.name).localeCompare(String(b.name))) : []);
     } catch (err) {
       console.error('Error fetching StockKeluar:', err);
     }
@@ -106,7 +107,7 @@ const Stock = () => {
             color: globalTheme === "light" ? "black" : 'white',
             transition: "background-color 1s ease",
           }}>
-            <h4 style={{ margin: 0 }}>Price List</h4>
+            <h4 style={{ margin: 0 }}>Riwayat HPP Produksi</h4>
 
             <div>
 
@@ -117,7 +118,7 @@ const Stock = () => {
                 style={{ marginRight: "10px" }}
                 onChange={(value) => setSelectedStorageFolder(value)}
                 options={dataStorageFolder.map(folder => ({
-                  value: folder._id,
+                  value: folder.name,
                   label: folder.name,
                 }))}
               />
@@ -179,7 +180,7 @@ const Stock = () => {
                 <tbody>
                   {Array.isArray(dataProjects) && dataProjects.length > 0 ? (
                     selectedStorageFolder ? (
-                      dataProjects.filter((item) => item.StorageFolder === selectedStorageFolder).map((item, index) => {
+                      dataProjects.filter((item) => item.KategoriProduk === selectedStorageFolder).map((item, index) => {
 
                         const getCorrectIdProduct = (spkproduct) => spkproduct.idProduct || spkproduct.idProductBackUp;
 

@@ -58,6 +58,7 @@ const PriceListPage = lazyPage(() => import('./Pages/PriceListPage'));
 const ProductsPage = lazyPage(() => import('./Pages/ProductsPage'));
 const ProductNewPage = lazyPage(() => import('./Pages/ProductNewPage'));
 const DesainProdukPage = lazyPage(() => import('./Pages/DesainProdukPage'));
+const HasilProduksiPage = lazyPage(() => import('./Pages/HasilProduksiPage'));
 const CategoryPage = lazyPage(() => import('./Pages/CategoryPage'));
 const TodoPage = lazyPage(() => import('./Pages/TodoPage'));
 
@@ -131,6 +132,7 @@ function App() {
         <Route path="/products" element={<ProductsPage />} />
         <Route path="/products/new" element={<ProductNewPage />} />
         <Route path="/desain" element={<DesainProdukPage />} />
+        <Route path="/hasil-produksi" element={<HasilProduksiPage />} />
         <Route path="/login" element={<Login />} />
         <Route path="/logout" element={<Logout />} />
         <Route path="/direct-login/:slug" element={<DirectLogin />} />

@@ -7,7 +7,7 @@ const PriceListPage = () => {
   return (
     <>
       <Helmet>
-        <title>Price List - KLF Apps</title>
+        <title>Riwayat HPP Produksi - KLF Apps</title>
       </Helmet>
       <LoadingMessage />
       <NavigationBar />

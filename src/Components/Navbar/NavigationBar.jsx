@@ -620,10 +620,10 @@ const NavigationBar = () => {
     {
       key: 'archive', label: 'Archive', icon: <BiArchive />, open: openArchive, setOpen: setOpenArchive,
       items: [
-        menuItem('Catalog', '/catalog', 'Catalog', <FaRegFolderOpen />),
+        menuItem('Hasil Produksi', '/hasil-produksi', 'Hasil Produksi', <FaRegFolderOpen />),
         { ...menuItem('Desain Produk', '/desain', 'Desain Produk', <FaPaintBrush />), badge: desainBadge },
         menuItem('Products', '/products', 'Products', <MdChair />),
-        menuItem('Price List', '/pricelist', 'Price List', <ImPriceTags />),
+        menuItem('Price List', '/pricelist', 'Riwayat HPP Produksi', <ImPriceTags />),
         // Testimoni Lama memang tidak punya hak akses — terbuka untuk semua.
         { key: '/testimoni-lama', path: '/testimoni-lama', label: 'Testimoni Lama', icon: <BiArchive />, show: true },
       ],
@@ -1149,7 +1149,7 @@ const NavigationBar = () => {
         {hasMenuAccess(user.uid, "Price List") && (
           <>
             <Link to="/pricelist" style={{ textDecoration: 'none', color: location.pathname.startsWith('/pricelist') ? '#234dba' : (globalTheme === "light" ? "black" : "white"), display: 'flex', alignItems: 'center' }} className='d-flex mb-4 mt-4 link-hover'>
-              <ImPriceTags /> <p className='fw-semibold' style={{ margin: 0, paddingLeft: '10px' }}>Price List</p>
+              <ImPriceTags /> <p className='fw-semibold' style={{ margin: 0, paddingLeft: '10px' }}>Riwayat HPP Produksi</p>
             </Link>
             <Divider style={{ borderColor: theme == "light" ? '#bdbdbd' : '#313a51', color: theme == "light" ? '#bdbdbd' : '#313a51' }} />
           </>
@@ -1182,10 +1182,10 @@ const NavigationBar = () => {
           </>
         )}
 
-        {hasMenuAccess(user.uid, "Catalog") && (
+        {hasMenuAccess(user.uid, "Hasil Produksi") && (
           <>
-            <Link to="/catalog" style={{ textDecoration: 'none', color: location.pathname.startsWith('/catalog') ? '#234dba' : (globalTheme === "light" ? "black" : "white"), display: 'flex', alignItems: 'center' }} className='d-flex mb-4 mt-4 link-hover'>
-              <FaRegFolderOpen /> <p className='fw-semibold' style={{ margin: 0, paddingLeft: '10px' }}>Catalog</p>
+            <Link to="/hasil-produksi" style={{ textDecoration: 'none', color: location.pathname.startsWith('/hasil-produksi') ? '#234dba' : (globalTheme === "light" ? "black" : "white"), display: 'flex', alignItems: 'center' }} className='d-flex mb-4 mt-4 link-hover'>
+              <FaRegFolderOpen /> <p className='fw-semibold' style={{ margin: 0, paddingLeft: '10px' }}>Hasil Produksi</p>
             </Link>
             <Divider style={{ borderColor: theme == "light" ? '#bdbdbd' : '#313a51', color: theme == "light" ? '#bdbdbd' : '#313a51' }} />
           </>

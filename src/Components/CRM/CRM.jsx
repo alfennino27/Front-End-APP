@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { Container, Modal, Button, Form, Badge, Spinner } from 'react-bootstrap';
+import { Container, Modal, Button, Form, Badge, Spinner, Dropdown } from 'react-bootstrap';
 import { getApiBaseUrl } from '../../Config/APIurl';
 import { useTheme } from '../../ThemeContext';
 import { MdAdd, MdEdit, MdDelete, MdFileUpload, MdCheck } from 'react-icons/md';
 import AIChatBubble from '../AI/AIChatBubble';
 import RingkasanIklan from './RingkasanIklan';
 import LeadMasuk from './LeadMasuk';
+import PerubahanMeta from './PerubahanMeta';
+import AnalitikIklan from './AnalitikIklan';
 
 const STAGES = [
   { key: 'leads',     label: 'Leads Baru',     color: '#378ADD', bg: '#EAF3FB' },
@@ -57,6 +59,10 @@ export default function CRM() {
   const [expandedCamp, setExpandedCamp] = useState(null);
   const [grupCampTutup, setGrupCampTutup] = useState({}); // grup campaign Meta yang dilipat
   const [jmlKandidat, setJmlKandidat] = useState(0);      // lead WA menunggu konfirmasi
+  const [kualitasAdset, setKualitasAdset] = useState({}); // crm_campaign_id → metrik chat/serius (ringkasan WA)
+  const [bukaMetaCamp, setBukaMetaCamp] = useState(null); // baris kampanye yang menampilkan metrik Meta
+  const [alatAnalitik, setAlatAnalitik] = useState(false); // tombol perawatan data di Analitik
+  const [detailAnalitik, setDetailAnalitik] = useState(false);
   const [syncing, setSyncing] = useState(false);
 
   // Evaluasi iklan (jurnal per bulan)
@@ -428,6 +434,15 @@ export default function CRM() {
     fetch(`${baseUrl}/crm/lead-masuk?tab=kandidat&bulan=${bln}`).then(r => r.json()).then(d => setJmlKandidat(Array.isArray(d) ? d.length : 0)).catch(() => {});
   }, [baseUrl, filterBulan]);
   useEffect(() => { muatJmlKandidat(); }, [muatJmlKandidat]);
+  useEffect(() => {
+    if (activeTab !== 'campaigns') return;
+    const bln = filterBulan || new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 7);
+    fetch(`${baseUrl}/crm/lead-masuk/ringkasan?bulan=${bln}`).then(r => r.json()).then(d => {
+      const m = {};
+      (d.campaigns || []).forEach(c => (c.adsets || []).forEach(a => { if (a.crm_campaign_id) m[a.crm_campaign_id] = a; }));
+      setKualitasAdset(m);
+    }).catch(() => setKualitasAdset({}));
+  }, [activeTab, filterBulan, baseUrl]);
 
   const filteredLeads = filterBulan ? leads.filter(l => getLeadMonthDeal(l) === filterBulan) : leads;
   // Campaign attribution: filter by tanggal_masuk (tanggal lead masuk sebenarnya)
@@ -512,21 +527,20 @@ export default function CRM() {
           {activeTab==='campaigns' && (
             <div style={{color:muted,fontSize:12,marginTop:2}}>
               <MdFileUpload style={{marginRight:4,verticalAlign:-2}}/>
-              Drag &amp; drop file .csv Meta Ads ke mana saja di halaman ini untuk import
+              Data iklan ditarik otomatis dari Meta tiap 3 jam
             </div>
           )}
         </div>
         <div style={{display:'flex',gap:8}}>
           {activeTab==='pipeline'&&<Button size="sm" variant="primary" onClick={()=>{setEditingLead(null);setLeadForm({nama:'',wa:'',campaign_id:'',notes:'',stage:'leads'});setShowLeadModal(true);}}><MdAdd/> Tambah Lead</Button>}
-          {activeTab==='campaigns'&&<>
-            <Button
-              size="sm"
-              variant="outline-success"
-              title="Buka dialog import: drag & drop file .csv export Meta Ads, atau klik Pilih File"
-              onClick={()=>{setUploadDragOver(false);setShowUploadModal(true);}}
-            ><MdFileUpload/> Import Meta Ads</Button>
-            <Button size="sm" variant="primary" onClick={()=>{setEditingCampaign(null);setCampForm({nama:'',platform:'instagram',bulan:'',spend:'',status:'active',thumbnail:''});setShowCampaignModal(true);}}><MdAdd/> Tambah Campaign</Button>
-          </>}
+          {activeTab==='campaigns'&&
+            <Dropdown align="end">
+              <Dropdown.Toggle size="sm" variant="outline-secondary" title="Data iklan sudah ditarik otomatis dari Meta. Import/tambah manual hanya cadangan.">⋯</Dropdown.Toggle>
+              <Dropdown.Menu>
+                <Dropdown.Item onClick={()=>{setUploadDragOver(false);setShowUploadModal(true);}}><MdFileUpload/> Import CSV Meta Ads (cadangan)</Dropdown.Item>
+                <Dropdown.Item onClick={()=>{setEditingCampaign(null);setCampForm({nama:'',platform:'instagram',bulan:'',spend:'',status:'active',thumbnail:''});setShowCampaignModal(true);}}><MdAdd/> Tambah campaign manual</Dropdown.Item>
+              </Dropdown.Menu>
+            </Dropdown>}
         </div>
       </div>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-end',borderBottom:'2px solid '+(dark?'#333':'#eee'),marginBottom:20}}>
@@ -607,86 +621,91 @@ export default function CRM() {
           <RingkasanIklan baseUrl={baseUrl} bulan={filterBulan} dark={dark} text={text} muted={muted} cardBg={cardBg} border={border}/>
           {filteredCampaigns.length===0 ? <div style={{textAlign:'center',color:muted,padding:60}}>{filterBulan?`Tidak ada campaign di ${filterBulan}.`:'Belum ada campaign.'}</div> :
           <div style={{overflowX:'auto'}}>
-            <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
-              <thead><tr style={{borderBottom:'2px solid '+(dark?'#333':'#eee'),textAlign:'left'}}>
-                {['','Nama','Spend','Results','CPL','CPM','Impresi','Reach','Freq','CTR','Leads','Deal','Revenue','ROAS','Status',''].map((h,i)=><th key={i} style={{padding:'8px 6px',color:muted,fontWeight:600,whiteSpace:'nowrap'}}>{h}</th>)}
+            {/* 1 baris = 1 ad set, dikelompokkan per campaign Meta. Kolom inti saja; metrik teknis Meta di tombol ⓘ. */}
+            <table style={{width:'100%',borderCollapse:'collapse',fontSize:13,minWidth:640}}>
+              <thead><tr style={{borderBottom:'2px solid '+(dark?'#333':'#eee'),textAlign:'right'}}>
+                {['Ad set','Spend','Chat','Biaya/chat','Kasih ukuran','Serius','Biaya/serius','Deal',''].map((h,i)=><th key={i} style={{padding:'8px 6px',color:muted,fontWeight:600,whiteSpace:'nowrap',textAlign:i===0?'left':'right'}}>{h}</th>)}
               </tr></thead>
               <tbody>
                 {[...filteredCampaigns].sort((a,b)=>(a.meta_campaign_name||'~').localeCompare(b.meta_campaign_name||'~')).map((camp,idx,arr)=>{
-                  // Kelompok per campaign Meta (1 baris CRM = 1 ad set); bisa dilipat
-                  const grup = camp.meta_campaign_name || 'Tanpa campaign Meta (import CSV lama)';
-                  const awalGrup = idx===0 || (arr[idx-1].meta_campaign_name||'Tanpa campaign Meta (import CSV lama)')!==grup;
-                  const isiGrup = arr.filter(c=>(c.meta_campaign_name||'Tanpa campaign Meta (import CSV lama)')===grup);
+                  const NAMA_LAMA='Tanpa campaign Meta (import CSV lama)';
+                  const grup = camp.meta_campaign_name || NAMA_LAMA;
+                  const awalGrup = idx===0 || (arr[idx-1].meta_campaign_name||NAMA_LAMA)!==grup;
+                  const isiGrup = arr.filter(c=>(c.meta_campaign_name||NAMA_LAMA)===grup);
                   const spendGrup = isiGrup.reduce((s,c)=>s+((getCampaignMonthData(c,filterBulan)?.spend)||0),0);
+                  const seriusGrup = isiGrup.reduce((s,c)=>s+(kualitasAdset[c.id]?.serius||0),0);
                   const kepalaGrup = awalGrup && <tr key={'grup-'+grup} onClick={()=>setGrupCampTutup({...grupCampTutup,[grup]:!grupCampTutup[grup]})} style={{background:dark?'#1a1a28':'#f3f5fa',cursor:'pointer'}}>
-                    <td colSpan={16} style={{padding:'8px 6px',fontWeight:700,color:'#013175',fontSize:12}}>{grupCampTutup[grup]?'▸':'▾'} {grup} <span style={{color:muted,fontWeight:400}}>· {isiGrup.length} ad set · spend {fmtRp(spendGrup)}</span></td>
+                    <td colSpan={9} style={{padding:'8px 6px',fontWeight:700,color:'#013175',fontSize:12}}>{grupCampTutup[grup]?'▸':'▾'} {grup} <span style={{color:muted,fontWeight:400}}>· {isiGrup.length} ad set · spend {fmtRp(spendGrup)}{seriusGrup?` · ${seriusGrup} serius · ${fmtRp(Math.round(spendGrup/seriusGrup))}/serius`:''}</span></td>
                   </tr>;
                   if (grupCampTutup[grup]) return kepalaGrup || null;
                   const md = getCampaignMonthData(camp, filterBulan) || {};
+                  const q = kualitasAdset[camp.id];
                   const cl=filteredLeadsMasuk.filter(l=>l.campaign_id===camp.id);
                   const cd=cl.filter(l=>l.stage==='deal'&&!l.is_repeat_order); // exclude repeat dari ROAS
                   const rev=cd.reduce((s,l)=>s+(l.deal_value||0),0), roas=md.spend>0?(rev/md.spend).toFixed(1):'-';
-                  const rc=roas==='-'?muted:roas>=8?'#639922':roas>=3?'#EF9F27':'#a32d2d';
                   const sc={active:'#639922',paused:'#EF9F27',stopped:'#a32d2d'};
                   const hasMeta = camp.source==='meta_ads' || camp.source==='meta_api';
-                  const isExpanded = expandedCamp === camp.id;
+                  const chat = q ? q.chat : (hasMeta ? (md.results||0) : null);
+                  const bukaMeta = bukaMetaCamp === camp.id;
                   const monthDaily = Array.isArray(md.daily) ? md.daily : [];
-                  const hasDailyData = hasMeta && monthDaily.length > 0;
-                  const periodLabel = monthDaily.length ? `${monthDaily[0].date} — ${monthDaily[monthDaily.length-1].date}` : '';
+                  const td={padding:'8px 6px',textAlign:'right',color:text};
                   return <>
                     {kepalaGrup}
-                    <tr key={camp.id} style={{borderBottom:'1px solid '+(dark?'#2a2a2a':'#f0f0f0'),background: isExpanded?(dark?'#1a2035':'#f0f5ff'):''}}>
-                      <td style={{padding:'8px 6px',textAlign:'center',width:28}}>
-                        {hasDailyData&&<button onClick={()=>setExpandedCamp(isExpanded?null:camp.id)} style={{border:'none',background:'none',cursor:'pointer',color:'#013175',fontSize:16,lineHeight:1,padding:0}}>{isExpanded?'▾':'▸'}</button>}
-                      </td>
-                      <td style={{padding:'8px 6px',fontWeight:600,color:text}}>
-                        {camp.thumbnail
-                          ? <img src={thumbUrl(camp.thumbnail)} alt="" onClick={()=>setThumbPreview({src:thumbUrl(camp.thumbnail),nama:camp.nama})} title="Klik untuk perbesar" style={{width:44,height:44,objectFit:'cover',borderRadius:6,marginRight:8,verticalAlign:'middle',cursor:'zoom-in',border:'1px solid '+(dark?'#333':'#e5e5e5')}}/>
-                          : <span style={{display:'inline-block',width:44,height:44,borderRadius:6,marginRight:8,verticalAlign:'middle',background:dark?'#2a2a2a':'#f2f2f2',color:muted,fontSize:9,textAlign:'center',lineHeight:'44px'}}>no img</span>}
-                        {camp.nama}
-                        {hasMeta&&<span style={{marginLeft:6,fontSize:10,background:'#E7F3FF',color:'#1877F2',padding:'1px 5px',borderRadius:4,fontWeight:600}}>Meta</span>}
-                        {periodLabel&&<span style={{marginLeft:4,fontSize:10,color:muted}}>{periodLabel}</span>}
-                      </td>
-                      <td style={{padding:'8px 6px',color:text}}>{md.spend?fmtRp(md.spend):'-'}</td>
-                      <td style={{padding:'8px 6px',textAlign:'center',fontWeight:600,color:'#378ADD'}}>{hasMeta?(md.results||0):'-'}</td>
-                      <td style={{padding:'8px 6px',color:muted}}>{hasMeta&&md.cpl?fmtRp(md.cpl):'-'}</td>
-                      <td style={{padding:'8px 6px',color:muted}}>{hasMeta&&md.cpm?fmtRp(md.cpm):'-'}</td>
-                      <td style={{padding:'8px 6px',color:muted}}>{hasMeta&&md.impressions?Number(md.impressions).toLocaleString('id-ID'):'-'}</td>
-                      <td style={{padding:'8px 6px',color:muted}}>{hasMeta&&md.reach?Number(md.reach).toLocaleString('id-ID'):'-'}</td>
-                      <td style={{padding:'8px 6px',color:muted}}>{hasMeta&&md.frequency?md.frequency:'-'}</td>
-                      <td style={{padding:'8px 6px',color:muted}}>{hasMeta&&md.ctr?md.ctr.toFixed(2)+'%':'-'}</td>
-                      <td style={{padding:'8px 6px',textAlign:'center'}}>{cl.length}</td>
-                      <td style={{padding:'8px 6px',textAlign:'center'}}>{cd.length}</td>
-                      <td style={{padding:'8px 6px',color:'#639922',fontWeight:600}}>{fmtRp(rev)}</td>
-                      <td style={{padding:'8px 6px',fontWeight:700,color:rc}}>{roas==='-'?'-':roas+'x'}</td>
-                      <td style={{padding:'8px 6px'}}><span style={{color:sc[camp.status]||muted,fontWeight:600,fontSize:11,textTransform:'capitalize'}}>● {camp.status}</span></td>
-                      <td style={{padding:'8px 6px'}}>
-                        <div style={{display:'flex',gap:4}}>
-                          <button onClick={()=>{setEditingCampaign(camp);setCampForm({nama:camp.nama,platform:camp.platform,bulan:camp.bulan||'',spend:camp.spend||'',status:camp.status,thumbnail:camp.thumbnail||''});setShowCampaignModal(true);}} style={{border:'none',background:'none',cursor:'pointer',color:'#013175',fontSize:16}}><MdEdit/></button>
-                          <button onClick={()=>{setDeleteTarget({type:'campaign',id:camp.id,label:camp.nama});setShowDeleteConfirm(true);}} style={{border:'none',background:'none',cursor:'pointer',color:'#a32d2d',fontSize:16}}><MdDelete/></button>
+                    <tr key={camp.id} style={{borderBottom:'1px solid '+(dark?'#2a2a2a':'#f0f0f0'),background: bukaMeta?(dark?'#1a2035':'#f0f5ff'):''}}>
+                      <td style={{padding:'8px 6px',fontWeight:600,color:text,minWidth:180}}>
+                        <div style={{display:'flex',alignItems:'center',gap:8}}>
+                          {camp.thumbnail
+                            ? <img src={thumbUrl(camp.thumbnail)} alt="" onClick={()=>setThumbPreview({src:thumbUrl(camp.thumbnail),nama:camp.nama})} title="Klik untuk perbesar" style={{width:40,height:40,objectFit:'cover',borderRadius:6,cursor:'zoom-in',border:'1px solid '+(dark?'#333':'#e5e5e5'),flexShrink:0}}/>
+                            : <span style={{display:'inline-block',width:40,height:40,borderRadius:6,background:dark?'#2a2a2a':'#f2f2f2',flexShrink:0}}/>}
+                          <div>
+                            <div>{camp.nama}</div>
+                            <div style={{fontSize:10,fontWeight:500,color:sc[camp.status]||muted}}>● {camp.status==='active'?'aktif':camp.status==='paused'?'pause':camp.status}</div>
+                          </div>
                         </div>
                       </td>
+                      <td style={td}>{md.spend?fmtRp(md.spend):'-'}</td>
+                      <td style={td}>{chat ?? '-'}</td>
+                      <td style={{...td,color:muted}}>{chat&&md.spend?fmtRp(Math.round(md.spend/chat)):'-'}</td>
+                      <td style={{...td,color:muted}}>{q?q.pct_lolos_ukuran+'%':'-'}</td>
+                      <td style={{...td,fontWeight:700}}>{q?q.serius:'-'}</td>
+                      <td style={{...td,fontWeight:700,color:!q||q.biaya_per_serius==null?muted:q.biaya_per_serius<=60000?'#2e7d32':'#a32d2d'}}>{q&&q.biaya_per_serius!=null?fmtRp(q.biaya_per_serius):'-'}</td>
+                      <td style={td}>{cd.length}{rev?<div style={{fontSize:10,color:'#639922'}}>{fmtRp(rev)}</div>:null}</td>
+                      <td style={{padding:'8px 6px',whiteSpace:'nowrap',textAlign:'right'}}>
+                        {hasMeta&&<button title="Metrik Meta & data harian" onClick={()=>setBukaMetaCamp(bukaMeta?null:camp.id)} style={{border:'none',background:'none',cursor:'pointer',color:'#013175',fontSize:15}}>ⓘ</button>}
+                        <button onClick={()=>{setEditingCampaign(camp);setCampForm({nama:camp.nama,platform:camp.platform,bulan:camp.bulan||'',spend:camp.spend||'',status:camp.status,thumbnail:camp.thumbnail||''});setShowCampaignModal(true);}} style={{border:'none',background:'none',cursor:'pointer',color:'#013175',fontSize:15}}><MdEdit/></button>
+                        <button onClick={()=>{setDeleteTarget({type:'campaign',id:camp.id,label:camp.nama});setShowDeleteConfirm(true);}} style={{border:'none',background:'none',cursor:'pointer',color:'#a32d2d',fontSize:15}}><MdDelete/></button>
+                      </td>
                     </tr>
-                    {isExpanded && hasDailyData && monthDaily.map((day,di)=>(
-                      <tr key={`${camp.id}-day-${di}`} style={{background:dark?'#111827':'#f8f9ff',borderBottom:'1px solid '+(dark?'#1e2540':'#e8edff')}}>
-                        <td style={{padding:'5px 6px'}}/>
-                        <td style={{padding:'5px 6px',color:'#378ADD',fontWeight:600,fontSize:12,paddingLeft:20}}>{day.date}</td>
-                        <td style={{padding:'5px 6px',fontSize:12,color:text}}>{day.spend?fmtRp(day.spend):'-'}</td>
-                        <td style={{padding:'5px 6px',fontSize:12,textAlign:'center',color:'#378ADD',fontWeight:600}}>{day.results||'-'}</td>
-                        <td style={{padding:'5px 6px',fontSize:12,color:muted}}>{day.cpl?fmtRp(day.cpl):'-'}</td>
-                        <td style={{padding:'5px 6px',fontSize:12,color:muted}}>{day.cpm?fmtRp(day.cpm):'-'}</td>
-                        <td style={{padding:'5px 6px',fontSize:12,color:muted}}>{day.impressions?Number(day.impressions).toLocaleString('id-ID'):'-'}</td>
-                        <td style={{padding:'5px 6px',fontSize:12,color:muted}}>{day.reach?Number(day.reach).toLocaleString('id-ID'):'-'}</td>
-                        <td style={{padding:'5px 6px',fontSize:12,color:muted}}>{day.frequency||'-'}</td>
-                        <td style={{padding:'5px 6px',fontSize:12,color:muted}}>{day.ctr?day.ctr.toFixed(2)+'%':'-'}</td>
-                        <td colSpan={6}/>
-                      </tr>
-                    ))}
+                    {bukaMeta && <tr key={camp.id+'-meta'} style={{background:dark?'#111827':'#f8f9ff'}}>
+                      <td colSpan={9} style={{padding:'10px 12px'}}>
+                        <div style={{display:'flex',gap:16,flexWrap:'wrap',fontSize:12,color:text,marginBottom:8}}>
+                          <span>Chat versi Meta: <b>{md.results||0}</b></span>
+                          <span>CPL Meta: <b>{md.cpl?fmtRp(md.cpl):'-'}</b></span>
+                          <span>CPM: <b>{md.cpm?fmtRp(md.cpm):'-'}</b></span>
+                          <span>Impresi: <b>{md.impressions?Number(md.impressions).toLocaleString('id-ID'):'-'}</b></span>
+                          <span>Reach: <b>{md.reach?Number(md.reach).toLocaleString('id-ID'):'-'}</b></span>
+                          <span>Freq: <b>{md.frequency||'-'}</b></span>
+                          <span>CTR: <b>{md.ctr?md.ctr.toFixed(2)+'%':'-'}</b></span>
+                          <span>ROAS: <b>{roas==='-'?'-':roas+'x'}</b></span>
+                        </div>
+                        {monthDaily.length>0&&<div style={{overflowX:'auto'}}><table style={{borderCollapse:'collapse',fontSize:11,color:text,width:'100%'}}>
+                          <thead><tr style={{color:muted,textAlign:'right'}}>{['Tanggal','Spend','Chat','CPL','CPM','Impresi','Freq','CTR'].map((h,i)=><th key={h} style={{padding:'3px 6px',fontWeight:600,textAlign:i?'right':'left'}}>{h}</th>)}</tr></thead>
+                          <tbody>{monthDaily.map((day,di)=><tr key={di} style={{textAlign:'right',borderTop:'1px solid '+(dark?'#1e2540':'#e8edff')}}>
+                            <td style={{padding:'3px 6px',textAlign:'left',color:'#378ADD'}}>{day.date}</td><td style={{padding:'3px 6px'}}>{day.spend?fmtRp(day.spend):'-'}</td><td style={{padding:'3px 6px'}}>{day.results||'-'}</td>
+                            <td style={{padding:'3px 6px'}}>{day.cpl?fmtRp(day.cpl):'-'}</td><td style={{padding:'3px 6px'}}>{day.cpm?fmtRp(day.cpm):'-'}</td><td style={{padding:'3px 6px'}}>{day.impressions?Number(day.impressions).toLocaleString('id-ID'):'-'}</td>
+                            <td style={{padding:'3px 6px'}}>{day.frequency||'-'}</td><td style={{padding:'3px 6px'}}>{day.ctr?day.ctr.toFixed(2)+'%':'-'}</td></tr>)}</tbody>
+                        </table></div>}
+                      </td>
+                    </tr>}
                   </>;
                 })}
               </tbody>
             </table>
           </div>}
+
+          <div style={{marginTop:28}}>
+            <PerubahanMeta baseUrl={baseUrl} bulan={filterBulan} dark={dark} text={text} muted={muted} cardBg={cardBg} border={border}/>
+          </div>
 
           {/* ─── EVALUASI IKLAN (jurnal per bulan) ─────────────────────────── */}
           <div style={{marginTop:36}}>
@@ -738,8 +757,11 @@ export default function CRM() {
         </div>}
 
         {activeTab==='analytics'&&<div>
-          {/* Action buttons */}
-          <div style={{display:'flex',gap:8,marginBottom:20}}>
+          {/* Alat perawatan data — disembunyikan di ⚙️ supaya Analitik fokus ke angka */}
+          <div style={{display:'flex',justifyContent:'flex-end',marginBottom:alatAnalitik?8:12}}>
+            <button onClick={()=>setAlatAnalitik(!alatAnalitik)} className="no-active" style={{border:'1px solid '+(dark?'#444':'#ddd'),background:'none',borderRadius:8,padding:'4px 10px',fontSize:12,color:muted,cursor:'pointer'}}>⚙️ Alat data {alatAnalitik?'▴':'▾'}</button>
+          </div>
+          {alatAnalitik&&<div style={{display:'flex',gap:8,marginBottom:20,flexWrap:'wrap'}}>
             <Button size="sm" variant="primary" disabled={syncing} onClick={async()=>{
               setSyncing(true);
               try {
@@ -782,23 +804,7 @@ export default function CRM() {
               const url=URL.createObjectURL(blob);
               const a=document.createElement('a');a.href=url;a.download=`crm-analytics-${filterBulan||'all'}.json`;a.click();URL.revokeObjectURL(url);
             }}>⬇ Export JSON</Button>
-          </div>
-
-          {/* Summary Cards Row 1 — supporting metrics */}
-          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))',gap:12,marginBottom:12}}>
-            {[
-              {label:'Meta Leads',value:metaLeadsTotal,color:'#378ADD',sub:'lead masuk dari campaign'},
-              {label:'Total Deals',value:dealLeads.length,color:'#639922',sub:`${adsDealLeads.length} dari ads`},
-              {label:'Conversion Rate',value:(convRateMeta||0)+'%',color:'#7F77DD',sub:'Deal Ads ÷ Leads Meta'},
-              {label:'Total Spend Ads',value:fmtRp(totalSpend),color:'#a32d2d',sub:'spend campaign bulan ini'},
-            ].map((m,i)=>(
-              <div key={i} style={{background:cardBg,border,borderRadius:10,padding:'16px 18px'}}>
-                <div style={{fontSize:11,color:muted,marginBottom:4,fontWeight:500}}>{m.label}</div>
-                <div style={{fontSize:20,fontWeight:700,color:m.color}}>{m.value}</div>
-                {m.sub&&<div style={{fontSize:10,color:muted,marginTop:2}}>{m.sub}</div>}
-              </div>
-            ))}
-          </div>
+          </div>}
 
           {/* Summary Cards Row 2 — Total vs From Ads (Revenue & Gross Profit) */}
           <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))',gap:12,marginBottom:12}}>
@@ -828,93 +834,10 @@ export default function CRM() {
             </div>
           </div>
 
-          {/* Funnel Konversi */}
-          <div style={{background:cardBg,border,borderRadius:12,padding:20,marginBottom:20}}>
-            <div style={{fontSize:11,fontWeight:700,color:muted,letterSpacing:1,marginBottom:16}}>FUNNEL KONVERSI</div>
-            <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:3}}>
-              {[
-                {label:'Leads',count:metaLeadsTotal||filteredLeads.length,color:'#378ADD',bg:'#EAF3FB',pct:100},
-                ...STAGES.slice(1).map(stage=>{
-                  const count=filteredLeads.filter(l=>l.stage_dates?.[stage.key]).length;
-                  const base=metaLeadsTotal||filteredLeads.length||1;
-                  return {label:stage.label,count,color:stage.color,bg:stage.bg,pct:((count/base)*100).toFixed(0)};
-                })
-              ].map((item,i,arr)=>{
-                const widthPct = 100 - i*13;
-                return <div key={i} style={{width:`${widthPct}%`,background:item.bg,borderRadius:4,padding:'12px 8px',textAlign:'center',position:'relative'}}>
-                  <span style={{fontSize:26,fontWeight:800,color:item.color}}>{item.count}</span>
-                  <span style={{fontSize:12,color:item.color,fontWeight:600,marginLeft:8}}>{i===0?'100% Leads':`${item.pct}% ${item.label}`}</span>
-                </div>;
-              })}
-            </div>
-          </div>
+          <AnalitikIklan baseUrl={baseUrl} bulan={filterBulan} leads={leads} getLeadMonthMasuk={getLeadMonthMasuk} dark={dark} text={text} muted={muted} cardBg={cardBg} border={border}/>
 
-          {/* Performa per Sumber */}
-          <div style={{background:cardBg,border,borderRadius:12,padding:20}}>
-            <div style={{fontSize:11,fontWeight:700,color:muted,letterSpacing:1,marginBottom:16}}>PERFORMA PER SUMBER</div>
-            <div style={{overflowX:'auto'}}>
-              <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
-                <thead>
-                  <tr style={{borderBottom:'2px solid '+(dark?'#333':'#eee')}}>
-                    {['Sumber','Spend','Leads Meta','Leads CRM','Good','Quot.','Deal (New)','Rev. New','Deal (Repeat)','Rev. Repeat','Conv. Rate','ROAS','Gross Profit','Ads Profit','Status'].map((h,i)=>(
-                      <th key={i} style={{padding:'8px 8px',color:muted,fontWeight:600,whiteSpace:'nowrap',textAlign:i>0?'center':'left'}}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredCampaigns.map(camp=>{
-                    const hasMeta=camp.source==='meta_ads';
-                    const md=getCampaignMonthData(camp, filterBulan)||{};
-                    const mdSpend=md.spend||0, mdResults=md.results||0;
-                    const cl=filteredLeadsMasuk.filter(l=>l.campaign_id===camp.id);
-                    const cgood=cl.filter(l=>l.stage==='good').length;
-                    const cquot=cl.filter(l=>l.stage==='quotation').length;
-                    // Pisah new vs repeat
-                    const cnew=cl.filter(l=>l.stage==='deal'&&!l.is_repeat_order);
-                    const crepeat=cl.filter(l=>l.stage==='deal'&&l.is_repeat_order);
-                    const revNew=cnew.reduce((s,l)=>s+(l.deal_value||0),0);
-                    const revRepeat=crepeat.reduce((s,l)=>s+(l.deal_value||0),0);
-                    const gp=cnew.reduce((s,l)=>s+(l.gross_profit||0),0); // GP dari new only
-                    const adsProfit=gp-mdSpend;
-                    const roas=mdSpend>0&&revNew>0?revNew/mdSpend:null; // ROAS dari new only
-                    const convBase=hasMeta?mdResults:cl.length;
-                    const convRate=convBase>0?((cnew.length/convBase)*100).toFixed(0):0;
-                    const winning=adsProfit>0;
-                    return <tr key={camp.id} style={{borderBottom:'1px solid '+(dark?'#2a2a2a':'#f5f5f5')}}>
-                      <td style={{padding:'8px 8px',minWidth:140}}>
-                        <div style={{fontWeight:600,color:text,fontSize:13}}>{camp.nama}</div>
-                        {hasMeta&&<span style={{fontSize:10,background:'#E7F3FF',color:'#1877F2',padding:'1px 5px',borderRadius:3,fontWeight:600}}>Meta Ad Set</span>}
-                      </td>
-                      <td style={{padding:'8px 8px',textAlign:'center',color:text}}>{mdSpend?fmtRp(mdSpend):'—'}</td>
-                      <td style={{padding:'8px 8px',textAlign:'center',fontWeight:600,color:'#378ADD'}}>{hasMeta?mdResults:'—'}</td>
-                      <td style={{padding:'8px 8px',textAlign:'center'}}>{cl.length}</td>
-                      <td style={{padding:'8px 8px',textAlign:'center'}}>{cgood||0}</td>
-                      <td style={{padding:'8px 8px',textAlign:'center'}}>{cquot||0}</td>
-                      <td style={{padding:'8px 8px',textAlign:'center',fontWeight:700,color:'#013175'}}>{cnew.length}</td>
-                      <td style={{padding:'8px 8px',textAlign:'center',color:'#013175',fontWeight:600}}>{cnew.length>0?fmtRp(revNew):'—'}</td>
-                      <td style={{padding:'8px 8px',textAlign:'center',fontWeight:700,color:'#EF9F27'}}>{crepeat.length||'—'}</td>
-                      <td style={{padding:'8px 8px',textAlign:'center',color:'#EF9F27',fontWeight:600}}>{crepeat.length>0?fmtRp(revRepeat):'—'}</td>
-                      <td style={{padding:'8px 8px',textAlign:'center'}}>{convBase>0?convRate+'%':'—'}</td>
-                      <td style={{padding:'8px 8px',textAlign:'center',fontWeight:700,color:roas===null?muted:roas>=8?'#639922':roas>=3?'#EF9F27':'#a32d2d'}}>{roas===null?'—':roas.toFixed(1)+'x'}</td>
-                      <td style={{padding:'8px 8px',textAlign:'center',color:'#EF9F27',fontWeight:600}}>{gp>0?fmtRp(gp):'—'}</td>
-                      <td style={{padding:'8px 8px',textAlign:'center',fontWeight:700,color:mdSpend>0?(winning?'#639922':'#a32d2d'):muted}}>
-                        {mdSpend>0?(winning?'+':'')+fmtRp(adsProfit):'—'}
-                      </td>
-                      <td style={{padding:'8px 8px',textAlign:'center'}}>
-                        {mdSpend>0?<span style={{fontSize:11,fontWeight:700,color:winning?'#639922':'#a32d2d',background:winning?'#EDF5E1':'#FFF0F0',padding:'2px 8px',borderRadius:12}}>
-                          {winning?'▲ Winning':'▼ Losing'}
-                        </span>:'—'}
-                      </td>
-                    </tr>;
-                  })}
-                </tbody>
-              </table>
-              <div style={{fontSize:10,color:muted,marginTop:8}}>
-                * Leads, Deal, ROAS & Conv. Rate diatribusikan by tanggal lead masuk. Total Revenue & GP Summary Cards by tanggal invoice. Pipeline by tanggal invoice.
-              </div>
-            </div>
-          </div>
-
+          <button onClick={()=>setDetailAnalitik(!detailAnalitik)} className="no-active" style={{border:'1px solid '+(dark?'#444':'#ddd'),background:'none',borderRadius:8,padding:'8px 14px',fontSize:13,color:'#013175',fontWeight:600,cursor:'pointer',width:'100%'}}>{detailAnalitik?'Sembunyikan detail ▴':'Lihat detail (CLV per campaign) ▾'}</button>
+          {detailAnalitik&&<>
           {/* Customer Lifetime Value section */}
           {filteredCampaigns.some(c=>filteredLeads.some(l=>l.campaign_id===c.id&&l.is_repeat_order))&&(
             <div style={{background:cardBg,border,borderRadius:12,padding:20,marginTop:20}}>
@@ -952,6 +875,7 @@ export default function CRM() {
               </div>
             </div>
           )}
+          </>}
         </div>}
       </>}
 

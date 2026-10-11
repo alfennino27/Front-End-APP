@@ -96,10 +96,10 @@ export default function LeadMasuk({ baseUrl, bulan, dark, text, muted, cardBg, b
               {c.ai?.perlu_follow_up && c.ai?.saran_follow_up && (
                 <div style={{ fontSize: 12, color: text, background: dark ? '#2a2614' : '#FFF8E1', border: '1px solid ' + (dark ? '#5a4a1a' : '#f3dfa0'), borderRadius: 6, padding: '6px 8px' }}>
                   <div style={{ fontWeight: 700, color: '#b26a00', marginBottom: 2 }}>⏰ Perlu follow-up · sepi sejak {fmtTgl(c.last_at)}</div>
-                  {c.ai.saran_follow_up}
+                  <span style={{ color: muted }}>Saran: </span>{c.ai.saran_follow_up}
                   <div style={{ marginTop: 6 }}>
-                    <a onClick={(e) => e.stopPropagation()} href={`https://wa.me/${c.wa}?text=${encodeURIComponent(c.ai.saran_follow_up)}`} target="_blank" rel="noreferrer"
-                      style={{ display: 'inline-block', background: '#25D366', color: '#fff', borderRadius: 6, padding: '5px 10px', fontWeight: 700, textDecoration: 'none', fontSize: 12 }}>💬 Buka WA dengan saran ini</a>
+                    <a onClick={(e) => e.stopPropagation()} href={`https://wa.me/${c.wa}`} target="_blank" rel="noreferrer"
+                      style={{ display: 'inline-block', background: '#25D366', color: '#fff', borderRadius: 6, padding: '5px 10px', fontWeight: 700, textDecoration: 'none', fontSize: 12 }}>💬 Buka chat WA</a>
                   </div>
                 </div>
               )}

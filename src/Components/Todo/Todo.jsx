@@ -17,6 +17,7 @@ import { IoRefresh, IoSettingsOutline } from 'react-icons/io5';
 const KATEGORI = ['Stainless', 'Besi', 'Kayu', 'Jok', 'Rotan', 'Marmer', 'Kaca', 'Fiber', 'Veneer', 'Finishing', 'Hardware', 'BarangJadi'];
 
 const BUCKETS = [
+  { key: 'urgent', label: 'Mendesak', color: '#b91c1c' }, // Terlambat + Minggu ini (default)
   { key: 'all', label: 'Semua', color: '#334155' },
   { key: 'overdue', label: 'Terlambat', color: '#dc2626' },
   { key: 'this_week', label: 'Minggu ini', color: '#d97706' },
@@ -89,7 +90,8 @@ const Todo = () => {
   const [users, setUsers] = useState([]);
   const [myName, setMyName] = useState(null);
 
-  const [tab, setTab] = useState(() => lsGet('todo.tab', 'overdue'));
+  // Selalu buka "Mendesak" (Terlambat + Minggu ini) supaya tidak langsung melihat semua tugas.
+  const [tab, setTab] = useState('urgent');
   const [groupBy, setGroupBy] = useState(() => lsGet('todo.groupBy', 'tanggal'));
   const [showStock, setShowStock] = useState(() => lsGet('todo.showStock', false));
   const [fKategori, setFKategori] = useState('');
@@ -104,7 +106,6 @@ const Todo = () => {
   const [showSettings, setShowSettings] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => lsSet('todo.tab', tab), [tab]);
   useEffect(() => lsSet('todo.groupBy', groupBy), [groupBy]);
   useEffect(() => lsSet('todo.showStock', showStock), [showStock]);
 
@@ -170,11 +171,14 @@ const Todo = () => {
     const c = {};
     filtered.forEach((t) => { c[t.bucket] = (c[t.bucket] || 0) + 1; });
     c.all = filtered.length;
+    c.urgent = (c.overdue || 0) + (c.this_week || 0);
     return c;
   }, [filtered]);
 
   const groups = useMemo(() => {
-    const list = tab === 'all' ? filtered : filtered.filter((t) => t.bucket === tab);
+    const list = tab === 'all' ? filtered
+      : tab === 'urgent' ? filtered.filter((t) => t.bucket === 'overdue' || t.bucket === 'this_week')
+      : filtered.filter((t) => t.bucket === tab);
     const map = new Map();
     const keyOf = (t) => {
       if (groupBy === 'supplier') return t.supplier || 'Belum ada supplier';

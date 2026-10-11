@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Container } from 'react-bootstrap';
 import { getApiBaseUrl } from '../../Config/APIurl';
+import { DEFAULT_HOMEPAGE, fetchHomepage } from '../../Utils/homepage';
 
 const Login = () => {
   const baseUrl = getApiBaseUrl();
@@ -28,7 +29,7 @@ const Login = () => {
     }
     const cekLogin = () => {
       if (user !== null) {
-        window.location.replace('/project');
+        fetchHomepage(user.uid).then((path) => window.location.replace(path));
       }
     };
 
@@ -51,8 +52,8 @@ const Login = () => {
         // ✅ Simpan uid ke localStorage
         localStorage.setItem('user', JSON.stringify({ uid: data.user.uid }));
 
-        // ✅ Redirect ke halaman project
-        window.location.replace('/project');
+        // ✅ Redirect ke halaman awal user (User Management), default project
+        window.location.replace(data.user.homepage || DEFAULT_HOMEPAGE);
       } else if (data.status === 'setPassword') {
         // Tampilkan form set password kalau belum ada password
         setShowSetPassword(true);

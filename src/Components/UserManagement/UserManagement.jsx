@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Modal, Input, Button, Typography, Drawer, Select, Switch, message, Popconfirm } from 'antd';
-import { FiSearch, FiEdit2, FiChevronDown, FiChevronRight, FiUserPlus, FiCopy, FiUsers, FiKey, FiShield } from 'react-icons/fi';
+import { FiSearch, FiEdit2, FiChevronDown, FiChevronRight, FiUserPlus, FiCopy, FiUsers, FiKey, FiShield, FiHome } from 'react-icons/fi';
 import { getApiBaseUrl } from '../../Config/APIurl';
 import { heicToJpeg } from '../../Utils/heic';
 import { useTheme } from '../../ThemeContext';
 import { getImageUrl } from '../../Utils/image';
+import { HOMEPAGE_OPTIONS, DEFAULT_HOMEPAGE } from '../../Utils/homepage';
 
 const { Title } = Typography;
 
@@ -144,6 +145,17 @@ const UserManagement = () => {
   const sel = users.find((u) => u.uid === selUid) || null;
   useEffect(() => { if (!isMobile && !selUid && sortedUsers.length) setSelUid(sortedUsers[0].uid); }, [sortedUsers.length, isMobile]);
 
+  // halaman awal setelah login (Users.homepage); pilihan dibatasi menu yang boleh dibuka user
+  const saveHomepage = async (uid, homepage) => {
+    const prev = users;
+    setUsers((list) => list.map((x) => (x.uid === uid ? { ...x, homepage } : x)));
+    try {
+      const r = await fetch(`${baseUrl}/user/homepage`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ uid, homepage }) });
+      if (!r.ok) throw new Error();
+      message.success('Halaman awal disimpan');
+    } catch { setUsers(prev); message.error('Gagal simpan halaman awal'); }
+  };
+
   // ---- user CRUD (logika lama) ----
   const openEdit = (u) => {
     setFormData({ name: u.name || '', email: u.email || '', password: '', profilePicture: null, id: u.id || u._id || '', nomorWa: u.nomorWa || '', waAlias: Array.isArray(u.waAlias) ? u.waAlias.join(', ') : (u.waAlias || '') });
@@ -237,6 +249,23 @@ const UserManagement = () => {
         <Button icon={<FiEdit2 />} onClick={() => openEdit(u)}>{isMobile ? '' : 'Edit profil'}</Button>
       </div>
       {UserAkses({ u })}
+      {(() => {
+        const cur = u.homepage || DEFAULT_HOMEPAGE;
+        const opsi = HOMEPAGE_OPTIONS.filter((o) => o.path === cur || has(u.uid, o.menu));
+        const tanpaAkses = !has(u.uid, HOMEPAGE_OPTIONS.find((o) => o.path === cur)?.menu);
+        return (
+          <div style={{ ...card, padding: '10px 14px', marginTop: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <FiHome color={th.muted} />
+              <span style={{ fontSize: 13, color: th.muted }}>Halaman awal setelah login</span>
+              <Select size="large" style={{ flex: 1, minWidth: 180 }} value={cur} showSearch optionFilterProp="label"
+                onChange={(v) => saveHomepage(u.uid, v)}
+                options={opsi.map((o) => ({ value: o.path, label: o.label }))} />
+            </div>
+            {tanpaAkses && <div style={{ fontSize: 12, color: '#d97706', marginTop: 6 }}>User ini belum punya akses ke halaman tersebut — beri aksesnya atau pilih halaman lain.</div>}
+          </div>
+        );
+      })()}
       <div style={{ ...card, padding: '10px 14px', margin: '12px 0', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
         <FiCopy color={th.muted} />
         <span style={{ fontSize: 13, color: th.muted }}>Samakan akses dengan</span>

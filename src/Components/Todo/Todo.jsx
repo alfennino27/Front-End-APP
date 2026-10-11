@@ -87,13 +87,15 @@ const Todo = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [users, setUsers] = useState([]);
+  const [myName, setMyName] = useState(null);
 
   const [tab, setTab] = useState(() => lsGet('todo.tab', 'overdue'));
   const [groupBy, setGroupBy] = useState(() => lsGet('todo.groupBy', 'tanggal'));
   const [showStock, setShowStock] = useState(() => lsGet('todo.showStock', false));
   const [fKategori, setFKategori] = useState('');
   const [fJenis, setFJenis] = useState('');
-  const [fPic, setFPic] = useState('');
+  // PIC: '__me' = PIC diri sendiri (default tiap buka halaman, sengaja tidak diingat), '' = semua, '__none' = belum ada.
+  const [fPic, setFPic] = useState('__me');
   const [fSumber, setFSumber] = useState('');
   const [search, setSearch] = useState('');
 
@@ -123,27 +125,46 @@ const Todo = () => {
   useEffect(() => {
     fetchAgenda();
     fetch(`${baseUrl}/users/all/get`).then((r) => r.json()).then((d) => {
-      if (Array.isArray(d)) setUsers(d.map((u) => u.name).filter((n) => n && !/bot|hermes/i.test(n)));
+      if (!Array.isArray(d)) return;
+      setUsers(d.map((u) => u.name).filter((n) => n && !/bot|hermes/i.test(n)));
+      setMyName(d.find((u) => u.uid === user?.uid)?.name || '');
     }).catch(() => {});
   }, [baseUrl, fetchAgenda]);
 
   const tasks = agenda?.tasks || [];
   const today = agenda?.today || toYMD(new Date());
 
-  // Filter selain bucket — dipakai juga untuk angka di tab.
-  const filtered = useMemo(() => {
+  // PIC efektif: '__me' → nama user login (selama belum dimuat, tampilkan semua).
+  const picAktif = fPic === '__me' ? (myName || '') : fPic;
+  const picOf = (t) => t.pics || (t.pic ? [t.pic] : []);
+
+  // Filter selain bucket & PIC — dipakai untuk angka di baris PIC.
+  const filteredNoPic = useMemo(() => {
     const q = search.trim().toLowerCase();
     return tasks.filter((t) => {
       if (!showStock && t.is_stock) return false;
       if (fKategori && t.category !== fKategori) return false;
       if (fJenis && t.jenis !== fJenis) return false;
       if (fSumber && t.sumber !== fSumber) return false;
-      if (fPic === '__none' && t.pic) return false;
-      if (fPic && fPic !== '__none' && t.pic !== fPic) return false;
       if (q && ![t.judul, t.item, t.customer, t.kode_invoice, t.supplier].some((v) => String(v || '').toLowerCase().includes(q))) return false;
       return true;
     });
-  }, [tasks, showStock, fKategori, fJenis, fSumber, fPic, search]);
+  }, [tasks, showStock, fKategori, fJenis, fSumber, search]);
+
+  // Filter selain bucket — dipakai juga untuk angka di tab.
+  const filtered = useMemo(() => filteredNoPic.filter((t) => {
+    if (picAktif === '__none') return picOf(t).length === 0;
+    return !picAktif || picOf(t).includes(picAktif);
+  }), [filteredNoPic, picAktif]);
+
+  // Baris PIC: saya dulu, lalu PIC lain urut jumlah tugas terbanyak.
+  const picRow = useMemo(() => {
+    const c = {};
+    let none = 0;
+    filteredNoPic.forEach((t) => { const ps = picOf(t); if (!ps.length) none += 1; ps.forEach((p) => { c[p] = (c[p] || 0) + 1; }); });
+    const lain = Object.keys(c).filter((n) => n !== myName).sort((a, b) => c[b] - c[a]);
+    return { c, none, lain, semua: filteredNoPic.length };
+  }, [filteredNoPic, myName]);
 
   const counts = useMemo(() => {
     const c = {};
@@ -273,10 +294,28 @@ const Todo = () => {
           <button type="button" style={sIconBtn} onClick={() => { setLoading(true); fetchAgenda(); }} title="Muat ulang" aria-label="Muat ulang">
             <IoRefresh size={20} />
           </button>
-          <button type="button" style={sIconBtn} onClick={() => setShowSettings(true)} title="Setting lead time" aria-label="Setting lead time">
+          <button type="button" style={sIconBtn} onClick={() => setShowSettings(true)} title="Setting PIC & lead time" aria-label="Setting To-do">
             <IoSettingsOutline size={20} />
           </button>
           <button type="button" style={sBtn('#2563eb')} onClick={() => setShowAdd(true)}>+ To-do</button>
+        </div>
+
+        {/* PIC — default tugas saya */}
+        <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 8 }}>
+          {[
+            ...(myName ? [{ v: '__me', label: `Tugas saya`, n: picRow.c[myName] || 0, on: fPic === '__me' || fPic === myName }] : []),
+            ...picRow.lain.map((n) => ({ v: n, label: n, n: picRow.c[n], on: fPic === n })),
+            ...(picRow.none ? [{ v: '__none', label: 'Belum ada PIC', n: picRow.none, on: fPic === '__none' }] : []),
+            { v: '', label: 'Semua', n: picRow.semua, on: fPic === '' || (fPic === '__me' && myName === '') },
+          ].map((o) => (
+            <button type="button" key={o.v || 'semua'} onClick={() => setFPic(o.v)}
+              style={{
+                flex: '0 0 auto', borderRadius: 999, padding: '8px 14px', fontSize: 14, fontWeight: 600, cursor: 'pointer', minHeight: 40,
+                border: `1px solid ${o.on ? '#2563eb' : C.border}`, background: o.on ? '#2563eb' : C.card, color: o.on ? '#fff' : C.text,
+              }}>
+              {o.v === '__me' ? '👤 ' : ''}{o.label} <span style={{ opacity: 0.75, fontWeight: 500 }}>{o.n}</span>
+            </button>
+          ))}
         </div>
 
         {/* Tab bucket */}
@@ -318,11 +357,6 @@ const Todo = () => {
             <option value="">Semua jenis</option>
             {Object.entries(jenisOptions).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </select>
-          <select style={sInput} value={fPic} onChange={(e) => setFPic(e.target.value)}>
-            <option value="">Semua PIC</option>
-            <option value="__none">Belum ada PIC</option>
-            {users.map((u) => <option key={u} value={u}>{u}</option>)}
-          </select>
           <select style={sInput} value={fSumber} onChange={(e) => setFSumber(e.target.value)}>
             <option value="">Semua sumber</option>
             <option value="manual">✎ Ditulis orang</option>
@@ -338,7 +372,7 @@ const Todo = () => {
         {error && <div style={{ padding: 12, borderRadius: 10, background: '#fee2e2', color: '#991b1b', marginBottom: 10 }}>{error}</div>}
         {agenda && groups.length === 0 && (
           <div style={{ padding: 40, textAlign: 'center', color: C.muted }}>
-            Tidak ada tugas di “{BUCKETS.find((b) => b.key === tab)?.label}” 🎉
+            Tidak ada tugas di “{BUCKETS.find((b) => b.key === tab)?.label}”{picAktif && picAktif !== '__none' ? ` untuk ${picAktif}` : ''} 🎉
           </div>
         )}
 
@@ -420,7 +454,7 @@ const Todo = () => {
           onSubmit={async (body) => { if (await post('/projects/todo/item', { ...body, op: 'add' })) setShowAdd(false); }} />
       )}
       {showSettings && (
-        <SettingsSheet C={C} sInput={sInput} sBtn={sBtn} baseUrl={baseUrl} user={user} onClose={() => setShowSettings(false)} onSaved={fetchAgenda} />
+        <SettingsSheet C={C} sInput={sInput} sBtn={sBtn} baseUrl={baseUrl} user={user} users={users} onClose={() => setShowSettings(false)} onSaved={fetchAgenda} />
       )}
     </div>
   );
@@ -529,13 +563,21 @@ const TaskSheet = ({ t, C, users, busy, today, sInput, sBtn, chip, onClose, aksi
           <input type="date" style={{ ...sInput, width: '100%' }} value={t.due_manual ? t.due : ''} onChange={(e) => aksi(t, 'due', e.target.value)} />
           <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>{t.due_manual ? 'Diatur manual' : `Otomatis: ${t.due ? fmtTanggal(t.due) : '—'}`}</div>
         </div>
-        <div style={{ flex: '1 1 160px' }}>
-          <Label C={C}>PIC</Label>
-          <select style={{ ...sInput, width: '100%' }} value={t.pic || ''} onChange={(e) => aksi(t, 'pic', e.target.value)}>
-            <option value="">— belum ada —</option>
-            {users.map((u) => <option key={u} value={u}>{u}</option>)}
-          </select>
-        </div>
+      </div>
+      <Label C={C}>PIC {t.pic_otomatis && t.pic ? '(otomatis sesuai jenis tugas)' : ''}</Label>
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        {users.map((u) => {
+          const now = t.pics || (t.pic ? [t.pic] : []);
+          const on = now.includes(u);
+          return (
+            <button type="button" key={u} disabled={busy}
+              onClick={() => aksi(t, 'pic', (on ? now.filter((x) => x !== u) : [...now, u]).join(', '))}
+              style={{ borderRadius: 999, padding: '7px 12px', fontSize: 13, fontWeight: 600, cursor: 'pointer', minHeight: 36,
+                border: `1px solid ${on ? '#2563eb' : C.border}`, background: on ? '#2563eb' : C.card, color: on ? '#fff' : C.text }}>
+              {on ? '✓ ' : ''}{u}
+            </button>
+          );
+        })}
       </div>
 
       {/* Catatan follow-up */}
@@ -624,7 +666,7 @@ const AddSheet = ({ C, users, busy, sInput, sBtn, baseUrl, onClose, onSubmit }) 
         <div style={{ flex: '1 1 160px' }}>
           <Label C={C}>PIC</Label>
           <select style={{ ...sInput, width: '100%' }} value={pic} onChange={(e) => setPic(e.target.value)}>
-            <option value="">— belum ada —</option>
+            <option value="">— otomatis (sesuai setting PIC) —</option>
             {users.map((u) => <option key={u} value={u}>{u}</option>)}
           </select>
         </div>
@@ -640,8 +682,10 @@ const AddSheet = ({ C, users, busy, sInput, sBtn, baseUrl, onClose, onSubmit }) 
 
 const BASIS_LABEL = { target: 'hari dari target kirim', invoice: 'hari setelah invoice', today: 'segera (hari ini)' };
 
-const SettingsSheet = ({ C, sInput, sBtn, baseUrl, user, onClose, onSaved }) => {
+const SettingsSheet = ({ C, sInput, sBtn, baseUrl, user, users, onClose, onSaved }) => {
   const [value, setValue] = useState(null);
+  const [pic, setPic] = useState({});
+  const [picDef, setPicDef] = useState({});
   const [def, setDef] = useState({});
   const [label, setLabel] = useState({});
   const [saving, setSaving] = useState(false);
@@ -649,6 +693,7 @@ const SettingsSheet = ({ C, sInput, sBtn, baseUrl, user, onClose, onSaved }) => 
   useEffect(() => {
     fetch(`${baseUrl}/todo/settings`).then((r) => r.json()).then((d) => {
       setValue(d.value || {}); setDef(d.default || {}); setLabel(d.jenis_label || {});
+      setPic(d.pic || {}); setPicDef(d.pic_default || {});
     }).catch(() => setValue({}));
   }, [baseUrl]);
 
@@ -661,7 +706,7 @@ const SettingsSheet = ({ C, sInput, sBtn, baseUrl, user, onClose, onSaved }) => 
     setSaving(true);
     try {
       const res = await fetch(`${baseUrl}/todo/settings`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ value, by: user?.uid || '' }),
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ value, pic, by: user?.uid || '' }),
       });
       if (!res.ok) throw new Error('Gagal simpan setting');
       await onSaved();
@@ -674,7 +719,30 @@ const SettingsSheet = ({ C, sInput, sBtn, baseUrl, user, onClose, onSaved }) => 
   };
 
   return (
-    <Sheet C={C} onClose={onClose} title="Lead time (kapan tugas harus beres)">
+    <Sheet C={C} onClose={onClose} title="Setting To-do">
+      <div style={{ fontWeight: 700, fontSize: 14 }}>PIC otomatis per jenis tugas</div>
+      <div style={{ fontSize: 12, color: C.muted, marginBottom: 6 }}>
+        Berlaku untuk semua tugas yang PIC-nya belum diatur manual (termasuk yang sudah ada). “To-do” = to-do yang ditulis orang di tiap category.
+      </div>
+      {Object.keys(label).filter((j) => pic[j] || picDef[j]).map((j) => (
+        <div key={j} style={{ padding: '6px 0', borderBottom: `1px solid ${C.border}` }}>
+          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>{label[j]}</div>
+          <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+            {users.map((u) => {
+              const now = pic[j] || [];
+              const on = now.includes(u);
+              return (
+                <button type="button" key={u} onClick={() => setPic((p) => ({ ...p, [j]: on ? now.filter((x) => x !== u) : [...now, u] }))}
+                  style={{ borderRadius: 999, padding: '5px 10px', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                    border: `1px solid ${on ? '#2563eb' : C.border}`, background: on ? '#2563eb' : C.card, color: on ? '#fff' : C.text }}>
+                  {u}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+      <div style={{ fontWeight: 700, fontSize: 14, marginTop: 16 }}>Lead time (kapan tugas harus beres)</div>
       <div style={{ fontSize: 12, color: C.muted, marginBottom: 8 }}>
         Contoh: “-21 hari dari target kirim” = marmer harus dipesan 3 minggu sebelum barang dikirim.
       </div>
@@ -689,7 +757,7 @@ const SettingsSheet = ({ C, sInput, sBtn, baseUrl, user, onClose, onSaved }) => 
         </div>
       ))}
       <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
-        <button type="button" style={sBtn(C.soft, C.text)} onClick={() => setValue({ ...def })}>Kembalikan default</button>
+        <button type="button" style={sBtn(C.soft, C.text)} onClick={() => { setValue({ ...def }); setPic({ ...picDef }); }}>Kembalikan default</button>
         <button type="button" disabled={saving || !value} style={{ ...sBtn('#2563eb'), flex: 1 }} onClick={simpan}>Simpan</button>
       </div>
     </Sheet>

@@ -11,7 +11,7 @@ const LABEL = {
   menunggu: { t: 'Menunggu', c: '#7F77DD', bg: '#EEEDFC' },
   tidak: { t: 'Tidak', c: '#a32d2d', bg: '#F8E1E1' },
 };
-const TABS = [['kandidat', 'Perlu konfirmasi'], ['serius', 'Serius'], ['proses', 'Masih proses'], ['tidak', 'Tidak'], ['semua', 'Semua']];
+const TABS = [['kandidat', 'Perlu konfirmasi'], ['followup', 'Perlu follow-up'], ['serius', 'Serius'], ['proses', 'Masih proses'], ['tidak', 'Tidak'], ['semua', 'Semua']];
 
 const fmtTgl = (d) => (d ? new Date(d).toLocaleString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '-');
 const uidSaya = () => { try { return JSON.parse(localStorage.getItem('user'))?.uid || null; } catch { return null; } };
@@ -79,7 +79,7 @@ export default function LeadMasuk({ baseUrl, bulan, dark, text, muted, cardBg, b
       </div>
 
       {loading ? <div style={{ textAlign: 'center', padding: 40 }}><Spinner /></div> : list.length === 0 ? (
-        <div style={{ textAlign: 'center', color: muted, padding: 40 }}>{tab === 'kandidat' ? 'Tidak ada yang perlu dikonfirmasi 🎉' : 'Kosong.'}</div>
+        <div style={{ textAlign: 'center', color: muted, padding: 40 }}>{tab === 'kandidat' ? 'Tidak ada yang perlu dikonfirmasi 🎉' : tab === 'followup' ? 'Semua lead bagus sudah di-follow up 👍' : 'Kosong.'}</div>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))', gap: 10 }}>
           {list.map((c) => (
@@ -93,6 +93,16 @@ export default function LeadMasuk({ baseUrl, bulan, dark, text, muted, cardBg, b
               </div>
               {c.ai?.produk && <div style={{ fontSize: 13, color: text }}>🪑 {c.ai.produk}{c.ai.kota ? ` · 📍 ${c.ai.kota}` : ''}</div>}
               {c.ai?.alasan && <div style={{ fontSize: 12, color: muted }}>{c.ai.alasan}</div>}
+              {c.ai?.perlu_follow_up && c.ai?.saran_follow_up && (
+                <div style={{ fontSize: 12, color: text, background: dark ? '#2a2614' : '#FFF8E1', border: '1px solid ' + (dark ? '#5a4a1a' : '#f3dfa0'), borderRadius: 6, padding: '6px 8px' }}>
+                  <div style={{ fontWeight: 700, color: '#b26a00', marginBottom: 2 }}>⏰ Perlu follow-up · sepi sejak {fmtTgl(c.last_at)}</div>
+                  {c.ai.saran_follow_up}
+                  <div style={{ marginTop: 6 }}>
+                    <a onClick={(e) => e.stopPropagation()} href={`https://wa.me/${c.wa}?text=${encodeURIComponent(c.ai.saran_follow_up)}`} target="_blank" rel="noreferrer"
+                      style={{ display: 'inline-block', background: '#25D366', color: '#fff', borderRadius: 6, padding: '5px 10px', fontWeight: 700, textDecoration: 'none', fontSize: 12 }}>💬 Buka WA dengan saran ini</a>
+                  </div>
+                </div>
+              )}
               {c.ai?.bukti && <div style={{ fontSize: 12, color: text, background: subtle, borderRadius: 6, padding: '6px 8px', fontStyle: 'italic' }}>“{c.ai.bukti}”</div>}
               <div style={{ fontSize: 11, color: muted, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 <span>📢 {c.adset_name || c.ad_headline || 'iklan'}</span>

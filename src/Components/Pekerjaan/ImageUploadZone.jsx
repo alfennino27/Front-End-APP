@@ -17,7 +17,10 @@ const MAX_TOTAL_BYTES = 45 * 1024 * 1024;
 export const isVideoFile = (f) =>
   !!f && ((f.type && f.type.startsWith('video/')) || /\.(mp4|mov|m4v|webm|ogv|3gp|avi|mkv)$/i.test(f.name || ''));
 
-const ImageUploadZone = ({ images = [], onChange, max = 10, theme = 'light', allowVideo = false }) => {
+export const isPdfFile = (f) =>
+  !!f && (f.type === 'application/pdf' || /\.pdf$/i.test(f.name || ''));
+
+const ImageUploadZone = ({ images = [], onChange, max = 10, theme = 'light', allowVideo = false, allowPdf = false }) => {
   const inputRef = useRef(null);
   const cameraRef = useRef(null);
   const [dragOver, setDragOver] = useState(false);
@@ -29,25 +32,27 @@ const ImageUploadZone = ({ images = [], onChange, max = 10, theme = 'light', all
     // HEIC dari iPhone kadang punya file.type kosong → kenali via ekstensi juga.
     const gambar = semua.filter((f) => f && ((f.type && f.type.startsWith('image/')) || isHeic(f)));
     const video = allowVideo ? semua.filter((f) => isVideoFile(f) && !gambar.includes(f)) : [];
+    const pdf = allowPdf ? semua.filter(isPdfFile) : [];
 
-    if (gambar.length === 0 && video.length === 0) {
+    if (gambar.length === 0 && video.length === 0 && pdf.length === 0) {
       if (!allowVideo && semua.some(isVideoFile)) alert('Video hanya bisa dilampirkan di komentar.');
+      if (!allowPdf && semua.some(isPdfFile)) alert('PDF hanya bisa dilampirkan di komentar.');
       return;
     }
 
     setProcessing(true);
     try {
       // Gambar dikompres di HP dulu (resize + webp); video dikirim apa adanya
-      // (kompresi video dilakukan server) — cuma dijaga ukurannya.
+      // (kompresi video dilakukan server) — cuma dijaga ukurannya. PDF juga apa adanya.
       const compressed = gambar.length ? await compressImageFiles(gambar) : [];
       onChange((prev) => {
         const lama = prev || [];
-        const gabung = [...lama, ...compressed, ...video].slice(0, max);
+        const gabung = [...lama, ...compressed, ...video, ...pdf].slice(0, max);
         const total = gabung.reduce((s, f) => s + (f.size || 0), 0);
         if (total > MAX_TOTAL_BYTES) {
           alert(
             `Total lampiran ${(total / 1024 / 1024).toFixed(1)} MB — maksimal 45 MB sekali kirim.\n` +
-            'Kirim videonya terpisah atau rekam lebih pendek.'
+            'Kirim videonya / PDF-nya terpisah atau perkecil ukurannya.'
           );
           return lama;
         }
@@ -88,7 +93,7 @@ const ImageUploadZone = ({ images = [], onChange, max = 10, theme = 'light', all
     if (!items) return;
     const files = [];
     for (const item of items) {
-      if (item.kind === 'file' && (item.type.startsWith('image/') || (allowVideo && item.type.startsWith('video/')))) {
+      if (item.kind === 'file' && (item.type.startsWith('image/') || (allowVideo && item.type.startsWith('video/')) || (allowPdf && item.type === 'application/pdf'))) {
         const f = item.getAsFile();
         if (f) files.push(f);
       }
@@ -163,7 +168,7 @@ const ImageUploadZone = ({ images = [], onChange, max = 10, theme = 'light', all
         >
           <FaRegImages style={{ fontSize: '22px', marginBottom: '6px' }} />
           <div style={{ fontSize: '13px', lineHeight: 1.4 }}>
-            Drag &amp; drop {allowVideo ? 'gambar / video' : 'gambar'} di sini
+            Drag &amp; drop {['gambar', allowVideo && 'video', allowPdf && 'PDF'].filter(Boolean).join(' / ')} di sini
             <br />
             <span style={{ fontSize: '11px' }}>
               (dari Photos / Finder), klik untuk pilih file, atau paste (Cmd+V)
@@ -171,7 +176,7 @@ const ImageUploadZone = ({ images = [], onChange, max = 10, theme = 'light', all
           </div>
           {count > 0 && (
             <div style={{ fontSize: '11px', marginTop: '6px' }}>
-              {count}/{max} {allowVideo ? 'file' : 'gambar'} dipilih
+              {count}/{max} {allowVideo || allowPdf ? 'file' : 'gambar'} dipilih
             </div>
           )}
           {processing && (
@@ -205,7 +210,7 @@ const ImageUploadZone = ({ images = [], onChange, max = 10, theme = 'light', all
       <input
         ref={inputRef}
         type="file"
-        accept={allowVideo ? 'image/*,video/*,.heic,.heif' : 'image/*,.heic,.heif'}
+        accept={['image/*', allowVideo && 'video/*', allowPdf && 'application/pdf,.pdf', '.heic,.heif'].filter(Boolean).join(',')}
         multiple
         style={{ display: 'none' }}
         onChange={(e) => {
@@ -261,7 +266,19 @@ const Thumb = ({ file, onRemove, isLight }) => {
         border: `1px solid ${isLight ? '#ddd' : '#444'}`,
       }}
     >
-      {url && (isVideoFile(file) ? (
+      {url && (isPdfFile(file) ? (
+        <div
+          title={file.name}
+          style={{
+            width: '100%', height: '100%', display: 'flex', flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'center', background: '#fdecea',
+            color: '#c62828', fontSize: 9, padding: 3, textAlign: 'center', overflow: 'hidden',
+          }}
+        >
+          <b style={{ fontSize: 14 }}>PDF</b>
+          <span style={{ wordBreak: 'break-all', lineHeight: 1.1, maxHeight: 30, overflow: 'hidden' }}>{file.name}</span>
+        </div>
+      ) : isVideoFile(file) ? (
         <video
           src={url}
           muted

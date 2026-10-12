@@ -3445,7 +3445,7 @@ const DetailPekerjaan = () => {
         </Modal.Header>
         <Modal.Body>
           {/* Your comment form here */}
-          <label>Image / Video :</label><br />
+          <label>Image / Video / PDF :</label><br />
 
 
           <div className='py-2'>
@@ -3455,6 +3455,7 @@ const DetailPekerjaan = () => {
               max={10}
               theme={globalTheme}
               allowVideo
+              allowPdf
             />
           </div>
 

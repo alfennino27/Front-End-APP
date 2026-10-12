@@ -25,6 +25,7 @@ import { labelBulan, toMonth, campaignsForMonth, monthChoices } from '../../Util
 import { RiFileExcel2Line } from "react-icons/ri";
 import OrderAssistant from '../AI/OrderAssistant';
 import { bukaTab } from '../../Utils/bukaTab';
+import RincianCostingSheet from '../Costing/RincianCostingSheet';
 
 //tes
 // Rekening penerima pembayaran customer (mirror REKENING_PENERIMA di server utils/jurnalPembayaran.js).
@@ -1017,8 +1018,7 @@ const Invoice = () => {
   const [totalMarmer, setTotalMarmer] = useState(0);
   const [totalFiber, setTotalFiber] = useState(0);
   const [totalVeneer, setTotalVeneer] = useState(0);
-  const [editingEstimasi, setEditingEstimasi] = useState(null);
-  const [estimasiInputValue, setEstimasiInputValue] = useState('');
+  const [editingEstimasi, setEditingEstimasi] = useState(null); // { product, category } → popup sub costing
 
   const getEffectiveCategory = (spkTotal, product, category) => {
     const estimasiValue = Number(product[`estimasi${category}`] || 0);
@@ -1029,12 +1029,13 @@ const Invoice = () => {
     };
   };
 
-  const saveEstimasi = async (productId, category, value) => {
+  const saveEstimasi = async (productId, category, value, rincian) => {
     try {
       await fetch(`${baseUrl}/invoiceproduct/estimasi`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ idProduct: productId, category, value: parseFloat(value) || 0 }),
+        // rincian = sub costing; backend hitung total = Σ qty×harga ([] = hapus rincian)
+        body: JSON.stringify({ idProduct: productId, category, value: parseFloat(value) || 0, rincian }),
       });
       fetchDataProduct();
     } catch (err) {
@@ -2199,28 +2200,8 @@ const Invoice = () => {
 
                         const renderCategoryCell = (cat) => {
                           const { value, isEstimasi } = effectiveValues[cat];
-                          const isEditing = editingEstimasi?.productId === product.id && editingEstimasi?.category === cat;
                           const hasSpk = spkTotals[cat] > 0;
-
-                          if (isEditing) {
-                            return (
-                              <td key={cat} className='tableStyle text-center' style={{ backgroundColor: '#fffde7', padding: '2px' }}>
-                                <input
-                                  autoFocus
-                                  type="number"
-                                  style={{ width: '90px', textAlign: 'center', border: '1px solid #f0c000', borderRadius: '4px', padding: '2px 4px' }}
-                                  value={estimasiInputValue}
-                                  onChange={(e) => setEstimasiInputValue(e.target.value)}
-                                  onBlur={() => saveEstimasi(product.id, cat, estimasiInputValue)}
-                                  onKeyDown={(e) => {
-                                    if (e.key === 'Enter') saveEstimasi(product.id, cat, estimasiInputValue);
-                                    if (e.key === 'Escape') setEditingEstimasi(null);
-                                  }}
-                                  onClick={(e) => e.stopPropagation()}
-                                />
-                              </td>
-                            );
-                          }
+                          const nRincian = ((product.estimasiRincian || {})[cat] || []).length;
 
                           return (
                             <td
@@ -2231,15 +2212,17 @@ const Invoice = () => {
                                 cursor: hasSpk ? 'default' : 'text',
                                 color: isEstimasi ? '#b8860b' : '',
                               }}
-                              title={isEstimasi ? 'Estimasi (klik untuk edit)' : hasSpk ? 'Nilai dari SPK' : 'Klik untuk input estimasi'}
+                              title={isEstimasi ? 'Estimasi (klik untuk edit / rincian)' : hasSpk ? 'Nilai dari SPK' : 'Klik untuk input estimasi / rincian'}
                               onClick={(e) => {
-                                if (hasSpk) return;
+                                if (hasSpk && !nRincian) return;
                                 e.stopPropagation();
-                                setEditingEstimasi({ productId: product.id, category: cat });
-                                setEstimasiInputValue(value || '');
+                                setEditingEstimasi({ product, category: cat, readOnly: hasSpk });
                               }}
                             >
                               {value ? `Rp. ${value.toLocaleString('id-ID')}` : '-'}
+                              {nRincian > 0 && (
+                                <div><span style={{ fontSize: 10, fontWeight: 600, color: '#fff', background: '#2563eb', borderRadius: 8, padding: '1px 6px' }}>☰ {nRincian} rincian</span></div>
+                              )}
                             </td>
                           );
                         };
@@ -2266,6 +2249,17 @@ const Invoice = () => {
 
                     </tbody>
                   </table>
+                  <RincianCostingSheet
+                    open={!!editingEstimasi}
+                    category={editingEstimasi?.category}
+                    dark={globalTheme === 'dark'}
+                    readOnly={!!editingEstimasi?.readOnly}
+                    subtitle={editingEstimasi?.product?.NamaBarang}
+                    total={editingEstimasi ? Number(editingEstimasi.product[`estimasi${editingEstimasi.category}`] || 0) : 0}
+                    rincian={editingEstimasi ? ((editingEstimasi.product.estimasiRincian || {})[editingEstimasi.category] || []) : []}
+                    onClose={() => setEditingEstimasi(null)}
+                    onSave={({ total, rincian }) => saveEstimasi(editingEstimasi.product.id, editingEstimasi.category, total, rincian)}
+                  />
 
 
                 </div>

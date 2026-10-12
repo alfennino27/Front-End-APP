@@ -7,6 +7,7 @@ import { labelBulan, toMonth, campaignsForMonth, monthChoices } from '../../Util
 import CatatanPenerimaanInput from '../Pengiriman/CatatanPenerimaanInput';
 import { bukaTab } from '../../Utils/bukaTab';
 import TncEditor, { PdfArsip } from './TncEditor';
+import RincianCostingSheet from '../Costing/RincianCostingSheet';
 
 // Dropdown dengan search bar (dipakai untuk pilih customer & template).
 const SearchableSelect = ({ options, value, onChange, placeholder, ui }) => {
@@ -105,6 +106,7 @@ const emptyItem = () => ({
   harga: '',
   qty: 1,
   costing: CATEGORIES.reduce((a, c) => ({ ...a, [c]: '' }), {}),
+  costingRincian: {}, // { [cat]: [{nama, qty, harga}] } — sub costing; total cat = Σ qty×harga
   costingOpen: false,
 });
 
@@ -517,6 +519,7 @@ const Quote = () => {
             harga: formatRibuan(it.harga),
             qty: it.qty || 1,
             costing: CATEGORIES.reduce((a, c) => ({ ...a, [c]: formatRibuan(it.costing && it.costing[c]) }), {}),
+            costingRincian: it.costingRincian || {},
             costingOpen: false,
           })),
           poAttachments: (q.poAttachments || []).map((a) => ({ url: a.url, name: a.name, type: a.type, uploadedAt: a.uploadedAt })),
@@ -532,6 +535,7 @@ const Quote = () => {
   };
 
   // item helpers
+  const [rincianSheet, setRincianSheet] = useState(null); // { idx, cat } popup sub costing
   const updateItem = (idx, patch) => setForm((f) => ({
     ...f, items: f.items.map((it, i) => (i === idx ? { ...it, ...patch } : it)),
   }));
@@ -635,7 +639,7 @@ const Quote = () => {
       it.images.filter((im) => im.file).forEach((im) => fd.append(`item_${idx}_image`, im.file));
       const costing = {};
       CATEGORIES.forEach((c) => { costing[c] = numParse(it.costing[c]); });
-      return { pid: it.pid || null, kategori: it.kategori || '', judul: it.judul || '', images: existingUrls, details: it.details, harga: numParse(it.harga), qty: numParse(it.qty), costing };
+      return { pid: it.pid || null, kategori: it.kategori || '', judul: it.judul || '', images: existingUrls, details: it.details, harga: numParse(it.harga), qty: numParse(it.qty), costing, costingRincian: it.costingRincian || {} };
     });
     fd.append('items', JSON.stringify(itemsPayload));
     fd.append('poAttachments', JSON.stringify(form.poAttachments.filter((a) => a.url).map(({ url, name, type, uploadedAt }) => ({ url, name, type, uploadedAt }))));
@@ -1192,19 +1196,46 @@ const Quote = () => {
                   const showReal = rc && (rc.real > 0 || budget > 0);
                   const realLabel = !rc ? '' : rc.source === 'spk' ? `SPK${rc.supplier ? ' ' + rc.supplier : ''}` : rc.source === 'tenaga' ? `borong tenaga${rc.supplier ? ' ' + rc.supplier : ''} (pakai estimasi)` : 'masih estimasi';
                   const diff = rc ? rc.real - budget : 0;
+                  const rincian = (it.costingRincian || {})[cat] || [];
                   return (
-                    <label key={cat} className="klf-fld"><span style={{ color: sub, fontSize: 12 }}>{cat}</span>
-                      <input inputMode="numeric" style={{ ...inputStyle, padding: '8px 10px' }} value={it.costing[cat]} onChange={(e) => updateItem(idx, { costing: { ...it.costing, [cat]: formatRibuan(e.target.value) } })} />
+                    <div key={cat} className="klf-fld"><span style={{ color: sub, fontSize: 12 }}>{cat}</span>
+                      {/* klik → popup sub costing (total langsung atau rincian) */}
+                      <button type="button" onClick={() => setRincianSheet({ idx, cat })}
+                        style={{ ...inputStyle, padding: '8px 10px', minHeight: 42, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', textAlign: 'left',
+                          borderColor: rincian.length ? '#2563eb' : border, fontWeight: budget ? 600 : 400, color: budget ? text : sub }}>
+                        <span style={{ flex: 1 }}>{budget ? formatRibuan(budget) : '0'}</span>
+                        {rincian.length > 0
+                          ? <span style={{ fontSize: 11, fontWeight: 600, color: '#fff', background: '#2563eb', borderRadius: 10, padding: '2px 7px' }}>☰ {rincian.length}</span>
+                          : <span style={{ fontSize: 15, color: sub }}>›</span>}
+                      </button>
+                      {rincian.length > 0 && (
+                        <span style={{ fontSize: 11, color: sub, lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{rincian.map((r) => r.nama).filter(Boolean).join(', ')}</span>
+                      )}
                       {showReal && (
                         <span style={{ fontSize: 11, color: rc.source === 'spk' ? (diff > 0 ? '#c0392b' : '#1e7b34') : sub, lineHeight: 1.3 }}>
                           Real: <b>{rupiah(rc.real)}</b>{diff !== 0 ? ` (${diff > 0 ? '+' : ''}${rupiah(diff)})` : ''} · {realLabel}
                         </span>
                       )}
-                    </label>
+                    </div>
                   );
                 })}
               </div>
             )}
+            <RincianCostingSheet
+              open={!!rincianSheet && rincianSheet.idx === idx}
+              category={rincianSheet && rincianSheet.cat} dark={dark}
+              subtitle={it.judul || `Item ${idx + 1}`}
+              total={rincianSheet ? numParse(it.costing[rincianSheet.cat]) : 0}
+              rincian={rincianSheet ? ((it.costingRincian || {})[rincianSheet.cat] || []) : []}
+              onClose={() => setRincianSheet(null)}
+              onSave={({ total, rincian }) => {
+                const cat = rincianSheet.cat;
+                const cr = { ...(it.costingRincian || {}) };
+                if (rincian.length) cr[cat] = rincian; else delete cr[cat];
+                updateItem(idx, { costing: { ...it.costing, [cat]: formatRibuan(total) }, costingRincian: cr });
+                setRincianSheet(null);
+              }}
+            />
           </div>
         ))}
       </div>

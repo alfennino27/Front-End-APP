@@ -39,7 +39,10 @@ const sameCustomer = (a, b) => {
   return normNama(a.customer) === normNama(b.customer);
 };
 
-const emptyTujuan = () => ({ key: Math.random().toString(36).slice(2), invoiceIds: [], penerima: '', telepon: '', alamat: '', catatan: '', ongkir: '', pilihan: [] });
+// mode: sumber barang yang dipilih — 'ongoing' (belum Completed) | 'completed'.
+// asal: penerima/telepon/alamat dari order (Invoice/Quote) untuk tombol "kembalikan".
+const emptyTujuan = () => ({ key: Math.random().toString(36).slice(2), mode: 'ongoing', invoiceIds: [], penerima: '', telepon: '', alamat: '', catatan: '', ongkir: '', pilihan: [], asal: null });
+const cocokMode = (p, mode) => (mode === 'completed' ? p.status === 'Completed' : p.status !== 'Completed');
 
 // Ongkir per tujuan (diturunkan dari ongkir Quote/Invoice, bisa diubah).
 const ONGKIR = { penjual: { label: 'ONGKIR PENJUAL', sub: 'Gratis ongkir', color: '#16a34a' }, penerima: { label: 'ONGKIR PENERIMA', sub: 'Belum termasuk ongkir', color: '#ea580c' } };
@@ -83,7 +86,7 @@ const Pengiriman = () => {
 
   const [list, setList] = useState([]);
   const [ekspedisi, setEkspedisi] = useState([]);
-  const [invoices, setInvoices] = useState([]);
+  const [invoices, setInvoices] = useState({ ongoing: null, completed: null }); // per mode, null = belum dimuat
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -114,11 +117,11 @@ const Pengiriman = () => {
 
   useEffect(() => { fetchList(); }, [fetchList]);
 
-  const ensureInvoices = async () => {
-    if (invoices.length) return;
+  const ensureInvoices = async (mode = 'ongoing') => {
+    if (invoices[mode]) return;
     try {
-      const r = await fetch(`${baseUrl}/pengiriman/invoices`).then((x) => x.json());
-      setInvoices(Array.isArray(r) ? r : []);
+      const r = await fetch(`${baseUrl}/pengiriman/invoices?status=${mode}`).then((x) => x.json());
+      setInvoices((s) => ({ ...s, [mode]: Array.isArray(r) ? r : [] }));
     } catch { /* abaikan */ }
   };
 
@@ -148,6 +151,7 @@ const Pengiriman = () => {
         for (const invId of (t.invoiceIds && t.invoiceIds.length ? t.invoiceIds : [t.invoiceId]).filter(Boolean)) {
           try {
             const d = await fetchInvoiceDetail(invId, doc.id);
+            if (!t.asal) t.asal = { penerima: d.penerima, telepon: d.telepon, alamat: d.alamat };
             if (!t.kodeCustomer && d.kodeCustomer) t.kodeCustomer = d.kodeCustomer;
             if (!t.customer) t.customer = d.customer;
             for (const it of d.items) {
@@ -179,7 +183,7 @@ const Pengiriman = () => {
     const t = form.tujuan.find((x) => x.key === key);
     if (t.invoiceIds.includes(invoiceId)) return;
     // Satu tujuan = satu customer (tidak mungkin beda customer tapi alamat sama).
-    const inv = invoices.find((x) => x.id === invoiceId);
+    const inv = [...(invoices.ongoing || []), ...(invoices.completed || [])].find((x) => x.id === invoiceId);
     if (t.invoiceIds.length && inv && !sameCustomer(inv, t)) return alert(`Tujuan ini milik ${t.customer}. Barang customer lain buat sebagai tujuan baru.`);
     setBusy(true);
     try {
@@ -195,7 +199,7 @@ const Pengiriman = () => {
         invoiceIds: [...t.invoiceIds, d.invoiceId],
         pilihan: [...t.pilihan, ...baru],
         // Invoice pertama mengisi data penerima; invoice tambahan tidak menimpa.
-        ...(pertama ? { penerima: d.penerima, telepon: d.telepon, alamat: d.alamat, catatan: d.catatan, customer: d.customer, kodeCustomer: d.kodeCustomer, invoiceId: d.invoiceId, kodeInvoice: d.kodeInvoice, ongkir: d.ongkir } : {}),
+        ...(pertama ? { asal: { penerima: d.penerima, telepon: d.telepon, alamat: d.alamat }, penerima: d.penerima, telepon: d.telepon, alamat: d.alamat, catatan: d.catatan, customer: d.customer, kodeCustomer: d.kodeCustomer, invoiceId: d.invoiceId, kodeInvoice: d.kodeInvoice, ongkir: d.ongkir } : {}),
         ...(!pertama && d.catatan && !String(t.catatan || '').includes(d.catatan) ? { catatan: [t.catatan, d.catatan].filter(Boolean).join('\n') } : {}),
       });
     } catch (err) {
@@ -333,8 +337,9 @@ const Pengiriman = () => {
         {form.tujuan.map((t, i) => (
           <TujuanCard
             key={t.key} t={t} i={i} C={C} sInput={sInput} sBtn={sBtn} sCard={sCard} sLabel={sLabel}
-            invoices={invoices} busy={busy}
+            invoices={invoices[t.mode || 'ongoing'] || []} invoicesLoaded={!!invoices[t.mode || 'ongoing']} busy={busy}
             onChange={(patch) => setTujuan(t.key, patch)}
+            onMode={(mode) => { setTujuan(t.key, { mode }); ensureInvoices(mode); }}
             onPilihan={(pid, patch) => setPilihan(t.key, pid, patch)}
             onTambahInvoice={(invId) => tambahInvoice(t.key, invId)}
             onHapus={form.tujuan.length > 1 ? () => setForm({ ...form, tujuan: form.tujuan.filter((x) => x.key !== t.key) }) : null}
@@ -430,7 +435,12 @@ const Pengiriman = () => {
 // ============================================================================
 // Satu tujuan (alamat) + pilih barang
 // ============================================================================
-const TujuanCard = ({ t, i, C, sInput, sBtn, sCard, sLabel, invoices, busy, onChange, onPilihan, onTambahInvoice, onHapus }) => {
+const TujuanCard = ({ t, i, C, sInput, sBtn, sCard, sLabel, invoices, invoicesLoaded, busy, onChange, onMode, onPilihan, onTambahInvoice, onHapus }) => {
+  const mode = t.mode || 'ongoing';
+  const labelMode = mode === 'completed' ? 'completed' : 'ongoing';
+  const terlihat = t.pilihan.filter((p) => p.checked || cocokMode(p, mode));
+  const tersembunyi = t.pilihan.length - terlihat.length;
+  const diubah = t.asal && ['penerima', 'telepon', 'alamat'].some((k) => String(t[k] || '') !== String(t.asal[k] || ''));
   const [cari, setCari] = useState('');
   const [open, setOpen] = useState(false);
   const hasil = useMemo(() => {
@@ -453,6 +463,17 @@ const TujuanCard = ({ t, i, C, sInput, sBtn, sCard, sLabel, invoices, busy, onCh
         {onHapus && <button type="button" style={{ ...sBtn(C.soft, '#dc2626'), minHeight: 32, padding: '4px 10px' }} onClick={onHapus}>Hapus</button>}
       </div>
 
+      {/* Sumber barang: Ongoing / Completed */}
+      <div style={{ display: 'flex', gap: 6, marginBottom: 10, background: C.soft, padding: 4, borderRadius: 12 }}>
+        {[['ongoing', 'Ongoing'], ['completed', 'Completed']].map(([k, lbl]) => (
+          <button key={k} type="button" onClick={() => onMode(k)}
+            style={{ flex: 1, minHeight: 40, borderRadius: 9, border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: 14,
+              background: mode === k ? (k === 'completed' ? '#16a34a' : '#1e3a8a') : 'transparent', color: mode === k ? '#fff' : C.text }}>
+            {mode === k ? '✓ ' : ''}Produk {lbl}
+          </button>
+        ))}
+      </div>
+
       {/* Pilih invoice */}
       <div style={{ position: 'relative', marginBottom: 10 }}>
         <label style={sLabel}>{t.invoiceIds.length ? `Tambah barang dari invoice lain milik ${t.customer || t.penerima}` : 'Pilih invoice / customer'}</label>
@@ -466,17 +487,17 @@ const TujuanCard = ({ t, i, C, sInput, sBtn, sCard, sLabel, invoices, busy, onCh
         />
         {open && (
           <div style={{ position: 'absolute', left: 0, right: 0, top: '100%', zIndex: 30, background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, maxHeight: 340, overflowY: 'auto', boxShadow: '0 8px 24px rgba(0,0,0,0.18)' }}>
-            {!invoices.length && <div style={{ padding: 10, color: C.muted }}>Memuat invoice…</div>}
-            {invoices.length > 0 && !hasil.length && (
+            {!invoicesLoaded && <div style={{ padding: 10, color: C.muted }}>Memuat invoice…</div>}
+            {invoicesLoaded && !hasil.length && (
               <div style={{ padding: 10, color: C.muted, fontSize: 13 }}>
-                {t.invoiceIds.length ? `Tidak ada invoice lain milik ${t.customer || t.penerima} dengan barang ongoing.` : 'Tidak ada invoice dengan barang ongoing yang cocok.'}
+                {t.invoiceIds.length ? `Tidak ada invoice lain milik ${t.customer || t.penerima} dengan barang ${labelMode}.` : `Tidak ada invoice dengan barang ${labelMode} yang cocok.`}
               </div>
             )}
             {hasil.map((inv) => (
               <div key={inv.id} onMouseDown={() => { onTambahInvoice(inv.id); setCari(''); setOpen(false); }}
                 style={{ padding: '8px 10px', cursor: 'pointer', borderBottom: `1px solid ${C.border}` }}>
                 <div style={{ fontWeight: 600 }}>{inv.customer || '(tanpa nama)'}</div>
-                <div style={{ fontSize: 12, color: C.muted }}>{inv.kodeInvoice} · {inv.tanggal} · {inv.jumlahItem} item ongoing</div>
+                <div style={{ fontSize: 12, color: C.muted }}>{inv.kodeInvoice} · {inv.tanggal} · {inv.jumlahItem} item {labelMode}</div>
                 <div style={{ display: 'flex', gap: 6, marginTop: 6, alignItems: 'center' }}>
                   {(inv.thumbs || []).map((th, k) => (
                     <img key={k} src={getImageUrl(th.image)} alt={th.nama} title={th.nama} loading="lazy"
@@ -508,6 +529,13 @@ const TujuanCard = ({ t, i, C, sInput, sBtn, sCard, sLabel, invoices, busy, onCh
           </div>
           <label style={{ ...sLabel, marginTop: 10 }}>Alamat lengkap</label>
           <textarea className="form-control" rows={2} style={sInput} value={t.alamat} onChange={(e) => onChange({ alamat: e.target.value })} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4, flexWrap: 'wrap' }}>
+            <div style={{ fontSize: 11, color: C.muted, flex: 1 }}>Penerima, telepon & alamat boleh diubah khusus pengiriman ini — alamat di Quote/Invoice tidak ikut berubah.</div>
+            {diubah && (
+              <button type="button" style={{ ...sBtn(C.soft, '#2563eb'), minHeight: 32, padding: '4px 10px', fontSize: 12 }}
+                onClick={() => onChange({ ...t.asal })}>↺ Kembalikan dari order</button>
+            )}
+          </div>
 
           <label style={{ ...sLabel, marginTop: 10 }}>Ongkir</label>
           <div style={{ display: 'flex', gap: 8 }}>
@@ -529,8 +557,9 @@ const TujuanCard = ({ t, i, C, sInput, sBtn, sCard, sLabel, invoices, busy, onCh
           <CatatanPenerimaanInput value={t.catatan} onChange={(v) => onChange({ catatan: v })} style={sInput} muted={C.muted} rows={2} />
           <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>Terisi dari invoice. Perubahan di sini hanya untuk pengiriman ini.</div>
 
-          <label style={{ ...sLabel, marginTop: 12 }}>Barang yang dikirim</label>
-          {t.pilihan.map((p) => {
+          <label style={{ ...sLabel, marginTop: 12 }}>Barang yang dikirim <span style={{ fontWeight: 400, color: C.muted }}>(produk {labelMode})</span></label>
+          {!terlihat.length && <div style={{ fontSize: 13, color: C.muted, marginBottom: 6 }}>Tidak ada produk {labelMode} di invoice ini.</div>}
+          {terlihat.map((p) => {
             const sisa = Math.max(0, num(p.qtyOrder) - num(p.terkirim));
             return (
               <div key={p.projectId}
@@ -563,6 +592,14 @@ const TujuanCard = ({ t, i, C, sInput, sBtn, sCard, sLabel, invoices, busy, onCh
               </div>
             );
           })}
+          {tersembunyi > 0 && (
+            <div style={{ fontSize: 12, color: C.muted }}>
+              {tersembunyi} produk {mode === 'completed' ? 'ongoing' : 'completed'} lain di invoice ini —{' '}
+              <span style={{ color: '#2563eb', cursor: 'pointer', fontWeight: 600 }} onClick={() => onMode(mode === 'completed' ? 'ongoing' : 'completed')}>
+                tampilkan
+              </span>
+            </div>
+          )}
         </>
       )}
     </div>

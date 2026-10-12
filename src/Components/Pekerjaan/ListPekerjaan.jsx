@@ -91,7 +91,10 @@ const ListPekerjaan = () => {
   const [imageProject, setImageProject] = useState('');
   const [qtyProject, setQtyProject] = useState('');
   const [jumlahPrint, setJumlahPrint] = useState(''); // berapa lembar label mau dicetak (bebas)
-  const [labelProducts, setLabelProducts] = useState([]); // produk dari invoice yg BELUM LUNAS (sumber dropdown label)
+  const [labelProducts, setLabelProducts] = useState([]); // sumber dropdown label (sesuai labelMode)
+  const [labelMode, setLabelMode] = useState('ongoing'); // 'ongoing' | 'completed'
+  const [labelLoading, setLabelLoading] = useState(false);
+  const [labelAsal, setLabelAsal] = useState(null); // buyer/telepon/alamat dari order, utk tombol kembalikan
 
   const [sortOrder, setSortOrder] = useState(savedFilters.sortOrder || 'oldest');
   const [selectedMonth, setSelectedMonth] = useState(savedFilters.selectedMonth || null);
@@ -338,14 +341,21 @@ const ListPekerjaan = () => {
     setImageProject('');
     setQtyProject('');
     setJumlahPrint('');
+    setLabelAsal(null);
+    fetchLabelProducts(labelMode);
+  };
 
-    // Sumber dropdown label = semua produk dari invoice yang BELUM LUNAS
-    // (termasuk produk yang statusnya sudah Completed). Diambil fresh dari server
-    // supaya perubahan (mis. alamat) & status lunas langsung nampil tanpa reload.
+  // Sumber dropdown label: produk Ongoing (belum Completed) atau Completed,
+  // dipilih lewat toggle. Diambil fresh dari server supaya perubahan (mis.
+  // alamat order) langsung nampil tanpa reload.
+  const fetchLabelProducts = async (mode) => {
+    setLabelMode(mode);
+    setLabelLoading(true);
     try {
       const res = await fetch(`${baseUrl}/projects/label-products`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: mode }),
       });
       const freshData = await res.json();
       const arr = Array.isArray(freshData) ? freshData : [];
@@ -355,6 +365,8 @@ const ListPekerjaan = () => {
       console.error('Error fetching label products:', err);
       setLabelProducts([]);
       setProjectsCopy([]);
+    } finally {
+      setLabelLoading(false);
     }
   };
 
@@ -564,6 +576,7 @@ const ListPekerjaan = () => {
     setImageProject('');
     setQtyProject('');
     setJumlahPrint('');
+    setLabelAsal(null);
 
     setShowAddLabel(false);
     setShowLabel(true);
@@ -1509,7 +1522,17 @@ const ListPekerjaan = () => {
             </Form.Select>
           </Form.Group>
 
-          <label className='mt-2'>Select Product :</label>
+          <div className="d-flex gap-1 mt-2 p-1" style={{ background: 'rgba(0,0,0,0.06)', borderRadius: 10 }}>
+            {[['ongoing', 'Produk Ongoing'], ['completed', 'Produk Completed']].map(([k, lbl]) => (
+              <Button key={k} size="sm" className="flex-fill" style={{ minHeight: 40, fontWeight: 600, borderRadius: 8 }}
+                variant={labelMode === k ? (k === 'completed' ? 'success' : 'primary') : (globalTheme === 'light' ? 'light' : 'dark')}
+                onClick={() => { if (labelMode !== k) { setSelectedProduct('Select Product'); setIdProject(''); fetchLabelProducts(k); } }}>
+                {labelMode === k ? '✓ ' : ''}{lbl}
+              </Button>
+            ))}
+          </div>
+
+          <label className='mt-2'>Select Product {labelLoading ? '(memuat…)' : `(${ProjectsCopy.length})`} :</label>
           <input className="form-control mb-1" type='text' placeholder='Search' onChange={(e) => setSearchProduct(e.target.value)}></input>
           <div>
             <Dropdown>
@@ -1524,7 +1547,7 @@ const ListPekerjaan = () => {
                   return (
                     <Dropdown.Item
                       key={index}
-                      onClick={() => { setIdProject(item.id); setSelectedProduct(item.NamaBarang); setProductProject(item.NamaBarang); setBuyerProject(item.Buyer); setTeleponProject(item.Telepon || ''); setAlamatProject(item.Lokasi || ''); setImageProject(item.image1); setQtyProject(item.Qty); setJumlahPrint(item.Qty); }}
+                      onClick={() => { setIdProject(item.id); setSelectedProduct(item.NamaBarang); setProductProject(item.NamaBarang); setBuyerProject(item.Buyer); setTeleponProject(item.Telepon || ''); setAlamatProject(item.Lokasi || ''); setLabelAsal({ buyer: item.Buyer || '', telepon: item.Telepon || '', alamat: item.Lokasi || '' }); setImageProject(item.image1); setQtyProject(item.Qty); setJumlahPrint(item.Qty); }}
                     >
                       <img
                         src={getImageUrl(item.image1)}
@@ -1538,17 +1561,25 @@ const ListPekerjaan = () => {
             </Dropdown>
           </div>
           <div style={{ display: tipeLabel == "Pengiriman" ? "" : "none" }}>
-            {/* Read-only: diambil dari produk & Quote/Invoice (alamat & telepon kirim per order).
-                Ubah alamat/telepon di Quote, bukan di sini. */}
-            <label className='mt-2'>Buyer :</label>
-            <input className="form-control mb-1" type='text' value={buyerProject || ''} readOnly style={{ backgroundColor: 'rgba(0,0,0,0.06)' }}></input>
+            {/* Terisi dari order (Quote/Invoice) tapi boleh diubah KHUSUS label ini —
+                tidak ditulis balik ke Quote/Invoice (label hanya disimpan di localStorage). */}
+            <label className='mt-2'>Penerima :</label>
+            <input className="form-control mb-1" type='text' value={buyerProject || ''} onChange={(e) => setBuyerProject(e.target.value)}></input>
             <label className='mt-2'>Telephone :</label>
-            <input className="form-control mb-1" type='text' value={teleponProject || ''} readOnly style={{ backgroundColor: 'rgba(0,0,0,0.06)', cursor: 'help' }} title="Ubah nomor telepon penerima di Quote / Invoice"></input>
+            <input className="form-control mb-1" type='tel' value={teleponProject || ''} onChange={(e) => setTeleponProject(e.target.value)}></input>
             <label className='mt-2'>Address :</label>
-            <input className="form-control mb-1" type='text' value={alamatProject || ''} readOnly style={{ backgroundColor: 'rgba(0,0,0,0.06)', cursor: 'help' }} title="Ubah alamat pengiriman di Quote / Invoice"></input>
+            <textarea className="form-control mb-1" rows={2} value={alamatProject || ''} onChange={(e) => setAlamatProject(e.target.value)}></textarea>
+            <div className="d-flex align-items-center gap-2 flex-wrap">
+              <small className="text-muted flex-fill">Boleh diubah khusus label ini — alamat di Quote/Invoice tidak berubah.</small>
+              {labelAsal && (buyerProject !== labelAsal.buyer || teleponProject !== labelAsal.telepon || alamatProject !== labelAsal.alamat) && (
+                <Button size="sm" variant="outline-primary"
+                  onClick={() => { setBuyerProject(labelAsal.buyer); setTeleponProject(labelAsal.telepon); setAlamatProject(labelAsal.alamat); }}>
+                  ↺ Kembalikan dari order
+                </Button>
+              )}
+            </div>
             <label className='mt-2'>Product Name :</label>
             <input className="form-control mb-1" type='text' value={productProject || ''} readOnly style={{ backgroundColor: 'rgba(0,0,0,0.06)' }}></input>
-            <small className="text-muted">Data otomatis dari produk & Quote/Invoice. Ubah alamat/telepon di Quote.</small>
           </div>
           <label className='mt-2'>Quantity Product :</label>
           <input className="form-control mb-1" type='number' value={qtyProject} onChange={(e) => setQtyProject(e.target.value)} onWheel={(e) => e.target.blur()}></input>

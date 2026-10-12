@@ -112,7 +112,7 @@ const CetakLabel = () => {
             <div key={`${index}-${i}`} className="label-card">
               <div className="header">{item.buyer}</div>
               <div className="details">{item.telephone}</div>
-              <div className="details">{item.address}</div>
+              <div className="details" style={{ whiteSpace: 'pre-line' }}>{item.address}</div>
               <img src={getImageUrl(item.image)} alt={item.productName} />
               <div className="details">{item.productName}</div>
               <div className="footer">Qty Total: {item.quantity} Pcs</div>

@@ -26,6 +26,7 @@ import { RiFileExcel2Line } from "react-icons/ri";
 import OrderAssistant from '../AI/OrderAssistant';
 import { bukaTab } from '../../Utils/bukaTab';
 import RincianCostingSheet from '../Costing/RincianCostingSheet';
+import { useOngkirNotes, opsiOngkir, OngkirNoteManager } from '../Quote/OngkirNote';
 
 //tes
 // Rekening penerima pembayaran customer (mirror REKENING_PENERIMA di server utils/jurnalPembayaran.js).
@@ -65,6 +66,8 @@ const Invoice = () => {
   const [invoiceDariQuote, setInvoiceDariQuote] = useState(false);
   // Ongkir order: gratis ongkir (ONGKIR PENJUAL) / belum termasuk (ONGKIR PENERIMA) → ikut ke Pengiriman
   const [ongkirNote, setOngkirNote] = useState('none');
+  const ongkirNotes = useOngkirNotes();
+  const [showOngkirMgr, setShowOngkirMgr] = useState(false); // kelola daftar catatan ongkir
   const [tanggalMulaiInvoice, setTanggalMulaiInvoice] = useState('');
   const [deadlineInvoice, setDeadlineInvoice] = useState('');
   const [ongkirPackingInvoice, setOngkirPackingInvoice] = useState(0);
@@ -2484,11 +2487,12 @@ const Invoice = () => {
               onChange={(e) => setTeleponKirim(e.target.value)} />
             <small className="text-muted">{invoiceDariQuote ? 'Order ini dari Quote — ubah alamat/telepon di Quote.' : 'Khusus order ini, tidak mengubah data customer. Otomatis ikut ke semua produk.'}</small>
             <label className='mt-2'>Ongkir :</label>
-            <select className="form-control" value={ongkirNote} onChange={(e) => setOngkirNote(e.target.value)}>
-              <option value="none">— belum dipilih —</option>
-              <option value="gratis_jawa_bali">Gratis ongkir (ONGKIR PENJUAL)</option>
-              <option value="belum_termasuk">Belum termasuk ongkir (ONGKIR PENERIMA)</option>
-            </select>
+            <div className="d-flex gap-1">
+              <select className="form-control" value={ongkirNote} onChange={(e) => setOngkirNote(e.target.value)}>
+                {opsiOngkir(ongkirNotes, ongkirNote).map((o) => <option key={o.value} value={o.value}>{o.value === 'none' ? '— belum dipilih —' : o.label}</option>)}
+              </select>
+              <button type="button" className="btn btn-outline-secondary" title="Kelola catatan ongkir" onClick={() => setShowOngkirMgr(true)}>⚙</button>
+            </div>
             <label className='mt-2'>Catatan Penerimaan Barang :</label>
             <CatatanPenerimaanInput value={catatanPenerimaan} onChange={setCatatanPenerimaan} rows={2} />
             <label style={{ display: 'flex', gap: 8, alignItems: 'center', cursor: 'pointer', marginTop: 6 }}>
@@ -2568,11 +2572,12 @@ const Invoice = () => {
               onChange={(e) => setTeleponKirim(e.target.value)} />
             <small className="text-muted">{invoiceDariQuote ? 'Order ini dari Quote — ubah alamat/telepon di Quote.' : 'Khusus order ini, tidak mengubah data customer. Otomatis ikut ke semua produk.'}</small>
             <label className='mt-2'>Ongkir :</label>
-            <select className="form-control" value={ongkirNote} onChange={(e) => setOngkirNote(e.target.value)}>
-              <option value="none">— belum dipilih —</option>
-              <option value="gratis_jawa_bali">Gratis ongkir (ONGKIR PENJUAL)</option>
-              <option value="belum_termasuk">Belum termasuk ongkir (ONGKIR PENERIMA)</option>
-            </select>
+            <div className="d-flex gap-1">
+              <select className="form-control" value={ongkirNote} onChange={(e) => setOngkirNote(e.target.value)}>
+                {opsiOngkir(ongkirNotes, ongkirNote).map((o) => <option key={o.value} value={o.value}>{o.value === 'none' ? '— belum dipilih —' : o.label}</option>)}
+              </select>
+              <button type="button" className="btn btn-outline-secondary" title="Kelola catatan ongkir" onClick={() => setShowOngkirMgr(true)}>⚙</button>
+            </div>
             <label className='mt-2'>Catatan Penerimaan Barang :</label>
             <CatatanPenerimaanInput value={catatanPenerimaan} onChange={setCatatanPenerimaan} rows={2} />
             <label style={{ display: 'flex', gap: 8, alignItems: 'center', cursor: 'pointer', marginTop: 6 }}>
@@ -3273,6 +3278,7 @@ const Invoice = () => {
       </Container>
 
 
+      <OngkirNoteManager open={showOngkirMgr} dark={globalTheme === 'dark'} onClose={() => setShowOngkirMgr(false)} />
     </>
   );
 };

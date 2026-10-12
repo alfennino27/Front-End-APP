@@ -43,14 +43,14 @@ const loadTemplate = () => {
   return templatePromise;
 };
 
-const warna = (dark) => ({
+export const warna = (dark) => ({
   card: dark ? '#1f2329' : '#fff', text: dark ? '#e8eaed' : '#1f2937', sub: dark ? '#9aa0a8' : '#6b7280',
   border: dark ? '#3a3f47' : '#e5e7eb', soft: dark ? '#2b3038' : '#f3f4f6', input: dark ? '#2b3038' : '#fff',
 });
-const inpStyle = (C) => ({ width: '100%', padding: '10px 12px', borderRadius: 10, border: `1px solid ${C.border}`, background: C.input, color: C.text, fontSize: 16, boxSizing: 'border-box', minHeight: 44 });
-const btnStyle = (bg, fg = '#fff', extra = {}) => ({ background: bg, color: fg, border: 'none', borderRadius: 10, padding: '10px 14px', fontSize: 15, fontWeight: 600, cursor: 'pointer', minHeight: 44, ...extra });
+export const inpStyle = (C) => ({ width: '100%', padding: '10px 12px', borderRadius: 10, border: `1px solid ${C.border}`, background: C.input, color: C.text, fontSize: 16, boxSizing: 'border-box', minHeight: 44 });
+export const btnStyle = (bg, fg = '#fff', extra = {}) => ({ background: bg, color: fg, border: 'none', borderRadius: 10, padding: '10px 14px', fontSize: 15, fontWeight: 600, cursor: 'pointer', minHeight: 44, ...extra });
 // HP (≤640px): bottom sheet; desktop: popup tengah.
-const SHEET_CSS = `
+export const SHEET_CSS = `
   .klf-rc-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 2000; display: flex; align-items: center; justify-content: center; }
   .klf-rc-sheet { width: 100%; max-width: 560px; max-height: 88vh; display: flex; flex-direction: column; border-radius: 16px; overflow: hidden; }
   @media (max-width: 640px) {

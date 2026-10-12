@@ -8,6 +8,7 @@ import CatatanPenerimaanInput from '../Pengiriman/CatatanPenerimaanInput';
 import { bukaTab } from '../../Utils/bukaTab';
 import TncEditor, { PdfArsip } from './TncEditor';
 import RincianCostingSheet, { TemplateCostingManager } from '../Costing/RincianCostingSheet';
+import { useOngkirNotes, opsiOngkir, OngkirNoteManager } from './OngkirNote';
 
 // Dropdown dengan search bar (dipakai untuk pilih customer & template).
 const SearchableSelect = ({ options, value, onChange, placeholder, ui }) => {
@@ -537,6 +538,8 @@ const Quote = () => {
   // item helpers
   const [rincianSheet, setRincianSheet] = useState(null); // { idx, cat } popup sub costing
   const [showTplCosting, setShowTplCosting] = useState(false); // kelola template sub costing (di luar form)
+  const [showOngkirMgr, setShowOngkirMgr] = useState(false);   // kelola daftar catatan ongkir
+  const ongkirNotes = useOngkirNotes();
   const updateItem = (idx, patch) => setForm((f) => ({
     ...f, items: f.items.map((it, i) => (i === idx ? { ...it, ...patch } : it)),
   }));
@@ -1401,9 +1404,13 @@ const Quote = () => {
               <button type="button" style={{ ...btnGhost, padding: '8px 10px' }} title="Kelola payment terms" onClick={() => setTplMgr('terms')}>⚙</button>
             </div></label>
           <label className="klf-fld"><span style={{ color: sub }}>Catatan ongkir</span>
-            <select style={inputStyle} value={form.ongkirNote} onChange={(e) => setF({ ongkirNote: e.target.value })}>
-              {ONGKIR_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select></label>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <select style={{ ...inputStyle, flex: 1 }} value={form.ongkirNote} onChange={(e) => setF({ ongkirNote: e.target.value })}>
+                {(ongkirNotes.length ? opsiOngkir(ongkirNotes, form.ongkirNote) : ONGKIR_OPTIONS).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+              <button type="button" style={{ ...btnGhost, padding: '8px 10px' }} title="Kelola catatan ongkir" onClick={() => setShowOngkirMgr(true)}>⚙</button>
+            </div></label>
+          <OngkirNoteManager open={showOngkirMgr} dark={dark} onClose={() => setShowOngkirMgr(false)} />
           {/* Atribusi CRM: pilih BULAN LEAD MASUK dulu, campaign menyesuaikan bulan itu.
               ROI campaign dihitung per bulan lead, bukan bulan closing. */}
           <label className="klf-fld"><span style={{ color: sub }}>Bulan lead masuk</span>

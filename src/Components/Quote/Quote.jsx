@@ -7,7 +7,7 @@ import { labelBulan, toMonth, campaignsForMonth, monthChoices } from '../../Util
 import CatatanPenerimaanInput from '../Pengiriman/CatatanPenerimaanInput';
 import { bukaTab } from '../../Utils/bukaTab';
 import TncEditor, { PdfArsip } from './TncEditor';
-import RincianCostingSheet from '../Costing/RincianCostingSheet';
+import RincianCostingSheet, { TemplateCostingManager } from '../Costing/RincianCostingSheet';
 
 // Dropdown dengan search bar (dipakai untuk pilih customer & template).
 const SearchableSelect = ({ options, value, onChange, placeholder, ui }) => {
@@ -536,6 +536,7 @@ const Quote = () => {
 
   // item helpers
   const [rincianSheet, setRincianSheet] = useState(null); // { idx, cat } popup sub costing
+  const [showTplCosting, setShowTplCosting] = useState(false); // kelola template sub costing (di luar form)
   const updateItem = (idx, patch) => setForm((f) => ({
     ...f, items: f.items.map((it, i) => (i === idx ? { ...it, ...patch } : it)),
   }));
@@ -793,7 +794,9 @@ const Quote = () => {
       <button style={view === 'allQuotes' ? btn(primary) : btnGhost}
         onClick={() => { setView('allQuotes'); fetchAllQuotes(); }}>🧾 Semua Quote</button>
       <div style={{ flex: 1 }} />
+      <button style={btnGhost} title="Atur template sub costing (Kayu, Jok, …)" onClick={() => setShowTplCosting(true)}>⚙️ Template Costing</button>
       <button style={btn('#1e7b34')} onClick={() => openCreate(null)}>+ Quote Baru</button>
+      <TemplateCostingManager open={showTplCosting} dark={dark} onClose={() => setShowTplCosting(false)} />
     </div>
   );
 

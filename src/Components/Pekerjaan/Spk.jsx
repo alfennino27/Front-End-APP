@@ -104,6 +104,7 @@ const Spk = () => {
   const [fileToUploadEdit, setFileToUploadEdit] = useState(null);
   const [keteranganEdit, setKeteranganEdit] = useState('');
   const [hargaEdit, setHargaEdit] = useState('');
+  const [budgetEdit, setBudgetEdit] = useState(0);
   const [qtyEdit, setQtyEdit] = useState('');
   const [deadlineEdit, setDeadlineEdit] = useState('');
   const [statusEdit, setStatusEdit] = useState('');
@@ -836,6 +837,8 @@ useEffect(() => {
 
   const totalData = dataSPKproductFromDB.reduce((acc, product) => acc + (product.harga * product.qty), 0);
   const totalDataPayment = dataSPKpaymentFromDB.reduce((total, payment) => total + Number(payment.jumlah), 0);
+  // Budget = estimasi<category> project (= budget costing Quote), per unit. Hanya tampil di layar, tidak dicetak.
+  const totalBudget = dataSPKproductFromDB.reduce((acc, product) => acc + (Number(product.budget) || 0) * (Number(product.qty) || 0), 0);
   const totalSelesai = dataSPKproductFromDB
     .filter(product => product.status === "Completed")
     .reduce((acc, product) => acc + (product.harga * product.qty), 0);
@@ -1492,6 +1495,12 @@ useEffect(() => {
                           <td><h6 style={{ marginRight: '10px' }}>Total</h6></td>
                           <td><h6>: Rp. {totalData.toLocaleString('id-ID')}</h6></td>
                         </tr>
+                        {totalBudget > 0 && (
+                          <tr>
+                            <td><h6 style={{ marginRight: '10px', color: budgetWarna.teks }}>Budget</h6></td>
+                            <td><h6 style={{ color: budgetWarna.teks }}>: Rp. {totalBudget.toLocaleString('id-ID')}</h6></td>
+                          </tr>
+                        )}
                         <tr>
                           <td><h6 style={{ marginRight: '10px' }}>DP</h6></td>
                           <td><h6>: Rp. {totalDataPayment.toLocaleString('id-ID')}</h6></td>
@@ -1529,6 +1538,7 @@ useEffect(() => {
                         <tr key={index} className={`tr-hover-effect tema-${globalTheme}`} style={{ cursor: "pointer" }} onClick={() => {
                           const status = dataSPKFromDB[0]?.status;
                           if (status === 'Draft' || status === 'Revisi' || user.uid === "w4M5JJjgGQeHFbS2nkyoCfUBE532" || user.uid === "4WGPaHicKWYr0Ny84IUh8xb9Bo62" || user.uid === "fYpdHwXRDLhj5XGxM5FZIAvxp9E2") {
+                            setBudgetEdit(Number(product.budget) || 0);
                             handleEditProduct(product.id, product.idSPK, product.keterangan, product.harga, product.qty, product.deadline, product.status, product.image, product.idProduct, product.idProductBackUp, product.namaBarang)
                           }
                         }}>
@@ -1540,7 +1550,10 @@ useEffect(() => {
                             </span>
                           </td>
                           <td className='tableStyle text-center' style={{ whiteSpace: 'pre-line' }}><span className='fw-semibold text-muted'>{product.namaBarang}</span><hr/>{product.keterangan}</td>
-                          <td className='tableStyle text-center'>Rp. {Number(product.harga).toLocaleString('id-ID')}</td>
+                          <td className='tableStyle text-center'>
+                            Rp. {Number(product.harga).toLocaleString('id-ID')}
+                            <BudgetBadge budget={product.budget} harga={product.harga} dariQuote={product.budgetDariQuote} />
+                          </td>
                           <td className='tableStyle text-center'>{product.qty}</td>
                           <td className='tableStyle text-center'>Rp. {Number(product.harga * product.qty).toLocaleString('id-ID')}</td>
                           {product.status === "Completed" ? (
@@ -2141,6 +2154,11 @@ useEffect(() => {
                 defaultValue={hargaEdit}
                 onChange={useCallback(debounce((value) => setHargaEdit(value), 300), [])}
               />
+              {budgetEdit > 0 && (
+                <div className="mt-1" style={{ fontSize: 13, color: budgetWarna.teks }}>
+                  Budget / unit: <b>Rp. {budgetEdit.toLocaleString('id-ID')}</b>
+                </div>
+              )}
             </div>
 
             <div className="col-3 d-flex flex-column">
@@ -2719,3 +2737,27 @@ useEffect(() => {
 };
 
 export default Spk;
+
+// Budget (estimasi project = budget costing Quote) — warna ungu supaya beda dari harga SPK.
+const budgetWarna = { teks: '#7c3aed', bg: 'rgba(124, 58, 237, 0.10)', border: 'rgba(124, 58, 237, 0.45)' };
+
+function BudgetBadge({ budget, harga, dariQuote }) {
+  const b = Number(budget) || 0;
+  if (b <= 0) return null;
+  const h = Number(harga) || 0;
+  const selisih = h > 0 ? h - b : 0;
+  return (
+    <div
+      title={dariQuote ? 'Budget costing dari Quote' : 'Estimasi di Invoice (order lama tanpa Quote)'}
+      style={{ marginTop: 6, padding: '3px 8px', borderRadius: 8, fontSize: 12, lineHeight: 1.35, whiteSpace: 'nowrap', color: budgetWarna.teks, background: budgetWarna.bg, border: `1px dashed ${budgetWarna.border}` }}
+    >
+      Budget Rp. {b.toLocaleString('id-ID')}
+      {selisih !== 0 && (
+        <div style={{ fontWeight: 600, color: selisih > 0 ? '#dc2626' : '#16a34a' }}>
+          {selisih > 0 ? '▲ lebih' : '▼ hemat'} Rp. {Math.abs(selisih).toLocaleString('id-ID')}
+        </div>
+      )}
+    </div>
+  );
+}
+

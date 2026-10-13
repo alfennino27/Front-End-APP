@@ -4,15 +4,20 @@ import { getApiBaseUrl } from '../../Config/APIurl';
 import { useTheme } from '../../ThemeContext';
 import { getImageUrl } from '../../Utils/image';
 import { IoRefresh, IoSettingsOutline } from 'react-icons/io5';
+import { Image, Mentions } from 'antd';
+import { format } from 'date-fns';
+import { id as localeId } from 'date-fns/locale';
+import ImageUploadZone from '../Pekerjaan/ImageUploadZone';
 
 // ============================================================================
 // AGENDA TO-DO & QC
 // ============================================================================
 // Pengganti daftar to-do lama. Menggabungkan to-do manual (Projects.Todo<Cat>)
 // dan tugas otomatis dari data ERP (belum dipesan, perlu konfirmasi, kain, QC
-// fisik, dst — lihat KLF-Server-main/utils/todoAgenda.js). Tiap tugas punya
-// tanggal "harus beres" → dikelompokkan per minggu supaya QC/PIC tidak perlu
-// membuka project satu per satu.
+// fisik, dst — lihat KLF-Server-main/utils/todoAgenda.js). Tiap tugas
+// dikelompokkan per minggu menurut TARGET KIRIM supaya QC/PIC tidak perlu
+// membuka project satu per satu. Sheet tugas memuat to-do list & komentar
+// category yang sama dengan halaman project (Projects.Todo<Cat>, Comments).
 
 const KATEGORI = ['Stainless', 'Besi', 'Kayu', 'Jok', 'Rotan', 'Marmer', 'Kaca', 'Fiber', 'Veneer', 'Finishing', 'Hardware', 'BarangJadi'];
 
@@ -23,7 +28,6 @@ const BUCKETS = [
   { key: 'this_week', label: 'Minggu ini', color: '#d97706' },
   { key: 'next_week', label: 'Minggu depan', color: '#2563eb' },
   { key: 'later', label: 'Nanti', color: '#6b7280' },
-  { key: 'snoozed', label: 'Ditunda', color: '#7c3aed' },
 ];
 
 const GROUPS = [
@@ -52,17 +56,9 @@ const fmtTanggal = (s) => {
   const d = fromYMD(s);
   return d ? `${HARI[d.getDay()]}, ${d.getDate()} ${BULAN[d.getMonth()]}` : 'Tanpa tanggal';
 };
-const addDays = (s, n) => {
-  const d = fromYMD(s) || new Date();
-  d.setDate(d.getDate() + n);
-  return toYMD(d);
-};
-const nextMonday = (s) => {
-  const d = fromYMD(s) || new Date();
-  const dow = (d.getDay() + 6) % 7;
-  d.setDate(d.getDate() + (7 - dow));
-  return toYMD(d);
-};
+// Category untuk to-do & komentar: kategori non-proses (Pengiriman, '(umum)') → BarangJadi.
+const catProject = (c) => (KATEGORI.includes(c) ? c : 'BarangJadi');
+const PREVIEW = { zIndex: 2000 }; // di atas bottom sheet (z 1050)
 
 const lsGet = (k, def) => { try { const v = localStorage.getItem(k); return v == null ? def : JSON.parse(v); } catch { return def; } };
 const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* abaikan */ } };
@@ -88,6 +84,7 @@ const Todo = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [users, setUsers] = useState([]);
+  const [userList, setUserList] = useState([]); // {uid, name, profilePicture} — nama penulis komentar
   const [myName, setMyName] = useState(null);
 
   // Selalu buka "Mendesak" (Terlambat + Minggu ini) supaya tidak langsung melihat semua tugas.
@@ -128,6 +125,7 @@ const Todo = () => {
     fetch(`${baseUrl}/users/all/get`).then((r) => r.json()).then((d) => {
       if (!Array.isArray(d)) return;
       setUsers(d.map((u) => u.name).filter((n) => n && !/bot|hermes/i.test(n)));
+      setUserList(d);
       setMyName(d.find((u) => u.uid === user?.uid)?.name || '');
     }).catch(() => {});
   }, [baseUrl, fetchAgenda]);
@@ -193,7 +191,7 @@ const Todo = () => {
     });
     const arr = [...map.entries()].map(([k, items]) => ({
       key: k,
-      label: groupBy === 'tanggal' ? (k === today ? `Hari ini · ${fmtTanggal(k)}` : fmtTanggal(k)) : k,
+      label: groupBy === 'tanggal' ? (!k ? 'Tanpa target kirim' : `Kirim ${k === today ? 'hari ini · ' : ''}${fmtTanggal(k)}`) : k,
       items,
     }));
     if (groupBy === 'tanggal') arr.sort((a, b) => (a.key || '9999').localeCompare(b.key || '9999'));
@@ -201,7 +199,10 @@ const Todo = () => {
     return arr;
   }, [filtered, tab, groupBy, today]);
 
-  const selected = tasks.find((t) => t.key === selectedKey) || null;
+  // Snapshot: to-do manual yang dicentang selesai hilang dari agenda, tapi sheet-nya tetap terbuka.
+  const [selectedSnap, setSelectedSnap] = useState(null);
+  const selected = selectedKey ? (tasks.find((t) => t.key === selectedKey) || selectedSnap) : null;
+  const pilih = (t) => { setSelectedSnap(t); setSelectedKey(t.key); };
 
   // --- Aksi ------------------------------------------------------------------
   const post = async (url, body) => {
@@ -228,21 +229,11 @@ const Todo = () => {
   const aksi = (t, action, value) => {
     if (t.sumber === 'manual') {
       const ident = { projectId: t.project_id, category: t.category, id: t.todo_id || undefined, index: t.todo_index };
-      if (action === 'note') return post('/projects/todo/item', { ...ident, op: 'note', text: value });
       if (action === 'done') return post('/projects/todo/item', { ...ident, op: 'update', patch: { done: true } });
       if (action === 'delete') return post('/projects/todo/item', { ...ident, op: 'delete' });
-      const f = { snooze: 'snooze_until', due: 'due', pic: 'pic' }[action];
-      return post('/projects/todo/item', { ...ident, op: 'update', patch: { [f]: value || '' } });
+      if (action === 'pic') return post('/projects/todo/item', { ...ident, op: 'update', patch: { pic: value || '' } });
     }
     return post('/todo/auto-state', { key: t.key, action, value, jenis: t.jenis });
-  };
-
-  const jadikanTodo = (t) => {
-    const teks = window.prompt('Teks to-do (mis. "Tanya customer warna finishing — tunggu jawaban"):', t.judul);
-    if (!teks || !teks.trim()) return;
-    const cat = KATEGORI.includes(t.category) ? t.category : 'BarangJadi';
-    post('/projects/todo/item', { projectId: t.project_id, category: cat, op: 'add', text: teks.trim(), due: t.due, pic: t.pic })
-      .then((ok) => ok && t.bisa_ditandai_beres && window.confirm('To-do dibuat. Sembunyikan temuan otomatis ini sekarang?') && aksi(t, 'resolve'));
   };
 
   const bukaProject = (t) => {
@@ -268,17 +259,11 @@ const Todo = () => {
     padding: '1px 8px', fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap',
   });
 
-  const dueBadge = (t) => {
-    if (t.bucket === 'snoozed') return { text: `Ditunda s/d ${fmtTanggal(t.snooze_until)}`, color: '#7c3aed' };
-    if (!t.due) return { text: 'Tanpa tanggal', color: C.muted };
-    if (t.telat_hari > 0) return { text: `Telat ${t.telat_hari} hr`, color: '#dc2626' };
-    if (t.due === today) return { text: 'Hari ini', color: '#d97706' };
-    return { text: fmtTanggal(t.due), color: C.muted };
-  };
-
+  // "Telat" hanya kalau target kirim benar-benar sudah lewat.
   const kirimBadge = (t) => {
-    if (t.sisa_hari == null) return null;
-    if (t.sisa_hari < 0) return { text: `Kirim lewat ${-t.sisa_hari} hr`, color: '#dc2626' };
+    if (t.sisa_hari == null) return { text: 'Tanpa target kirim', color: C.muted };
+    if (t.sisa_hari < 0) return { text: `Telat ${-t.sisa_hari} hr`, color: '#dc2626' };
+    if (t.sisa_hari === 0) return { text: 'Kirim hari ini', color: '#d97706' };
     return { text: `Kirim H-${t.sisa_hari}`, color: t.sisa_hari <= 7 ? '#d97706' : C.muted };
   };
 
@@ -388,22 +373,25 @@ const Todo = () => {
             </div>
             <div style={{ display: 'grid', gap: 8, gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))' }}>
               {g.items.map((t) => {
-                const due = dueBadge(t);
                 const kirim = kirimBadge(t);
                 return (
                   <div
                     key={t.key}
                     role="button"
                     tabIndex={0}
-                    onClick={() => setSelectedKey(t.key)}
-                    onKeyDown={(e) => e.key === 'Enter' && setSelectedKey(t.key)}
+                    onClick={() => pilih(t)}
+                    onKeyDown={(e) => e.key === 'Enter' && pilih(t)}
                     style={{
-                      background: C.card, border: `1px solid ${C.border}`, borderLeft: `4px solid ${due.color}`,
+                      background: C.card, border: `1px solid ${C.border}`, borderLeft: `4px solid ${kirim.color}`,
                       borderRadius: 12, padding: 10, display: 'flex', gap: 10, cursor: 'pointer',
                     }}
                   >
                     {t.image ? (
-                      <img src={getImageUrl(t.image)} alt="" style={{ width: 56, height: 56, borderRadius: 8, objectFit: 'cover', flex: '0 0 56px' }} />
+                      // Ketuk thumbnail = lihat gambar besar (bukan buka sheet).
+                      <span onClick={(e) => e.stopPropagation()} style={{ flex: '0 0 56px', width: 56, height: 56 }}>
+                        <Image src={getImageUrl(t.image)} width={56} height={56} preview={PREVIEW}
+                          style={{ borderRadius: 8, objectFit: 'cover' }} />
+                      </span>
                     ) : (
                       <div style={{ width: 56, height: 56, borderRadius: 8, background: C.soft, flex: '0 0 56px' }} />
                     )}
@@ -412,22 +400,15 @@ const Todo = () => {
                         <span style={chip(CAT_COLOR[t.category] || '#6b7280')}>{t.category}</span>
                         <span style={{ fontSize: 11, color: C.muted }}>{t.sumber === 'manual' ? '✎ ditulis orang' : `⚙ ${t.jenis_label}`}</span>
                         {t.pic && <span style={{ fontSize: 11, color: C.muted }}>· {t.pic}</span>}
-                        {t.notes?.length > 0 && <span style={{ fontSize: 11, color: C.muted }}>· 💬{t.notes.length}</span>}
                       </div>
                       <div style={{ fontWeight: 600, fontSize: 14, lineHeight: 1.3, wordBreak: 'break-word' }}>{t.judul}</div>
                       <div style={{ fontSize: 12, color: C.muted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         {t.item} · {t.customer || t.kode_invoice}
                       </div>
                       <div style={{ display: 'flex', gap: 8, fontSize: 12, marginTop: 2, flexWrap: 'wrap' }}>
-                        <span style={{ color: due.color, fontWeight: 600 }}>{due.text}</span>
-                        {kirim && <span style={{ color: kirim.color }}>{kirim.text}</span>}
+                        <span style={{ color: kirim.color, fontWeight: t.sisa_hari != null && t.sisa_hari < 0 ? 600 : 400 }}>{kirim.text}</span>
                         {t.supplier && groupBy !== 'supplier' && <span style={{ color: C.muted }}>{t.supplier}</span>}
                       </div>
-                      {t.notes?.length > 0 && (
-                        <div style={{ fontSize: 12, color: C.muted, marginTop: 4, fontStyle: 'italic', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          “{t.notes[t.notes.length - 1].text}”
-                        </div>
-                      )}
                     </div>
                   </div>
                 );
@@ -442,14 +423,18 @@ const Todo = () => {
           t={selected}
           C={C}
           users={users}
+          userList={userList}
+          user={user}
+          baseUrl={baseUrl}
           busy={busy}
-          today={today}
           sInput={sInput}
           sBtn={sBtn}
           chip={chip}
+          dark={dark}
+          kirimBadge={kirimBadge}
           onClose={() => setSelectedKey(null)}
           aksi={aksi}
-          jadikanTodo={jadikanTodo}
+          post={post}
           bukaProject={bukaProject}
         />
       )}
@@ -475,7 +460,7 @@ const Sheet = ({ C, onClose, title, children }) => (
     <div
       onClick={(e) => e.stopPropagation()}
       style={{
-        background: C.card, color: C.text, width: '100%', maxWidth: 640, maxHeight: '88vh', overflowY: 'auto',
+        background: C.card, color: C.text, width: '100%', maxWidth: 640, maxHeight: '92vh', overflowY: 'auto',
         borderRadius: '16px 16px 0 0', padding: '14px 16px 24px', boxShadow: '0 -8px 30px rgba(0,0,0,0.25)',
       }}
     >
@@ -490,10 +475,119 @@ const Sheet = ({ C, onClose, title, children }) => (
 
 const Label = ({ C, children }) => <div style={{ fontSize: 12, color: C.muted, fontWeight: 600, margin: '12px 0 4px' }}>{children}</div>;
 
-const TaskSheet = ({ t, C, users, busy, today, sInput, sBtn, chip, onClose, aksi, jadikanTodo, bukaProject }) => {
-  const [note, setNote] = useState('');
+const fileUrl = (baseUrl, u) => (/^https?:\/\//.test(u) ? u : `${baseUrl}${u}`);
+const slotFiles = (doc, prefix) => Array.from({ length: 10 }, (_, i) => doc?.[`${prefix}${i + 1}`]).filter(Boolean);
+
+// Teks komentar dengan @nama disorot (nama terpanjang dulu: "@P. Dhe" jangan keburu "@P").
+const TeksMention = ({ text, names }) => {
+  const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const list = [...names].sort((a, b) => b.length - a.length).map((n) => `@${esc(n)}`);
+  if (!list.length || !text) return <span>{text}</span>;
+  const parts = String(text).split(new RegExp(`(${list.join('|')})`, 'g'));
+  return <span>{parts.map((p, i) => (list.length && p.startsWith('@') && names.includes(p.slice(1)) ? <b key={i} style={{ color: '#2563eb' }}>{p}</b> : p))}</span>;
+};
+
+const Lampiran = ({ doc, baseUrl }) => {
+  const img = slotFiles(doc, 'image');
+  const vid = slotFiles(doc, 'video');
+  if (!img.length && !vid.length) return null;
+  return (
+    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
+      <Image.PreviewGroup preview={PREVIEW}>
+        {img.filter((u) => !/\.pdf/i.test(u)).map((u) => (
+          <Image key={u} src={getImageUrl(u)} width={72} height={72} style={{ borderRadius: 8, objectFit: 'cover' }} />
+        ))}
+      </Image.PreviewGroup>
+      {img.filter((u) => /\.pdf/i.test(u)).map((u) => (
+        <a key={u} href={fileUrl(baseUrl, u)} target="_blank" rel="noopener noreferrer"
+          style={{ width: 72, height: 72, borderRadius: 8, background: '#fee2e2', color: '#b91c1c', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, textDecoration: 'none' }}>
+          PDF
+        </a>
+      ))}
+      {vid.map((u) => <video key={u} src={`${baseUrl}/video/${u.split('/').pop()}`} controls style={{ height: 120, maxWidth: '100%', borderRadius: 8 }} />)}
+    </div>
+  );
+};
+
+const TaskSheet = ({ t, C, users, userList, user, baseUrl, busy, sInput, sBtn, chip, dark, kirimBadge, onClose, aksi, post, bukaProject }) => {
   const d = t.detail || {};
   const manual = t.sumber === 'manual';
+  const cat = catProject(t.category);
+  const kirim = kirimBadge(t);
+
+  const [proj, setProj] = useState(null);
+  const [comments, setComments] = useState(null);
+  const [replies, setReplies] = useState([]);
+  const [todoText, setTodoText] = useState('');
+  const [komen, setKomen] = useState('');
+  const [files, setFiles] = useState([]);
+  const [showFiles, setShowFiles] = useState(false);
+  const [sending, setSending] = useState(false);
+
+  const loadProj = useCallback(async () => {
+    try {
+      const r = await fetch(`${baseUrl}/projects/detail`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ slug: t.project_id }) });
+      if (r.ok) setProj(await r.json());
+    } catch { /* abaikan — sheet tetap bisa dipakai */ }
+  }, [baseUrl, t.project_id]);
+
+  const loadComments = useCallback(async () => {
+    const opt = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ slug: t.project_id, category: cat }) };
+    try {
+      const [c, r] = await Promise.all([fetch(`${baseUrl}/comments/list`, opt), fetch(`${baseUrl}/replies/list`, opt)]);
+      setComments(c.ok ? await c.json() : []);
+      setReplies(r.ok ? await r.json() : []);
+    } catch { setComments([]); }
+  }, [baseUrl, t.project_id, cat]);
+
+  useEffect(() => { setProj(null); setComments(null); loadProj(); loadComments(); }, [loadProj, loadComments]);
+
+  // Galeri: foto utama project + gambar category (hasil pecah gambar).
+  const gambar = useMemo(() => {
+    if (!proj) return t.image ? [t.image] : [];
+    const rx = new RegExp(`^image${cat}\\d+$`);
+    const catImgs = Object.keys(proj).filter((k) => rx.test(k) && proj[k]).sort((a, b) => Number(a.replace(/\D/g, '')) - Number(b.replace(/\D/g, ''))).map((k) => proj[k]);
+    return [...new Set([...slotFiles(proj, 'image'), ...catImgs])].filter((u) => typeof u === 'string' && !/\.pdf/i.test(u));
+  }, [proj, t.image, cat]);
+
+  const todos = proj && Array.isArray(proj[`Todo${cat}`]) ? proj[`Todo${cat}`] : [];
+
+  const ubahTodo = async (body) => { if (await post('/projects/todo/item', { projectId: t.project_id, category: cat, ...body })) await loadProj(); };
+  const tambahTodo = async () => {
+    const text = todoText.trim();
+    if (!text) return;
+    await ubahTodo({ op: 'add', text });
+    setTodoText('');
+  };
+
+  const kirimKomentar = async () => {
+    if (sending || (!komen.trim() && !files.length)) return;
+    setSending(true);
+    try {
+      const fd = new FormData();
+      fd.append('user', user?.uid || '');
+      fd.append('idProduct', t.project_id);
+      fd.append('category', cat);
+      fd.append('text', komen.trim());
+      files.forEach((f) => f && fd.append('images', f));
+      const r = await fetch(`${baseUrl}/comments/create`, { method: 'POST', body: fd });
+      if (!r.ok) throw new Error('Gagal mengirim komentar');
+      setKomen(''); setFiles([]); setShowFiles(false);
+      await loadComments();
+    } catch (err) {
+      alert(`${err.message} — coba lagi (foto masih tersimpan).`);
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const namaDari = (uid) => userList.find((u) => u.uid === uid)?.name || 'Unknown';
+  const waktu = (doc) => {
+    const sec = doc?.date?.value?._seconds;
+    return sec ? format(new Date(sec * 1000), 'd MMM yyyy, HH.mm', { locale: localeId }) : '';
+  };
+  const picValue = t.pic_otomatis ? '' : (t.pic || '');
+  const green = '#16a34a';
 
   return (
     <Sheet C={C} onClose={onClose} title={t.judul}>
@@ -501,13 +595,27 @@ const TaskSheet = ({ t, C, users, busy, today, sInput, sBtn, chip, onClose, aksi
         <span style={chip(CAT_COLOR[t.category] || '#6b7280')}>{t.category}</span>
         <span style={{ color: C.muted }}>{manual ? '✎ To-do ditulis orang' : `⚙ ${t.jenis_label} (temuan sistem)`}</span>
       </div>
+
+      {/* Foto — ketuk untuk perbesar */}
+      {gambar.length > 0 && (
+        <div style={{ display: 'flex', gap: 6, overflowX: 'auto', marginTop: 10, paddingBottom: 2 }}>
+          <Image.PreviewGroup preview={PREVIEW}>
+            {gambar.map((u, i) => (
+              <div key={u} style={{ flex: '0 0 auto' }}>
+                <Image src={getImageUrl(u)} width={i === 0 ? 96 : 72} height={i === 0 ? 96 : 72} style={{ borderRadius: 10, objectFit: 'cover' }} />
+              </div>
+            ))}
+          </Image.PreviewGroup>
+        </div>
+      )}
+
       <div style={{ fontSize: 13, marginTop: 8, lineHeight: 1.6 }}>
         <div><b>{t.item}</b></div>
         <div style={{ color: C.muted }}>{t.customer} · {t.kode_invoice}</div>
         {t.supplier && <div style={{ color: C.muted }}>Supplier: {t.supplier}{t.status_kategori ? ` · status ${t.status_kategori}` : ''}</div>}
         <div style={{ color: C.muted }}>
-          Target kirim: {t.target_kirim ? fmtTanggal(t.target_kirim) : '—'} · Harus beres: {t.due ? fmtTanggal(t.due) : '—'}
-          {t.telat_hari > 0 && <b style={{ color: '#dc2626' }}> (telat {t.telat_hari} hr)</b>}
+          Target kirim: {t.target_kirim ? fmtTanggal(t.target_kirim) : '—'}
+          {t.sisa_hari != null && t.sisa_hari < 0 && <b style={{ color: kirim.color }}> ({kirim.text.toLowerCase()})</b>}
         </div>
         {t.created_by && <div style={{ color: C.muted }}>Dibuat oleh {t.created_by}</div>}
       </div>
@@ -534,9 +642,8 @@ const TaskSheet = ({ t, C, users, busy, today, sInput, sBtn, chip, onClose, aksi
 
       {/* Aksi utama */}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 14 }}>
-        {manual && <button type="button" disabled={busy} style={sBtn('#16a34a')} onClick={async () => { if (await aksi(t, 'done')) onClose(); }}>✓ Selesai</button>}
+        {manual && <button type="button" disabled={busy} style={sBtn(green)} onClick={async () => { if (await aksi(t, 'done')) onClose(); }}>✓ Selesai</button>}
         <button type="button" style={sBtn('#2563eb')} onClick={() => bukaProject(t)}>Buka project</button>
-        {!manual && <button type="button" disabled={busy} style={sBtn(C.soft, C.text)} onClick={() => jadikanTodo(t)}>Jadikan to-do</button>}
         {!manual && t.bisa_ditandai_beres && (
           <button type="button" disabled={busy} style={sBtn(C.soft, C.text)}
             onClick={async () => { if (window.confirm('Tandai sudah beres? Tugas akan muncul lagi kalau teks sumbernya berubah.') && await aksi(t, 'resolve')) onClose(); }}>
@@ -550,51 +657,91 @@ const TaskSheet = ({ t, C, users, busy, today, sInput, sBtn, chip, onClose, aksi
         </div>
       )}
 
-      {/* Tunda */}
-      <Label C={C}>Tunda sampai</Label>
-      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-        {[['Besok', addDays(today, 1)], ['+3 hari', addDays(today, 3)], ['Senin depan', nextMonday(today)]].map(([l, v]) => (
-          <button type="button" key={l} disabled={busy} style={sBtn(C.soft, C.text)} onClick={() => aksi(t, 'snooze', v)}>{l}</button>
-        ))}
-        <input type="date" style={sInput} value={t.snooze_until || ''} onChange={(e) => aksi(t, 'snooze', e.target.value)} />
-        {t.snooze_until && <button type="button" disabled={busy} style={sBtn(C.soft, C.text)} onClick={() => aksi(t, 'snooze', '')}>Batal tunda</button>}
-      </div>
+      {/* PIC */}
+      <Label C={C}>PIC</Label>
+      <select style={{ ...sInput, width: '100%' }} disabled={busy} value={picValue} onChange={(e) => aksi(t, 'pic', e.target.value)}>
+        <option value="">{t.pic_otomatis && t.pic ? `Otomatis — ${t.pic}` : '— Otomatis sesuai jenis tugas —'}</option>
+        {picValue && !users.includes(picValue) && <option value={picValue}>{picValue}</option>}
+        {users.map((u) => <option key={u} value={u}>{u}</option>)}
+      </select>
 
-      {/* Tanggal & PIC */}
-      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-        <div style={{ flex: '1 1 160px' }}>
-          <Label C={C}>Harus beres tanggal</Label>
-          <input type="date" style={{ ...sInput, width: '100%' }} value={t.due_manual ? t.due : ''} onChange={(e) => aksi(t, 'due', e.target.value)} />
-          <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>{t.due_manual ? 'Diatur manual' : `Otomatis: ${t.due ? fmtTanggal(t.due) : '—'}`}</div>
-        </div>
-      </div>
-      <Label C={C}>PIC {t.pic_otomatis && t.pic ? '(otomatis sesuai jenis tugas)' : ''}</Label>
-      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-        {users.map((u) => {
-          const now = t.pics || (t.pic ? [t.pic] : []);
-          const on = now.includes(u);
-          return (
-            <button type="button" key={u} disabled={busy}
-              onClick={() => aksi(t, 'pic', (on ? now.filter((x) => x !== u) : [...now, u]).join(', '))}
-              style={{ borderRadius: 999, padding: '7px 12px', fontSize: 13, fontWeight: 600, cursor: 'pointer', minHeight: 36,
-                border: `1px solid ${on ? '#2563eb' : C.border}`, background: on ? '#2563eb' : C.card, color: on ? '#fff' : C.text }}>
-              {on ? '✓ ' : ''}{u}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Catatan follow-up */}
-      <Label C={C}>Catatan follow-up</Label>
-      {(t.notes || []).map((n, i) => (
-        <div key={i} style={{ fontSize: 13, borderLeft: `3px solid ${C.border}`, padding: '2px 8px', marginBottom: 6 }}>
-          <div>{n.text}</div>
-          <div style={{ fontSize: 11, color: C.muted }}>{n.by || '—'} · {String(n.at || '').slice(0, 16).replace('T', ' ')}</div>
+      {/* To-do list category — sama dengan "To Do List" di halaman project */}
+      <Label C={C}>To-do list {cat === 'BarangJadi' ? 'Umum' : cat}</Label>
+      {!proj && <div style={{ fontSize: 13, color: C.muted }}>Memuat…</div>}
+      {proj && todos.length === 0 && <div style={{ fontSize: 13, color: C.muted, marginBottom: 6 }}>Belum ada to-do.</div>}
+      {todos.map((it, i) => (
+        <div key={it.id || i} role="button" tabIndex={0}
+          onClick={() => !busy && ubahTodo({ op: 'update', id: it.id || undefined, index: i, patch: { done: !it.done } })}
+          onKeyDown={(e) => e.key === 'Enter' && !busy && ubahTodo({ op: 'update', id: it.id || undefined, index: i, patch: { done: !it.done } })}
+          style={{
+            display: 'flex', gap: 10, alignItems: 'center', padding: '9px 10px', marginBottom: 6, borderRadius: 10, cursor: 'pointer', minHeight: 44,
+            border: `1px solid ${it.done ? green : C.border}`, background: it.done ? (dark ? 'rgba(22,163,74,0.15)' : '#f0fdf4') : C.card,
+          }}>
+          <span style={{
+            width: 24, height: 24, flex: '0 0 24px', borderRadius: 6, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            border: `2px solid ${it.done ? green : C.muted}`, background: it.done ? green : 'transparent', color: '#fff', fontWeight: 700, fontSize: 15,
+          }}>{it.done ? '✓' : ''}</span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 14, color: it.done ? green : C.text, fontWeight: it.done ? 600 : 400, wordBreak: 'break-word' }}>{it.text}</div>
+            {it.done && it.done_by && <div style={{ fontSize: 11, color: green }}>✓ {it.done_by}{it.done_at ? ` · ${String(it.done_at).slice(0, 10)}` : ''}</div>}
+          </div>
         </div>
       ))}
       <div style={{ display: 'flex', gap: 6 }}>
-        <input style={{ ...sInput, flex: 1 }} placeholder="mis. Sudah WA supplier, janji Kamis" value={note} onChange={(e) => setNote(e.target.value)} />
-        <button type="button" disabled={busy || !note.trim()} style={sBtn('#2563eb')} onClick={async () => { if (await aksi(t, 'note', note)) setNote(''); }}>Simpan</button>
+        <input style={{ ...sInput, flex: 1, minWidth: 0 }} placeholder="Tambah poin to-do…" value={todoText}
+          onChange={(e) => setTodoText(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && tambahTodo()} />
+        <button type="button" disabled={busy || !todoText.trim()} style={{ ...sBtn('#2563eb'), opacity: todoText.trim() ? 1 : 0.5 }} onClick={tambahTodo}>Tambah</button>
+      </div>
+
+      {/* Komentar category — sinkron dengan komentar di halaman project */}
+      <Label C={C}>Komentar {cat === 'BarangJadi' ? 'Umum' : cat} {comments ? `(${comments.length})` : ''}</Label>
+      {!comments && <div style={{ fontSize: 13, color: C.muted }}>Memuat…</div>}
+      {comments && comments.length === 0 && <div style={{ fontSize: 13, color: C.muted, marginBottom: 6 }}>Belum ada komentar.</div>}
+      {(comments || []).map((c) => (
+        <div key={c.id || c._id} style={{ background: C.soft, borderRadius: 10, padding: '8px 10px', marginBottom: 8 }}>
+          <div style={{ display: 'flex', gap: 6, alignItems: 'baseline', flexWrap: 'wrap' }}>
+            <b style={{ fontSize: 13 }}>{namaDari(c.user)}</b>
+            <span style={{ fontSize: 11, color: C.muted }}>{waktu(c)}</span>
+          </div>
+          {c.text && <div style={{ fontSize: 14, whiteSpace: 'pre-line', wordBreak: 'break-word' }}><TeksMention text={c.text} names={users} /></div>}
+          <Lampiran doc={c} baseUrl={baseUrl} />
+          {replies.filter((r) => r.commentId === c.id).map((r) => (
+            <div key={r.id || r._id} style={{ borderLeft: `3px solid ${C.border}`, padding: '2px 8px', marginTop: 6 }}>
+              <div style={{ display: 'flex', gap: 6, alignItems: 'baseline', flexWrap: 'wrap' }}>
+                <b style={{ fontSize: 12 }}>↳ {namaDari(r.user)}</b>
+                <span style={{ fontSize: 11, color: C.muted }}>{waktu(r)}</span>
+              </div>
+              {r.text && <div style={{ fontSize: 13, whiteSpace: 'pre-line', wordBreak: 'break-word' }}><TeksMention text={r.text} names={users} /></div>}
+              <Lampiran doc={r} baseUrl={baseUrl} />
+            </div>
+          ))}
+        </div>
+      ))}
+
+      <div style={{ marginTop: 4 }}>
+        <Mentions
+          rows={3}
+          value={komen}
+          onChange={setKomen}
+          placeholder="Tulis komentar… ketik @ untuk tag orang"
+          options={users.map((n) => ({ value: n, label: n }))}
+          getPopupContainer={(node) => node.parentElement || document.body}
+          style={{ width: '100%', fontSize: 15 }}
+        />
+        {showFiles && (
+          <div style={{ marginTop: 6 }}>
+            <ImageUploadZone images={files} onChange={setFiles} max={10} theme={dark ? 'dark' : 'light'} allowVideo allowPdf />
+          </div>
+        )}
+        <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+          <button type="button" style={sBtn(C.soft, C.text)} onClick={() => setShowFiles((v) => !v)}>
+            📎 {files.length ? `${files.length} lampiran` : 'Lampiran'}
+          </button>
+          <button type="button" disabled={sending || (!komen.trim() && !files.length)}
+            style={{ ...sBtn('#2563eb'), flex: 1, opacity: komen.trim() || files.length ? 1 : 0.5 }} onClick={kirimKomentar}>
+            {sending ? 'Mengirim…' : 'Kirim komentar'}
+          </button>
+        </div>
       </div>
 
       {manual && (
@@ -615,7 +762,6 @@ const AddSheet = ({ C, users, busy, sInput, sBtn, baseUrl, onClose, onSubmit }) 
   const [projectId, setProjectId] = useState('');
   const [category, setCategory] = useState('BarangJadi');
   const [text, setText] = useState('');
-  const [due, setDue] = useState('');
   const [pic, setPic] = useState('');
 
   useEffect(() => {
@@ -662,29 +808,19 @@ const AddSheet = ({ C, users, busy, sInput, sBtn, baseUrl, onClose, onSubmit }) 
       <Label C={C}>To-do</Label>
       <textarea style={{ ...sInput, width: '100%', minHeight: 70 }} placeholder="mis. Kejar marmer ke supplier, minta foto progres" value={text} onChange={(e) => setText(e.target.value)} />
 
-      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-        <div style={{ flex: '1 1 160px' }}>
-          <Label C={C}>Harus beres (opsional)</Label>
-          <input type="date" style={{ ...sInput, width: '100%' }} value={due} onChange={(e) => setDue(e.target.value)} />
-        </div>
-        <div style={{ flex: '1 1 160px' }}>
-          <Label C={C}>PIC</Label>
-          <select style={{ ...sInput, width: '100%' }} value={pic} onChange={(e) => setPic(e.target.value)}>
-            <option value="">— otomatis (sesuai setting PIC) —</option>
-            {users.map((u) => <option key={u} value={u}>{u}</option>)}
-          </select>
-        </div>
-      </div>
+      <Label C={C}>PIC</Label>
+      <select style={{ ...sInput, width: '100%' }} value={pic} onChange={(e) => setPic(e.target.value)}>
+        <option value="">— otomatis (sesuai setting PIC) —</option>
+        {users.map((u) => <option key={u} value={u}>{u}</option>)}
+      </select>
 
       <button type="button" disabled={busy || !projectId || !text.trim()} style={{ ...sBtn('#2563eb'), width: '100%', marginTop: 16, opacity: !projectId || !text.trim() ? 0.5 : 1 }}
-        onClick={() => onSubmit({ projectId, category, text: text.trim(), due: due || undefined, pic: pic || undefined })}>
+        onClick={() => onSubmit({ projectId, category, text: text.trim(), pic: pic || undefined })}>
         Simpan to-do
       </button>
     </Sheet>
   );
 };
-
-const BASIS_LABEL = { target: 'hari dari target kirim', invoice: 'hari setelah invoice', today: 'segera (hari ini)' };
 
 const SettingsSheet = ({ C, sInput, sBtn, baseUrl, user, users, onClose, onSaved }) => {
   const [value, setValue] = useState(null);
@@ -701,11 +837,6 @@ const SettingsSheet = ({ C, sInput, sBtn, baseUrl, user, users, onClose, onSaved
     }).catch(() => setValue({}));
   }, [baseUrl]);
 
-  const ubah = (k, f, v) => setValue((prev) => ({ ...prev, [k]: { ...prev[k], [f]: f === 'hari' ? Number(v) : v } }));
-  const namaAturan = (k) => {
-    const [j, cat] = k.split(':');
-    return `${label[j] || j}${cat ? ` — ${cat}` : ''}`;
-  };
   const simpan = async () => {
     setSaving(true);
     try {
@@ -744,20 +875,6 @@ const SettingsSheet = ({ C, sInput, sBtn, baseUrl, user, users, onClose, onSaved
               );
             })}
           </div>
-        </div>
-      ))}
-      <div style={{ fontWeight: 700, fontSize: 14, marginTop: 16 }}>Lead time (kapan tugas harus beres)</div>
-      <div style={{ fontSize: 12, color: C.muted, marginBottom: 8 }}>
-        Contoh: “-21 hari dari target kirim” = marmer harus dipesan 3 minggu sebelum barang dikirim.
-      </div>
-      {!value && <div style={{ color: C.muted }}>Memuat…</div>}
-      {value && Object.keys(value).sort().map((k) => (
-        <div key={k} style={{ display: 'flex', gap: 6, alignItems: 'center', padding: '6px 0', borderBottom: `1px solid ${C.border}`, flexWrap: 'wrap' }}>
-          <div style={{ flex: '1 1 180px', fontSize: 13, fontWeight: 600 }}>{namaAturan(k)}</div>
-          <input type="number" style={{ ...sInput, width: 70 }} disabled={value[k].basis === 'today'} value={value[k].hari} onChange={(e) => ubah(k, 'hari', e.target.value)} />
-          <select style={sInput} value={value[k].basis} onChange={(e) => ubah(k, 'basis', e.target.value)}>
-            {Object.entries(BASIS_LABEL).map(([b, l]) => <option key={b} value={b}>{l}</option>)}
-          </select>
         </div>
       ))}
       <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>

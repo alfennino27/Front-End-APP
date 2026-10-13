@@ -6,7 +6,7 @@ import { MdAddCircleOutline } from "react-icons/md";
 import { Link } from 'react-router-dom';
 import dataPekerjaan from '../../assets/data/datapekerjaan';
 import { FaFileInvoice, FaPaste, FaSearch } from 'react-icons/fa';
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { MdFormatListBulletedAdd, MdAssignment } from 'react-icons/md';
 import { BsPrinterFill } from "react-icons/bs";
@@ -19,6 +19,7 @@ import { useTheme } from '../../ThemeContext';
 import { getImageUrl } from '../../Utils/image';
 import { getSPKFromIndexedDB, saveSPKToIndexedDB } from '../../Helpers/spkStorage';
 import dayjs from 'dayjs';
+import useIsMobile from '../../Utils/useIsMobile';
 
 const { Option } = Select;
 const { TextArea } = Input;
@@ -55,7 +56,7 @@ const Spk = () => {
   const [SPK, setSPK] = useState([]);
   const { slug } = useParams();
 
-  const isMobile = window.innerWidth <= 768;
+  const isMobile = useIsMobile();
   const [searchProduct, setSearchProduct] = useState('');
   const [searchSPK, setSearchSPK] = useState('');
 
@@ -392,9 +393,49 @@ useEffect(() => {
   }, [searchSupplier, SPK, suppliers]);
 
 
+  // ── Filter & cari daftar SPK (status, bulan cetak, pembayaran, urutan) ──
+  // Cari juga mencocokkan nama barang di dalam SPK (dari /spk/ringkasan).
+  const [filterStatus, setFilterStatus] = useState('');
+  const [filterBulan, setFilterBulan] = useState('');
+  const [filterBayar, setFilterBayar] = useState('');
+  const [urutan, setUrutan] = useState(() => localStorage.getItem('spkUrutan') || 'baru');
+  const [ringkasan, setRingkasan] = useState({});
+  useEffect(() => { localStorage.setItem('spkUrutan', urutan); }, [urutan]);
   useEffect(() => {
-    setFilteredData(SPK.filter((item) => item.pengrajin.toLowerCase().includes(searchTerm.toLowerCase()) || item.code.toLowerCase().includes(searchTerm.toLowerCase())));
-  }, [searchTerm]);
+    let batal = false;
+    fetch(`${baseUrl}/spk/ringkasan`).then((r) => r.json()).then((d) => { if (!batal && d && typeof d === 'object') setRingkasan(d); }).catch(() => {});
+    return () => { batal = true; };
+  }, [baseUrl, slug, SPK]);
+
+  const bulanOpsi = useMemo(() => {
+    const set = new Set(SPK.map((x) => String(x.tanggalCetak || '').slice(0, 7)).filter((b) => /^\d{4}-\d{2}$/.test(b) && b > '2001'));
+    return [...set].sort().reverse();
+  }, [SPK]);
+
+  const daftarSPK = useMemo(() => {
+    const q = searchTerm.trim().toLowerCase();
+    const hasil = filteredData.filter((spk) => {
+      const pending = String(spk.code || '').startsWith('Pending');
+      if (showPending ? !pending : pending) return false;
+      if (showPending) return !q || String(spk.pengrajin || '').toLowerCase().includes(q);
+      if (filterStatus) {
+        const st = spk.status || 'Draft';
+        if (filterStatus === 'Acc' ? !st.startsWith('Acc') : st !== filterStatus) return false;
+      }
+      if (filterBulan && String(spk.tanggalCetak || '').slice(0, 7) !== filterBulan) return false;
+      const rk = ringkasan[spk.id];
+      if (filterBayar && rk) {
+        const lunas = rk.total > 0 && rk.dibayar >= rk.total;
+        if (filterBayar === 'lunas' ? !lunas : lunas) return false;
+      }
+      if (!q) return true;
+      return [spk.code, spk.pengrajin, spk.status, rk?.barang].filter(Boolean).join(' ').toLowerCase().includes(q);
+    });
+    const tgl = (x) => String(x.tanggalCetak || '');
+    return hasil.sort((a, b) => (urutan === 'lama' ? tgl(a).localeCompare(tgl(b)) : tgl(b).localeCompare(tgl(a))));
+  }, [filteredData, showPending, filterStatus, filterBulan, filterBayar, searchTerm, ringkasan, urutan]);
+  const adaFilter = !!(searchTerm || filterStatus || filterBulan || filterBayar || searchSupplier);
+  const resetFilter = () => { setSearchTerm(''); setFilterStatus(''); setFilterBulan(''); setFilterBayar(''); setSearchSupplier(''); };
 
   useEffect(() => {
     if (!SPK || SPK.length === 0) return;
@@ -1142,6 +1183,22 @@ useEffect(() => {
 
 
 
+  // Klik produk di detail SPK → modal edit (hanya Draft/Revisi atau user tertentu)
+  const bukaEditProdukSPK = (product) => {
+    const status = dataSPKFromDB[0]?.status;
+    if (status === 'Draft' || status === 'Revisi' || user.uid === "w4M5JJjgGQeHFbS2nkyoCfUBE532" || user.uid === "4WGPaHicKWYr0Ny84IUh8xb9Bo62" || user.uid === "fYpdHwXRDLhj5XGxM5FZIAvxp9E2") {
+      setBudgetEdit(Number(product.budget) || 0);
+      handleEditProduct(product.id, product.idSPK, product.keterangan, product.harga, product.qty, product.deadline, product.status, product.image, product.idProduct, product.idProductBackUp, product.namaBarang);
+    }
+  };
+  const kartuMobile = {
+    borderRadius: 12, padding: 10, marginBottom: 8,
+    background: globalTheme === 'light' ? '#fff' : '#1f1f1f',
+    border: `1px solid ${globalTheme === 'light' ? '#d6d6d6' : '#444'}`,
+    color: globalTheme === 'light' ? '#111' : '#eee',
+  };
+  const rpSPK = (n) => 'Rp ' + Number(n || 0).toLocaleString('id-ID');
+
   return (
     <>
       <Container id="tidak-tercetak">
@@ -1149,88 +1206,132 @@ useEffect(() => {
           <Col md={4} ref={scrollableElementRef} className='lowonganPekerjaan overflow-auto pekerjaan' style={{ display: isMobile && slug ? 'none' : '' }}>
 
 
-            <h4
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                position: 'sticky',
-                ...(isMobile ? { top: -1 } : { top: 0 }),
-                color: globalTheme == "light" ? "#000000" : "#ffffff",
-                zIndex: 1,
-                padding: '10px',
-                backgroundColor: isScrolled ? (globalTheme === "light" ? "#f3f3f3" : "#151515") : "transparent",
-                borderRadius: "30px",
-                border: isScrolled ? (globalTheme === "light" ? "1px solid #5f5f5f" : "1px solid white") : "1px solid transparent",
-                transition: "background-color 1s ease, border 1s ease",
-              }}
-            >
-              <span style={{ display: showSearch ? "none" : "block" }}>List SPK</span>
-              <input type="text" placeholder="Search..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} style={{ fontSize: '12px', borderRadius: '20px', padding: '5px', display: showSearch ? 'block' : 'none' }} />
-              <div>
-                <span style={{ fontSize: '25px', color: isIconBlue ? 'blue' : 'inherit' }} onClick={handleSearchClick}>
-                  <IoSearch className='button-effect' />
-                </span>
-                <span style={{ fontSize: '25px', marginLeft: "5px", color: showPending ? 'blue' : 'inherit' }} onClick={() => setShowPending((prev) => !prev)}>
-                  <MdOutlinePendingActions className='button-effect' />
-                </span>
-                <span style={{ fontSize: "25px", marginLeft: "5px", color: searchSupplier != '' ? 'blue' : 'inherit' }} onClick={handleShowSupplier} ><MdOutlineAssignment className='button-effect' /></span>
-                <MdFormatListBulletedAdd className='button-effect' style={{ marginLeft: "5px" }} onClick={() => { setShowAddSpkModal(true); setInputPengrajin(''); setInputTanggalCetak(''); setInputCode(''); }} />
+            {/* Kepala daftar + cari & filter (selalu tampil — dulu tersembunyi di ikon) */}
+            <div style={{
+              position: 'sticky', top: 0, zIndex: 2, padding: '8px 4px 10px',
+              background: globalTheme === 'light' ? '#f3f3f3' : '#151515',
+              borderBottom: `1px solid ${globalTheme === 'light' ? '#ddd' : '#333'}`, marginBottom: 8,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: globalTheme === 'light' ? '#000' : '#fff' }}>
+                <h4 style={{ margin: 0, flex: 1, fontWeight: 700, fontSize: isMobile ? 20 : 22 }}>{showPending ? 'Pending' : 'List SPK'}</h4>
+                <button type="button" title="Tampilkan pending" onClick={() => setShowPending((prev) => !prev)} style={spkIconBtn(showPending, globalTheme)}>
+                  <MdOutlinePendingActions />
+                </button>
+                <button type="button" title="Filter supplier" onClick={handleShowSupplier} style={spkIconBtn(searchSupplier !== '', globalTheme)}>
+                  <MdOutlineAssignment />
+                </button>
+                <button type="button" title="Tambah SPK" onClick={() => { setShowAddSpkModal(true); setInputPengrajin(''); setInputTanggalCetak(''); setInputCode(''); }}
+                  style={{ ...spkIconBtn(false, globalTheme), background: '#234dba', color: '#fff', borderColor: '#234dba' }}>
+                  <MdFormatListBulletedAdd />
+                </button>
               </div>
-            </h4>
 
-            {filteredData.length === 0 ? (
+              <div style={{ position: 'relative', marginTop: 8 }}>
+                <IoSearch style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#888', fontSize: 18 }} />
+                <input type="search" placeholder="Cari kode, supplier, nama barang…" value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  style={{ ...spkField(globalTheme), width: '100%', paddingLeft: 38 }} />
+              </div>
+
+              {!showPending && (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 6, marginTop: 6 }}>
+                  <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} style={spkField(globalTheme, !!filterStatus)}>
+                    <option value="">Semua status</option>
+                    <option value="Draft">Draft</option>
+                    <option value="Revisi">Revisi</option>
+                    <option value="Acc">Acc (semua)</option>
+                    <option value="Acc Harga">Acc Harga</option>
+                    <option value="Acc Keterangan">Acc Keterangan</option>
+                  </select>
+                  <select value={filterBulan} onChange={(e) => setFilterBulan(e.target.value)} style={spkField(globalTheme, !!filterBulan)}>
+                    <option value="">Semua bulan</option>
+                    {bulanOpsi.map((b) => <option key={b} value={b}>{dayjs(b + '-01').format('MMM YYYY')}</option>)}
+                  </select>
+                  <select value={filterBayar} onChange={(e) => setFilterBayar(e.target.value)} style={spkField(globalTheme, !!filterBayar)}>
+                    <option value="">Semua pembayaran</option>
+                    <option value="belum">Belum lunas</option>
+                    <option value="lunas">Lunas</option>
+                  </select>
+                  <select value={urutan} onChange={(e) => setUrutan(e.target.value)} style={spkField(globalTheme)}>
+                    <option value="baru">Terbaru dulu</option>
+                    <option value="lama">Terlama dulu</option>
+                  </select>
+                </div>
+              )}
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginTop: 6, fontSize: 13, color: '#888' }}>
+                {searchSupplier !== '' && (
+                  <span style={{ background: '#234dba', color: '#fff', borderRadius: 16, padding: '4px 6px 4px 12px', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                    Supplier: <b>{searchSupplier}</b>
+                    <button type="button" onClick={() => setSearchSupplier('')} aria-label="Hapus filter supplier"
+                      style={{ border: 'none', background: 'rgba(255,255,255,.25)', color: '#fff', borderRadius: 12, width: 24, height: 24, padding: 0, lineHeight: '24px' }}>×</button>
+                  </span>
+                )}
+                <span style={{ flex: 1 }}>{SPK.length ? `${daftarSPK.length} SPK` : 'Memuat…'}</span>
+                {adaFilter && (
+                  <button type="button" onClick={resetFilter}
+                    style={{ border: '1px solid #c62828', color: '#c62828', background: 'transparent', borderRadius: 16, padding: '4px 12px', fontSize: 13, minHeight: 32 }}>Reset filter</button>
+                )}
+              </div>
+            </div>
+
+            {SPK.length === 0 ? (
               // Show skeletons while loading
-              [...Array(20)].map((_, index) => (
-                <Row key={index}>
-                  <Col>
-                    <div className="listSPK d-flex position-relative mb-1 shadow" style={{ backgroundImage: globalTheme === "light" ? "linear-gradient(to right, #ffffff, #e7e7e7)" : "linear-gradient(to right, #151515, #252525)", border: globalTheme === "light" ? "2px solid #d2d2d2" : "2px solid #7a7a7a" }}>
-                      <div style={{ width: '100%', height: '100%' }}>
-                        <Skeleton active />
-                      </div>
-                    </div>
-                  </Col>
-                </Row>
+              [...Array(8)].map((_, index) => (
+                <div key={index} className="listSPK d-flex position-relative mb-1 shadow" style={{ height: 'auto', backgroundImage: globalTheme === "light" ? "linear-gradient(to right, #ffffff, #e7e7e7)" : "linear-gradient(to right, #151515, #252525)", border: globalTheme === "light" ? "2px solid #d2d2d2" : "2px solid #7a7a7a" }}>
+                  <div style={{ width: '100%' }}><Skeleton active /></div>
+                </div>
               ))
             ) : null}
 
-            {filteredData
-              .filter((spk) =>
-                showPending
-                  ? spk.code.startsWith("Pending") // kalau showPending true → hanya "Pending ..."
-                  : !spk.code.startsWith("Pending") // kalau false → selain "Pending ..."
-              ).map((spk, index) => (
-                <Row key={index}>
-                  <Col>
-                    <Link to={`/spk/${spk.id}`}>
-                      <div className={`listSPK d-flex position-relative mb-1 shadow tema-${globalTheme} ${spk.id === slug ? `selected` : ""} ${globalTheme === 'light' ? 'text-dark' : 'text-light'}`} style={{ backgroundImage: spk.id === slug ? (globalTheme === "light" ? "linear-gradient(to right, #cbcbcb, #e7e7e7)" : "linear-gradient(to right, #404040, #252525)") : (globalTheme === "light" ? "linear-gradient(to right, #ffffff, #e7e7e7)" : "linear-gradient(to right, #151515, #252525)"), border: spk.id === slug ? (globalTheme === "light" ? "2px solid #c1c1c1" : "2px solid #8e8e8e") : (globalTheme === "light" ? "2px solid rgb(163, 163, 163)" : "2px solid #7a7a7a") }}>
-                        <div className='d-flex'>
-                          <h6>
-                            {showPending ? `Pending ${spk.pengrajin}` : spk.pengrajin}
-                          </h6>
-                          <small className="position-absolute top-0 end-0 p-3" style={{ display: showPending ? "none" : "" }}>{spk.code}</small>
+            {SPK.length > 0 && daftarSPK.length === 0 && (
+              <div style={{ textAlign: 'center', color: '#888', padding: '30px 10px' }}>Tidak ada SPK yang cocok dengan filter.</div>
+            )}
 
-                        </div>
-                        <small className="position-absolute bottom-0 start-0 p-3" style={{ display: showPending ? "none" : "" }}>Tanggal Cetak : {new Date(spk.tanggalCetak).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</small>
-                        {spk.status === "Acc" ? (
-                          <small className="position-absolute bottom-0 end-0 p-3 text-success">Acc</small>
-                        ) : spk.status === "Acc Keterangan" ? (
-                          <small className="position-absolute bottom-0 end-0 p-3 text-success">Acc Keterangan</small>
-                        ) : spk.status === "Acc Harga" ? (
-                          <small className="position-absolute bottom-0 end-0 p-3 text-success">Acc Harga</small>
-                        ) : spk.status === "Revisi" ? (
-                          <small className="position-absolute bottom-0 end-0 p-3 text-primary">Revisi</small>
-                        ) : (
-                          <small className="position-absolute bottom-0 end-0 p-3 text-danger">Draft</small>
-                        )}
-
+            {daftarSPK.map((spk) => {
+              const rk = ringkasan[spk.id];
+              const sisa = rk ? rk.total - rk.dibayar : null;
+              const lunas = rk && rk.total > 0 && sisa <= 0;
+              const st = spk.status || 'Draft';
+              const warnaSt = st.startsWith('Acc') ? '#15803d' : st === 'Revisi' ? '#2563eb' : '#dc2626';
+              const dipilih = spk.id === slug;
+              const light = globalTheme === 'light';
+              return (
+                <Link key={spk.id} to={`/spk/${spk.id}`}>
+                  <div className={`listSPK mb-2 shadow-sm tema-${globalTheme} ${dipilih ? 'selected' : ''} ${light ? 'text-dark' : 'text-light'}`}
+                    style={{
+                      height: 'auto', padding: '10px 12px',
+                      backgroundImage: dipilih ? (light ? 'linear-gradient(to right, #cbcbcb, #e7e7e7)' : 'linear-gradient(to right, #404040, #252525)') : (light ? 'linear-gradient(to right, #ffffff, #f1f1f1)' : 'linear-gradient(to right, #151515, #252525)'),
+                      border: dipilih ? (light ? '2px solid #234dba' : '2px solid #4da3ff') : (light ? '1px solid #c8c8c8' : '1px solid #555'),
+                    }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+                      <div style={{ fontWeight: 700, fontSize: 15, minWidth: 0, overflowWrap: 'anywhere' }}>
+                        {showPending ? `Pending ${spk.pengrajin}` : spk.pengrajin}
                       </div>
-                    </Link>
-                  </Col>
-                </Row>
-              ))}
-
-
+                      {!showPending && (
+                        <span style={{ flexShrink: 0, fontSize: 11.5, fontWeight: 700, color: warnaSt, border: `1px solid ${warnaSt}`, borderRadius: 12, padding: '1px 8px' }}>{st}</span>
+                      )}
+                    </div>
+                    {!showPending && (
+                      <>
+                        <div style={{ fontSize: 12.5, opacity: 0.75, overflowWrap: 'anywhere' }}>{spk.code}</div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap', fontSize: 12.5, marginTop: 4 }}>
+                          <span style={{ opacity: 0.8 }}>{spk.tanggalCetak ? dayjs(spk.tanggalCetak).format('D MMM YYYY') : '-'}{rk ? ` · ${rk.jumlahItem} item` : ''}</span>
+                          {rk && rk.total > 0 && (
+                            <span style={{ fontWeight: 600 }}>
+                              Rp {rk.total.toLocaleString('id-ID')}
+                              {lunas
+                                ? <span style={{ color: '#15803d' }}> · LUNAS</span>
+                                : <span style={{ color: '#c2410c' }}> · sisa {sisa.toLocaleString('id-ID')}</span>}
+                            </span>
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </Link>
+              );
+            })}
 
           </Col>
           <Col md={8} ref={scrollableElementRef2} className='lowonganPekerjaan overflow-auto pekerjaan' style={{ display: isMobile && !slug ? 'none' : '' }}>
@@ -1252,7 +1353,15 @@ useEffect(() => {
                 transition: "background-color 1s ease, border 1s ease",
               }}
             >
-              <span>SPK Pengrajin Karya Logam Furniture</span>
+              {isMobile && slug ? (
+                <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <button type="button" onClick={() => navigate('/spk')} aria-label="Kembali ke daftar SPK"
+                    style={{ ...spkIconBtn(false, globalTheme), fontSize: 18, width: 'auto', padding: '0 12px', gap: 4 }}>← Daftar</button>
+                  <span style={{ fontSize: 18, fontWeight: 700 }}>Detail SPK</span>
+                </span>
+              ) : (
+                <span>SPK Pengrajin Karya Logam Furniture</span>
+              )}
               <Button style={{ marginBottom: "-5px", marginTop: "-5px", display: slug && (dataSPKFromDB[0]?.status == 'Acc' || dataSPKFromDB[0]?.status == 'Acc Harga' || dataSPKFromDB[0]?.status == 'Acc Keterangan') ? 'block' : 'none' }} variant="secondary" onClick={() => window.print()}><BsPrinterFill /> Print</Button>
               <Button style={{ marginBottom: "-5px", marginTop: "-5px", display: searchSupplier !== '' && !slug && !showProduct ? 'block' : 'none' }} variant="primary" onClick={() => setShowProduct(true)}><MdOutlineChair /> Product</Button>
               <Button style={{ marginBottom: "-5px", marginTop: "-5px", display: searchSupplier !== '' && !slug && showProduct ? 'block' : 'none' }} variant="primary" onClick={() => setShowProduct(false)}><FaFileInvoice /> SPK</Button>
@@ -1470,6 +1579,37 @@ useEffect(() => {
                     }
                   }}
                 >
+                  {isMobile ? (
+                    <div style={{ padding: 10, color: globalTheme === 'light' ? '#111' : '#eee' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'flex-start' }}>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontSize: 17, fontWeight: 700, overflowWrap: 'anywhere' }}>{dataSPKFromDB[0]?.pengrajin || ''}</div>
+                          <div style={{ fontSize: 13, opacity: 0.75, overflowWrap: 'anywhere' }}>{dataSPKFromDB[0]?.code || ''}</div>
+                          <div style={{ fontSize: 13, opacity: 0.75 }}>{dataSPKFromDB[0]?.tanggalCetak ? new Date(dataSPKFromDB[0].tanggalCetak).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : ''}</div>
+                        </div>
+                        {dataSPKFromDB[0]?.status && (() => {
+                          const st = dataSPKFromDB[0].status;
+                          const w = st.startsWith('Acc') ? '#15803d' : st === 'Revisi' ? '#2563eb' : '#dc2626';
+                          return <span style={{ flexShrink: 0, fontSize: 13, fontWeight: 700, color: w, border: `1.5px solid ${w}`, borderRadius: 14, padding: '2px 10px' }}>{st}</span>;
+                        })()}
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginTop: 10 }}>
+                        {[
+                          ['Total', totalData, null],
+                          ['DP / Dibayar', totalDataPayment, '#15803d'],
+                          ['Kekurangan', totalData - totalDataPayment, totalData - totalDataPayment > 0 ? '#c2410c' : '#15803d'],
+                          ['Selesai', totalSelesai, null],
+                        ].map(([l, v, w]) => (
+                          <div key={l} style={{ background: globalTheme === 'light' ? 'rgba(0,0,0,.04)' : 'rgba(255,255,255,.06)', borderRadius: 8, padding: '6px 8px' }}>
+                            <div style={{ fontSize: 11, opacity: 0.7, textTransform: 'uppercase' }}>{l}</div>
+                            <div style={{ fontSize: 14, fontWeight: 700, color: w || undefined }}>{rpSPK(v)}</div>
+                          </div>
+                        ))}
+                      </div>
+                      <div style={{ fontSize: 11.5, opacity: 0.6, marginTop: 6 }}>Ketuk kotak ini untuk ubah SPK / tambah produk</div>
+                    </div>
+                  ) : (
+                  <>
 
                   <div className={`p-2 ${globalTheme === 'light' ? 'text-dark' : 'text-light'}`}>
                     <table>
@@ -1526,9 +1666,34 @@ useEffect(() => {
                       </tbody>
                     </table>
                   </div>
+                  </>
+                  )}
 
                 </div>
 
+                {isMobile ? (
+                  <div style={{ padding: '0 8px 8px' }}>
+                    {dataSPKproductFromDB.length === 0 && <div style={{ textAlign: 'center', opacity: 0.6, padding: 16 }}>Belum ada produk di SPK ini.</div>}
+                    {dataSPKproductFromDB.map((product, index) => (
+                      <div key={product.id || index} style={{ ...kartuMobile, display: 'flex', gap: 10, cursor: 'pointer' }} onClick={() => bukaEditProdukSPK(product)}>
+                        <span onClick={(e) => e.stopPropagation()} style={{ flexShrink: 0 }}>
+                          <Image width={84} height={84} style={{ borderRadius: 8, objectFit: 'cover' }} src={getImageUrl(product.image)} />
+                        </span>
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <div style={{ fontWeight: 700, fontSize: 14, overflowWrap: 'anywhere' }}>{index + 1}. {product.namaBarang || '-'}</div>
+                          {product.keterangan && <div style={{ fontSize: 12.5, opacity: 0.8, whiteSpace: 'pre-line', overflowWrap: 'anywhere', marginTop: 2 }}>{product.keterangan}</div>}
+                          <div style={{ fontSize: 13, marginTop: 4 }}>
+                            {rpSPK(product.harga)} × {product.qty} = <b>{rpSPK(product.harga * product.qty)}</b>
+                          </div>
+                          <BudgetBadge budget={product.budget} harga={product.harga} dariQuote={product.budgetDariQuote} />
+                          <div style={{ fontSize: 12, marginTop: 2, color: product.status === 'Completed' ? '#15803d' : undefined, opacity: product.status === 'Completed' ? 1 : 0.75 }}>
+                            {product.status === 'Completed' ? '✓ Completed' : `Deadline: ${product.deadline ? new Date(product.deadline).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}`}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
                 <div className={`p-2 overflow-auto ${globalTheme === 'light' ? 'text-dark' : 'text-light'}`}>
                   <table>
                     <thead>
@@ -1545,13 +1710,7 @@ useEffect(() => {
                     <tbody>
 
                       {dataSPKproductFromDB.map((product, index) => (
-                        <tr key={index} className={`tr-hover-effect tema-${globalTheme}`} style={{ cursor: "pointer" }} onClick={() => {
-                          const status = dataSPKFromDB[0]?.status;
-                          if (status === 'Draft' || status === 'Revisi' || user.uid === "w4M5JJjgGQeHFbS2nkyoCfUBE532" || user.uid === "4WGPaHicKWYr0Ny84IUh8xb9Bo62" || user.uid === "fYpdHwXRDLhj5XGxM5FZIAvxp9E2") {
-                            setBudgetEdit(Number(product.budget) || 0);
-                            handleEditProduct(product.id, product.idSPK, product.keterangan, product.harga, product.qty, product.deadline, product.status, product.image, product.idProduct, product.idProductBackUp, product.namaBarang)
-                          }
-                        }}>
+                        <tr key={index} className={`tr-hover-effect tema-${globalTheme}`} style={{ cursor: "pointer" }} onClick={() => bukaEditProdukSPK(product)}>
                           <td className='tableStyle text-center'>{index + 1}</td>
                           <td className='tableStyle text-center'>
                             {/* <img style={{ width: "100px" }} src={product.image} /> */}
@@ -1586,6 +1745,7 @@ useEffect(() => {
                     </tbody>
                   </table>
                 </div>
+                )}
               </div>
 
 
@@ -1615,6 +1775,24 @@ useEffect(() => {
                 <button className="btnKomentar" style={{ marginRight: '0.5vh' }} onClick={() => { setShowPaymentModal(true); refreshState(); }}>Payment</button>
               </div>
 
+              {isMobile ? (
+                <div style={{ padding: '4px 4px 16px' }}>
+                  {dataSPKpaymentFromDB.length === 0 && <div style={{ textAlign: 'center', opacity: 0.6, padding: 16, color: globalTheme === 'light' ? '#111' : '#eee' }}>Belum ada pembayaran.</div>}
+                  {dataSPKpaymentFromDB.map((payment, index) => (
+                    <div key={payment.id || index} style={{ ...kartuMobile, display: 'flex', gap: 10, alignItems: 'center', cursor: 'pointer' }}
+                      onClick={() => handleEditPayment(payment.id, payment.detail, payment.tanggal, payment.jumlah, payment.image, payment.akunSumber, payment.jurnalOtomatis)}>
+                      <span onClick={(e) => e.stopPropagation()} style={{ flexShrink: 0 }}>
+                        <Image width={60} height={60} style={{ borderRadius: 8, objectFit: 'cover' }} src={getImageUrl(payment.image)} />
+                      </span>
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div style={{ fontWeight: 700, fontSize: 15 }}>{rpSPK(payment.jumlah)}</div>
+                        <div style={{ fontSize: 12.5, opacity: 0.8, overflowWrap: 'anywhere' }}>{payment.detail}</div>
+                        <div style={{ fontSize: 12, opacity: 0.65 }}>{payment.tanggal ? dayjs(payment.tanggal, 'YYYY-MM-DD').format('DD-MM-YYYY') : ''}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
               <div className='SPK shadow mt-1' style={{ backgroundImage: globalTheme === "light" ? "linear-gradient(to right, #ffffff, #e7e7e7)" : "linear-gradient(to right, #151515, #303030)", border: globalTheme === "light" ? "2px solid rgb(163, 163, 163)" : "2px solid #7a7a7a" }}>
                 <div className={`p-2 ${globalTheme === 'light' ? 'text-dark' : 'text-light'}`}>
                   <table>
@@ -1647,6 +1825,7 @@ useEffect(() => {
                   </table>
                 </div>
               </div>
+              )}
             </div>
 
           </Col>
@@ -2771,3 +2950,26 @@ function BudgetBadge({ budget, harga, dariQuote }) {
   );
 }
 
+
+// Tombol ikon kepala daftar SPK (≥40px, ramah jari)
+function spkIconBtn(aktif, tema) {
+  const light = tema === 'light';
+  return {
+    width: 40, height: 40, borderRadius: 10, fontSize: 21, padding: 0,
+    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+    border: `1px solid ${aktif ? '#234dba' : (light ? '#ccc' : '#555')}`,
+    background: aktif ? 'rgba(35,77,186,.12)' : 'transparent',
+    color: aktif ? '#234dba' : (light ? '#222' : '#eee'),
+  };
+}
+
+// Input/select filter daftar SPK — font 16px supaya iPhone tidak auto-zoom
+function spkField(tema, aktif = false) {
+  const light = tema === 'light';
+  return {
+    minHeight: 40, fontSize: 16, borderRadius: 10, padding: '6px 10px', minWidth: 0,
+    border: `1px solid ${aktif ? '#234dba' : (light ? '#ccc' : '#555')}`,
+    background: aktif ? (light ? '#eef2ff' : '#1d2a4d') : (light ? '#fff' : '#222'),
+    color: light ? '#111' : '#eee', fontWeight: aktif ? 600 : 400,
+  };
+}

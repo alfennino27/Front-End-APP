@@ -228,7 +228,7 @@ const Lightbox = ({ images, idx, baseUrl, onIdx, onClose }) => {
         style={{ ...navBtn, position: 'absolute', top: 14, right: 16 }}>×</button>
       {total > 1 && <button onClick={(e) => { e.stopPropagation(); geser(-1); }} style={navBtn}>‹</button>}
       <img
-        src={`${baseUrl}${images[idx]}`}
+        src={/^(blob:|data:|https?:)/.test(images[idx]) ? images[idx] : `${baseUrl}${images[idx]}`}
         alt=""
         onClick={(e) => e.stopPropagation()}
         style={{ maxWidth: '86vw', maxHeight: '86vh', objectFit: 'contain', borderRadius: 8, background: '#111' }}
@@ -1090,7 +1090,9 @@ const Quote = () => {
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
                 {it.images.map((im, i) => (
                   <div key={i} style={{ position: 'relative' }}>
-                    <img src={im.url ? `${baseUrl}${im.url}` : im.preview} alt="" style={{ width: 74, height: 74, objectFit: 'cover', borderRadius: 8, border: i === 0 ? `2px solid ${primary}` : `1px solid ${border}` }} />
+                    <img src={im.url ? `${baseUrl}${im.url}` : im.preview} alt="" title="Klik untuk perbesar"
+                      onClick={() => setLightbox({ images: it.images.map((x) => x.url || x.preview), idx: i })}
+                      style={{ width: 74, height: 74, objectFit: 'cover', borderRadius: 8, cursor: 'zoom-in', border: i === 0 ? `2px solid ${primary}` : `1px solid ${border}` }} />
                     {i === 0 && <span title="Foto utama" style={{ position: 'absolute', bottom: 2, left: 2, background: primary, color: '#fff', fontSize: 10, padding: '1px 5px', borderRadius: 6 }}>⭐ Utama</span>}
                     {i !== 0 && <button title="Jadikan foto utama" onClick={() => makeImageMain(idx, i)} style={{ position: 'absolute', bottom: 2, left: 2, background: 'rgba(0,0,0,.6)', color: '#fff', fontSize: 10, padding: '1px 5px', borderRadius: 6, border: 'none', cursor: 'pointer' }}>⭐ Utama</button>}
                     <button onClick={() => removeItemImage(idx, i)} style={{ position: 'absolute', top: -6, right: -6, background: '#c0392b', color: '#fff', border: 'none', borderRadius: '50%', width: 20, height: 20, cursor: 'pointer', lineHeight: '18px' }}>×</button>

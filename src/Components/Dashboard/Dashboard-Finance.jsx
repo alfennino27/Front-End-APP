@@ -12,6 +12,7 @@ import { DatePicker } from 'antd';
 import dayjs from 'dayjs';
 import { useTheme } from '../../ThemeContext';
 import { getApiBaseUrl } from '../../Config/APIurl';
+import useIsMobile from '../../Utils/useIsMobile';
 import './dashboard.css';
 
 const rupiah = (n) => 'Rp ' + Math.round(Number(n) || 0).toLocaleString('id-ID');
@@ -44,6 +45,7 @@ const DashboardFinance = () => {
   const baseUrl = getApiBaseUrl();
   const { globalTheme } = useTheme();
   const dark = globalTheme !== 'light';
+  const mobile = useIsMobile();
 
   const [year, setYear] = useState(dayjs().format('YYYY'));
   const [data, setData] = useState(null);
@@ -86,9 +88,9 @@ const DashboardFinance = () => {
   } : null), [data, t]);
 
   return (
-    <div style={{ background: t.bg, minHeight: '100vh', padding: '20px 16px 40px' }}>
+    <div style={{ background: t.bg, minHeight: '100vh', padding: mobile ? '12px 10px 32px' : '20px 16px 40px' }}>
       <div style={{ maxWidth: 1560, margin: '0 auto' }}>
-        <Kepala t={t} year={year} setYear={setYear} data={data} loading={loading} />
+        <Kepala t={t} year={year} setYear={setYear} data={data} loading={loading} mobile={mobile} />
 
         {error && (
           <div style={{ ...kotak(t), color: '#dc2626', marginBottom: 16 }}>
@@ -99,42 +101,44 @@ const DashboardFinance = () => {
 
         {data && (
           <>
-            <BarisKPI t={t} kpi={data.kpi} />
+            <BarisKPI t={t} kpi={data.kpi} mobile={mobile} />
 
             <div className="klf-fin-grid">
-              <Kartu t={t} judul="Penjualan & Gross Profit" sumber="operasional"
+              <Kartu t={t} mobile={mobile} judul="Penjualan & Gross Profit" sumber="operasional"
                 info="Omset dihitung per tanggal invoice dibuat. Garis = margin GP (%)." lebar>
-                <Grafik tinggi={320} config={grafik.penjualan} />
+                <Grafik tinggi={mobile ? 250 : 320} config={grafik.penjualan} />
               </Kartu>
 
-              <Kartu t={t} judul="Laba Rugi Bulanan" sumber="operasional + jurnal"
+              <Kartu t={t} mobile={mobile} judul="Laba Rugi Bulanan" sumber="operasional + jurnal"
                 info="Gross Profit dari Invoice/SPK, Beban Operasional dari jurnal akuntansi.">
-                <Grafik tinggi={280} config={grafik.labaRugi} />
+                <Grafik tinggi={mobile ? 230 : 280} config={grafik.labaRugi} />
               </Kartu>
 
-              <Kartu t={t} judul="Arus Kas Riil" sumber="pembayaran riil"
+              <Kartu t={t} mobile={mobile} judul="Arus Kas Riil" sumber="pembayaran riil"
                 info="Masuk: pembayaran customer & piutang. Keluar: bayar supplier (SPK), hutang, beban operasional.">
-                <Grafik tinggi={280} config={grafik.kas} />
+                <Grafik tinggi={mobile ? 230 : 280} config={grafik.kas} />
               </Kartu>
 
-              <Kartu t={t} judul="Neraca — Posisi Keuangan" sumber="campuran"
+              <Kartu t={t} mobile={mobile} judul="Neraca — Posisi Keuangan" sumber="campuran"
                 info="Aset = kas & bank + piutang + aset tetap. Kewajiban = hutang supplier + hutang lain. Tiap pos diambil dari sumber yang paling dapat dipercaya (lihat catatan di bawah halaman).">
-                <Grafik tinggi={280} config={grafik.neraca} />
+                <Grafik tinggi={mobile ? 230 : 280} config={grafik.neraca} />
               </Kartu>
 
-              <Kartu t={t} judul="Proyeksi Kas 30 / 60 Hari" sumber="operasional"
+              <Kartu t={t} mobile={mobile} judul="Proyeksi Kas 30 / 60 Hari" sumber="operasional"
                 info={data.proyeksi.catatan}>
                 <Proyeksi t={t} p={data.proyeksi} />
               </Kartu>
 
-              <Kartu t={t} judul="Posisi Hari Ini" sumber="campuran"
+              <Kartu t={t} mobile={mobile} judul="Posisi Hari Ini" sumber="campuran"
                 info="Saldo kas/bank dari jurnal; piutang & hutang dari Invoice/SPK." lebar>
                 <Posisi t={t} data={data} />
               </Kartu>
 
-              <Kartu t={t} judul="Rekap Bulanan" sumber="gabungan"
+              <Kartu t={t} mobile={mobile} judul="Rekap Bulanan" sumber="gabungan"
                 info="Angka pasti tiap bulan — untuk dibaca, bukan ditaksir dari grafik." lebar>
-                <Tabel t={t} rows={data.per_bulan} neraca={data.neraca.per_bulan} />
+                {mobile
+                  ? <RekapMobile t={t} rows={data.per_bulan} neraca={data.neraca.per_bulan} />
+                  : <Tabel t={t} rows={data.per_bulan} neraca={data.neraca.per_bulan} />}
               </Kartu>
             </div>
 
@@ -159,22 +163,22 @@ const DashboardFinance = () => {
 // =============================================================================
 const kotak = (t) => ({ background: t.card, border: `1px solid ${t.border}`, borderRadius: 14, padding: 18 });
 
-const Kepala = ({ t, year, setYear, data, loading }) => (
-  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
-    <div>
-      <h3 style={{ color: t.text, margin: 0, fontWeight: 700 }}>Dashboard Finance</h3>
-      <div style={{ color: t.sub, fontSize: 13, marginTop: 4 }}>
+const Kepala = ({ t, year, setYear, data, loading, mobile }) => (
+  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: mobile ? 'nowrap' : 'wrap', gap: 12, marginBottom: mobile ? 12 : 16 }}>
+    <div style={{ minWidth: 0 }}>
+      <h3 style={{ color: t.text, margin: 0, fontWeight: 700, fontSize: mobile ? 20 : undefined }}>Dashboard Finance</h3>
+      <div style={{ color: t.sub, fontSize: mobile ? 12 : 13, marginTop: 4 }}>
         {data ? `Posisi per ${dayjs(data.per_tanggal).format('D MMMM YYYY')}` : 'Memuat…'}
         {data?.meta?.execution_time_ms ? ` · dihitung ${data.meta.execution_time_ms} ms` : ''}
         {loading && data ? ' · memperbarui…' : ''}
       </div>
     </div>
     <DatePicker picker="year" allowClear={false} value={dayjs(year, 'YYYY')}
-      onChange={(_, s) => s && setYear(s)} style={{ minWidth: 120 }} />
+      onChange={(_, s) => s && setYear(s)} inputReadOnly size={mobile ? 'large' : 'middle'} style={{ minWidth: mobile ? 100 : 120, flexShrink: 0 }} />
   </div>
 );
 
-const BarisKPI = ({ t, kpi }) => {
+const BarisKPI = ({ t, kpi, mobile }) => {
   const kartu = [
     { label: 'Omset', k: kpi.omset, warna: WARNA.penjualan },
     { label: 'Gross Profit', k: kpi.gross_profit, warna: WARNA.gp, extra: `margin ${kpi.gross_profit.margin_persen}%` },
@@ -186,19 +190,19 @@ const BarisKPI = ({ t, kpi }) => {
   return (
     <div className="klf-fin-kpi">
       {kartu.map((c) => (
-        <div key={c.label} style={{ ...kotak(t), padding: 16 }}>
-          <div style={{ color: t.sub, fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.4, display: 'flex', justifyContent: 'space-between', gap: 6 }}>
+        <div key={c.label} style={{ ...kotak(t), padding: mobile ? 12 : 16, minWidth: 0 }}>
+          <div style={{ color: t.sub, fontSize: mobile ? 11 : 12, textTransform: 'uppercase', letterSpacing: 0.4, display: 'flex', justifyContent: 'space-between', gap: 6 }}>
             <span>{c.label}</span>
-            <span style={{ textTransform: 'none', fontSize: 10, opacity: 0.75 }}>{c.k.sumber}</span>
+            {!mobile && <span style={{ textTransform: 'none', fontSize: 10, opacity: 0.75 }}>{c.k.sumber}</span>}
           </div>
-          <div style={{ color: c.k.nilai < 0 ? '#dc2626' : c.warna, fontSize: 24, fontWeight: 700, margin: '6px 0 2px', lineHeight: 1.15 }}>
+          <div style={{ color: c.k.nilai < 0 ? '#dc2626' : c.warna, fontSize: mobile ? 19 : 24, fontWeight: 700, margin: '6px 0 2px', lineHeight: 1.15 }}>
             {ringkas(c.k.nilai)}
           </div>
-          <div style={{ color: t.sub, fontSize: 11.5 }} title={rupiah(c.k.nilai)}>
+          <div style={{ color: t.sub, fontSize: mobile ? 11 : 11.5, overflowWrap: 'anywhere' }} title={rupiah(c.k.nilai)}>
             {c.extra || rupiah(c.k.nilai)}
           </div>
           {c.k.bulan_ini !== undefined && (
-            <div style={{ marginTop: 8, paddingTop: 8, borderTop: `1px solid ${t.border}`, fontSize: 12, color: t.sub, display: 'flex', justifyContent: 'space-between' }}>
+            <div style={{ marginTop: 8, paddingTop: 8, borderTop: `1px solid ${t.border}`, fontSize: mobile ? 11 : 12, color: t.sub, display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 4 }}>
               <span>bulan ini {ringkas(c.k.bulan_ini)}</span>
               {c.k.delta_persen !== null && c.k.delta_persen !== undefined && (
                 <span style={{ color: c.k.delta_persen >= 0 ? '#16a34a' : '#dc2626', fontWeight: 600 }}>
@@ -213,16 +217,31 @@ const BarisKPI = ({ t, kpi }) => {
   );
 };
 
-const Kartu = ({ t, judul, sumber, info, lebar, children }) => (
-  <div style={{ ...kotak(t), gridColumn: lebar ? '1 / -1' : 'auto' }}>
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10, marginBottom: 4 }}>
-      <h5 style={{ color: t.text, margin: 0, fontWeight: 650, fontSize: 16 }}>{judul}</h5>
-      <span style={{ color: t.sub, fontSize: 11, border: `1px solid ${t.border}`, borderRadius: 20, padding: '2px 9px', whiteSpace: 'nowrap' }}>{sumber}</span>
+// Di HP keterangan kartu disembunyikan di balik tombol ⓘ supaya grafik langsung terlihat.
+const Kartu = ({ t, judul, sumber, info, lebar, mobile, children }) => {
+  const [buka, setBuka] = useState(false);
+  return (
+    <div style={{ ...kotak(t), padding: mobile ? 12 : 18, gridColumn: lebar ? '1 / -1' : 'auto', minWidth: 0 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+        <h5 style={{ color: t.text, margin: 0, fontWeight: 650, fontSize: mobile ? 15 : 16 }}>{judul}</h5>
+        {mobile ? (
+          info && (
+            <button type="button" onClick={() => setBuka(!buka)} aria-label="Keterangan"
+              style={{ flexShrink: 0, width: 32, height: 32, borderRadius: 16, border: `1px solid ${t.border}`, background: buka ? t.grid : 'transparent', color: t.sub, fontSize: 14, padding: 0 }}>ⓘ</button>
+          )
+        ) : (
+          <span style={{ color: t.sub, fontSize: 11, border: `1px solid ${t.border}`, borderRadius: 20, padding: '2px 9px', whiteSpace: 'nowrap' }}>{sumber}</span>
+        )}
+      </div>
+      {info && (!mobile || buka) && (
+        <div style={{ color: t.sub, fontSize: 12, marginBottom: 10 }}>
+          {mobile && <b>Sumber: {sumber}. </b>}{info}
+        </div>
+      )}
+      {children}
     </div>
-    {info && <div style={{ color: t.sub, fontSize: 12, marginBottom: 10 }}>{info}</div>}
-    {children}
-  </div>
-);
+  );
+};
 
 /** Canvas + siklus hidup Chart.js (destroy sebelum render ulang biar tidak dobel). */
 const Grafik = ({ config, tinggi }) => {
@@ -305,6 +324,71 @@ const Posisi = ({ t, data }) => {
           })}
         </div>
       ))}
+    </div>
+  );
+};
+
+// Rekap bulanan versi HP: satu kartu per bulan (terbaru di atas), ringkas 4 angka
+// utama; ketuk kartu untuk rincian lengkap. Pengganti tabel 12 kolom yang harus digeser.
+const RekapMobile = ({ t, rows, neraca }) => {
+  const [buka, setBuka] = useState(null);
+  const ekuitas = Object.fromEntries(neraca.map((n) => [n.bulan, n.ekuitas]));
+  const total = (f) => rows.reduce((s, r) => s + r[f], 0);
+  const ada = rows.filter((r) => r.penjualan || r.beban_operasional || r.kas_masuk || r.kas_keluar).reverse();
+  const totalRow = {
+    bulan: 'total', label: 'Total setahun', jumlah_invoice: total('jumlah_invoice'), penjualan: total('penjualan'), hpp: total('hpp'),
+    gross_profit: total('gross_profit'), beban_operasional: total('beban_operasional'), laba_bersih: total('laba_bersih'),
+    kas_masuk: total('kas_masuk'), kas_keluar: total('kas_keluar'), kas_net: total('kas_net'),
+  };
+  totalRow.margin_persen = totalRow.penjualan ? Math.round((totalRow.gross_profit / totalRow.penjualan) * 1000) / 10 : 0;
+  const sel = (label, nilai, warna) => (
+    <div style={{ minWidth: 0 }}>
+      <div style={{ fontSize: 10.5, color: t.sub, textTransform: 'uppercase', letterSpacing: 0.3 }}>{label}</div>
+      <div style={{ fontSize: 14, fontWeight: 700, color: warna || t.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{nilai}</div>
+    </div>
+  );
+  const baris = (label, nilai, warna) => (
+    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '5px 0', borderBottom: `1px dashed ${t.border}` }}>
+      <span style={{ color: t.sub }}>{label}</span><span style={{ color: warna || t.text, fontWeight: 600 }}>{nilai}</span>
+    </div>
+  );
+  const kartu = (r, isTotal) => {
+    const terbuka = buka === r.bulan;
+    return (
+      <div key={r.bulan} onClick={() => setBuka(terbuka ? null : r.bulan)}
+        style={{ border: `1px solid ${t.border}`, borderRadius: 12, padding: 12, marginBottom: 8, cursor: 'pointer', background: isTotal ? t.grid : 'transparent' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <b style={{ color: t.text, fontSize: 14 }}>{r.label}</b>
+          <span style={{ color: t.sub, fontSize: 12 }}>{r.jumlah_invoice || 0} invoice {terbuka ? '▲' : '▼'}</span>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 12px' }}>
+          {sel('Penjualan', r.penjualan ? ringkas(r.penjualan) : '—', WARNA.penjualan)}
+          {sel(`Gross Profit${r.penjualan ? ` · ${r.margin_persen}%` : ''}`, r.gross_profit ? ringkas(r.gross_profit) : '—', r.gross_profit >= 0 ? WARNA.gp : WARNA.keluar)}
+          {sel('Laba Bersih', r.penjualan || r.beban_operasional ? ringkas(r.laba_bersih) : '—', r.laba_bersih >= 0 ? WARNA.laba : WARNA.keluar)}
+          {sel('Kas Net', r.kas_masuk || r.kas_keluar ? ringkas(r.kas_net) : '—', r.kas_net >= 0 ? t.text : WARNA.keluar)}
+        </div>
+        {terbuka && (
+          <div style={{ marginTop: 10 }} onClick={(e) => e.stopPropagation()}>
+            {baris('Penjualan', rupiah(r.penjualan))}
+            {baris('HPP', rupiah(r.hpp))}
+            {baris('Gross Profit', rupiah(r.gross_profit), WARNA.gp)}
+            {baris('Margin', r.penjualan ? `${r.margin_persen}%` : '—')}
+            {baris('Beban Operasional', rupiah(r.beban_operasional), WARNA.beban)}
+            {baris('Laba Bersih', rupiah(r.laba_bersih), r.laba_bersih >= 0 ? WARNA.laba : WARNA.keluar)}
+            {baris('Kas Masuk', rupiah(r.kas_masuk), WARNA.masuk)}
+            {baris('Kas Keluar', rupiah(r.kas_keluar), WARNA.keluar)}
+            {baris('Kas Net', rupiah(r.kas_net))}
+            {!isTotal && ekuitas[r.bulan] !== undefined && baris('Ekuitas', rupiah(ekuitas[r.bulan]))}
+          </div>
+        )}
+      </div>
+    );
+  };
+  return (
+    <div>
+      {kartu(totalRow, true)}
+      {ada.map((r) => kartu(r, false))}
+      {!ada.length && <div style={{ color: t.sub, fontSize: 13 }}>Belum ada data.</div>}
     </div>
   );
 };

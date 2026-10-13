@@ -3,12 +3,14 @@ import { Modal, Table } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
 import { useTheme } from '../../ThemeContext';
 import { getApiBaseUrl } from '../../Config/APIurl';
+import useIsMobile from '../../Utils/useIsMobile';
 
 const rupiah = (n) => 'Rp ' + (Number(n) || 0).toLocaleString('id-ID');
 
 const Dashboard = () => {
   const { globalTheme } = useTheme();
   const isDark = globalTheme !== 'light';
+  const mobile = useIsMobile();
   const userData = localStorage.getItem('user');
   const user = userData ? JSON.parse(userData) : null;
 
@@ -87,7 +89,24 @@ const Dashboard = () => {
   );
 
   const modalHeaderStyle = { background: cardBg, color: cardText, borderBottom: `1px solid ${border}` };
-  const modalBodyStyle = { background: cardBg, color: cardText };
+  const modalBodyStyle = { background: cardBg, color: cardText, padding: mobile ? 12 : undefined };
+  const sub = isDark ? '#999' : '#888';
+
+  // Versi HP: satu kartu per baris data (pengganti tabel 5 kolom yang harus digeser)
+  const KartuBaris = ({ judul, keterangan, kolom, utama }) => (
+    <div style={{ border: `1px solid ${border}`, borderRadius: 10, padding: '10px 12px', marginBottom: 8 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'flex-start' }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontWeight: 700, fontSize: 14, overflowWrap: 'anywhere' }}>{judul}</div>
+          {keterangan && <div style={{ fontSize: 12, color: sub, overflowWrap: 'anywhere' }}>{keterangan}</div>}
+        </div>
+        <div style={{ fontWeight: 700, fontSize: 14, color: '#e0455e', whiteSpace: 'nowrap' }}>{utama}</div>
+      </div>
+      <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginTop: 6, fontSize: 12, color: sub }}>
+        {kolom.map(([l, v]) => <span key={l}>{l}: <b style={{ color: cardText, fontWeight: 600 }}>{v}</b></span>)}
+      </div>
+    </div>
+  );
 
   return (
     <>
@@ -132,13 +151,22 @@ const Dashboard = () => {
       </div>
 
       {/* ---- Modal: Kekurangan Invoice ---- */}
-      <Modal show={modal === 'kekurangan'} onHide={() => setModal(null)} size="lg" centered scrollable>
+      <Modal show={modal === 'kekurangan'} onHide={() => setModal(null)} size="lg" centered scrollable fullscreen="sm-down">
         <Modal.Header closeButton style={modalHeaderStyle}>
-          <Modal.Title style={{ fontSize: 18 }}>
+          <Modal.Title style={{ fontSize: mobile ? 16 : 18, lineHeight: 1.3 }}>
             Detail Kekurangan Invoice — total {rupiah(data?.kekurangan_invoice?.total)}
           </Modal.Title>
         </Modal.Header>
         <Modal.Body style={modalBodyStyle}>
+          {mobile ? (
+            <>
+              {(data?.kekurangan_invoice?.detail || []).map((r) => (
+                <KartuBaris key={r.id} judul={r.customer || '-'} keterangan={r.kodeInvoice} utama={rupiah(r.kekurangan)}
+                  kolom={[['Tagihan', rupiah(r.tagihan)], ['Dibayar', rupiah(r.dibayar)]]} />
+              ))}
+              {!data?.kekurangan_invoice?.detail?.length && <div className="text-center">Tidak ada kekurangan.</div>}
+            </>
+          ) : (
           <Table striped bordered hover variant={isDark ? 'dark' : undefined} size="sm">
             <thead>
               <tr><th>Kode Invoice</th><th>Customer</th><th className="text-end">Tagihan</th><th className="text-end">Dibayar</th><th className="text-end">Kekurangan</th></tr>
@@ -156,17 +184,27 @@ const Dashboard = () => {
               {!data?.kekurangan_invoice?.detail?.length && <tr><td colSpan={5} className="text-center">Tidak ada kekurangan.</td></tr>}
             </tbody>
           </Table>
+          )}
         </Modal.Body>
       </Modal>
 
       {/* ---- Modal: Hutang Supplier (SPK belum lunas) ---- */}
-      <Modal show={modal === 'hutang'} onHide={() => setModal(null)} size="lg" centered scrollable>
+      <Modal show={modal === 'hutang'} onHide={() => setModal(null)} size="lg" centered scrollable fullscreen="sm-down">
         <Modal.Header closeButton style={modalHeaderStyle}>
-          <Modal.Title style={{ fontSize: 18 }}>
+          <Modal.Title style={{ fontSize: mobile ? 16 : 18, lineHeight: 1.3 }}>
             Detail Hutang Supplier (SPK belum lunas) — total {rupiah(data?.hutang_spk?.total)}
           </Modal.Title>
         </Modal.Header>
         <Modal.Body style={modalBodyStyle}>
+          {mobile ? (
+            <>
+              {(data?.hutang_spk?.detail || []).map((r) => (
+                <KartuBaris key={r.id} judul={r.pengrajin || '-'} keterangan={r.code || '-'} utama={rupiah(r.sisa)}
+                  kolom={[['Total', rupiah(r.total)], ['Dibayar', rupiah(r.dibayar)]]} />
+              ))}
+              {!data?.hutang_spk?.detail?.length && <div className="text-center">Semua SPK sudah lunas.</div>}
+            </>
+          ) : (
           <Table striped bordered hover variant={isDark ? 'dark' : undefined} size="sm">
             <thead>
               <tr><th>Kode SPK</th><th>Supplier / Pengrajin</th><th className="text-end">Total SPK</th><th className="text-end">Dibayar</th><th className="text-end">Sisa</th></tr>
@@ -184,13 +222,14 @@ const Dashboard = () => {
               {!data?.hutang_spk?.detail?.length && <tr><td colSpan={5} className="text-center">Semua SPK sudah lunas.</td></tr>}
             </tbody>
           </Table>
+          )}
         </Modal.Body>
       </Modal>
 
       {/* ---- Modal: Estimasi Biaya Lain (per kategori) ---- */}
-      <Modal show={modal === 'estimasi'} onHide={() => setModal(null)} size="lg" centered scrollable>
+      <Modal show={modal === 'estimasi'} onHide={() => setModal(null)} size="lg" centered scrollable fullscreen="sm-down">
         <Modal.Header closeButton style={modalHeaderStyle}>
-          <Modal.Title style={{ fontSize: 18 }}>
+          <Modal.Title style={{ fontSize: mobile ? 16 : 18, lineHeight: 1.3 }}>
             Estimasi Biaya per Kategori (item belum selesai) — total {rupiah(data?.estimasi_biaya?.total)}
           </Modal.Title>
         </Modal.Header>
@@ -206,6 +245,36 @@ const Dashboard = () => {
                 </span>
                 <span className="fw-bold" style={{ color: '#e08a2f' }}>{rupiah(cat.total)}</span>
               </div>
+              {mobile ? (
+                <div style={{ marginTop: 6 }}>
+                  {cat.items.map((it, i) => {
+                    const key = `${it.project_id}|${it.category}`;
+                    const busy = togglingKey === key;
+                    return (
+                      <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '8px 0', borderBottom: `1px solid ${border}`, opacity: it.excluded ? 0.55 : 1 }}>
+                        <div style={{ flex: 1, minWidth: 0, textDecoration: it.excluded ? 'line-through' : 'none' }}>
+                          <div style={{ fontSize: 13, fontWeight: 600, overflowWrap: 'anywhere' }}>{it.namaBarang}</div>
+                          <div style={{ fontSize: 11.5, color: sub, overflowWrap: 'anywhere' }}>
+                            {it.kodeInvoice}{it.customer ? ` — ${it.customer}` : ''}
+                          </div>
+                          {it.alasan && <div style={{ fontSize: 11, color: sub }}>{it.supplier ? `${it.supplier} · ` : ''}{it.alasan}</div>}
+                          <div style={{ fontSize: 12.5, marginTop: 2 }}>
+                            {rupiah(it.estimasi_unit)} × {it.qty} = <b>{rupiah(it.subtotal)}</b>
+                          </div>
+                        </div>
+                        <button onClick={() => toggleExclude(it)} disabled={busy}
+                          style={{
+                            flexShrink: 0, minWidth: 76, minHeight: 36, fontSize: 12, borderRadius: 8, cursor: busy ? 'wait' : 'pointer',
+                            border: `1px solid ${it.excluded ? '#2fa855' : '#e0455e'}`,
+                            background: 'transparent', color: it.excluded ? '#2fa855' : '#e0455e',
+                          }}>
+                          {busy ? '…' : it.excluded ? 'Include' : 'Exclude'}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
               <Table borderless variant={isDark ? 'dark' : undefined} size="sm" className="mb-0">
                 <tbody>
                   {cat.items.map((it, i) => {
@@ -244,6 +313,7 @@ const Dashboard = () => {
                   })}
                 </tbody>
               </Table>
+              )}
             </div>
           ))}
           {!data?.estimasi_biaya?.per_kategori?.length && <div className="text-center">Tidak ada estimasi biaya.</div>}

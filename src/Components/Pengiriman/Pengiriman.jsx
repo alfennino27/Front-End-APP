@@ -64,6 +64,8 @@ export function buildWaText(doc) {
   return lines.join('\n');
 }
 
+const PER_HALAMAN = 10;
+
 const Pengiriman = () => {
   const baseUrl = getApiBaseUrl();
   const { globalTheme } = useTheme();
@@ -97,6 +99,8 @@ const Pengiriman = () => {
   const [done, setDone] = useState(null);   // dokumen tersimpan (untuk layar bagikan)
   const [showEkspedisi, setShowEkspedisi] = useState(false);
   const [toast, setToast] = useState('');
+  const [cariList, setCariList] = useState('');
+  const [halaman, setHalaman] = useState(1);
 
   const flash = (m) => { setToast(m); setTimeout(() => setToast(''), 2500); };
 
@@ -389,6 +393,17 @@ const Pengiriman = () => {
     );
   }
 
+  // Daftar: cari + paginasi (PER_HALAMAN per halaman)
+  const qList = cariList.trim().toLowerCase();
+  const listTersaring = !qList ? list : list.filter((doc) => [
+    doc.ekspedisi?.nama, fmtTgl(doc.tanggalKirim),
+    ...doc.tujuan.flatMap((t) => [t.penerima, t.customer, t.alamat, ...t.items.map((it) => `${it.kodeInvoice || ''} ${it.namaBarang || ''}`)]),
+  ].filter(Boolean).join(' ').toLowerCase().includes(qList));
+  const totalHalaman = Math.max(1, Math.ceil(listTersaring.length / PER_HALAMAN));
+  const hal = Math.min(halaman, totalHalaman);
+  const listHalaman = listTersaring.slice((hal - 1) * PER_HALAMAN, hal * PER_HALAMAN);
+  const gantiHalaman = (h) => { setHalaman(h); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+
   return (
     <div style={wrap}><div style={inner}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
@@ -398,8 +413,14 @@ const Pengiriman = () => {
       </div>
       {loading && <div style={{ color: C.muted }}>Memuat…</div>}
       {error && <div style={{ color: '#dc2626' }}>{error}</div>}
+      {!loading && list.length > 0 && (
+        <input type="search" value={cariList} placeholder="🔍 Cari customer, penerima, barang, ekspedisi…"
+          onChange={(e) => { setCariList(e.target.value); setHalaman(1); }}
+          style={{ ...sInput, fontSize: 16, minHeight: 44, marginBottom: 12 }} />
+      )}
       {!loading && !list.length && <div style={{ ...sCard, color: C.muted, textAlign: 'center' }}>Belum ada pengiriman.</div>}
-      {list.map((doc) => {
+      {!loading && list.length > 0 && !listTersaring.length && <div style={{ ...sCard, color: C.muted, textAlign: 'center' }}>Tidak ada pengiriman yang cocok.</div>}
+      {listHalaman.map((doc) => {
         const pcs = doc.tujuan.reduce((s, t) => s + t.items.reduce((a, it) => a + num(it.qty), 0), 0);
         return (
           <div key={doc.id} style={sCard}>
@@ -426,6 +447,16 @@ const Pengiriman = () => {
           </div>
         );
       })}
+      {totalHalaman > 1 && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, margin: '4px 0 16px' }}>
+          <button type="button" disabled={hal <= 1} style={{ ...sBtn(C.soft, C.text), opacity: hal <= 1 ? 0.4 : 1 }} onClick={() => gantiHalaman(hal - 1)}>‹ Sebelumnya</button>
+          <div style={{ fontSize: 14, color: C.muted, minWidth: 90, textAlign: 'center' }}>
+            Hal <b style={{ color: C.text }}>{hal}</b> / {totalHalaman}
+            <div style={{ fontSize: 11 }}>{listTersaring.length} pengiriman</div>
+          </div>
+          <button type="button" disabled={hal >= totalHalaman} style={{ ...sBtn(C.soft, C.text), opacity: hal >= totalHalaman ? 0.4 : 1 }} onClick={() => gantiHalaman(hal + 1)}>Berikutnya ›</button>
+        </div>
+      )}
       {showEkspedisi && <EkspedisiSheet C={C} sInput={sInput} sBtn={sBtn} baseUrl={baseUrl} list={ekspedisi} onClose={() => setShowEkspedisi(false)} onChanged={fetchList} />}
       {toast && <Toast text={toast} />}
     </div></div>

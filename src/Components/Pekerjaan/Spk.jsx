@@ -676,6 +676,24 @@ useEffect(() => {
   };
 
 
+  // Enter = Submit di modal Edit Product. Harga/qty/keterangan di-debounce 300ms,
+  // jadi submit ditunda sebentar & lewat ref supaya memakai nilai terbaru.
+  const submitEditProductRef = useRef(handleSubmitEditProduct);
+  submitEditProductRef.current = handleSubmitEditProduct;
+  useEffect(() => {
+    if (!showEditProductModal) return;
+    const onKey = (e) => {
+      if (e.key !== 'Enter' || e.shiftKey || e.isComposing) return;
+      const t = e.target;
+      // textarea = baris baru; select/datepicker/popconfirm = Enter milik komponen itu
+      if (t && (t.tagName === 'TEXTAREA' || t.closest?.('.ant-select, .ant-picker, .ant-popover, button'))) return;
+      e.preventDefault();
+      setTimeout(() => submitEditProductRef.current(), 350);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [showEditProductModal]);
+
   const handleSubmitEditPayment = async () => {
     setShowEditPaymentModal(false);
 
@@ -837,8 +855,6 @@ useEffect(() => {
 
   const totalData = dataSPKproductFromDB.reduce((acc, product) => acc + (product.harga * product.qty), 0);
   const totalDataPayment = dataSPKpaymentFromDB.reduce((total, payment) => total + Number(payment.jumlah), 0);
-  // Budget = estimasi<category> project (= budget costing Quote), per unit. Hanya tampil di layar, tidak dicetak.
-  const totalBudget = dataSPKproductFromDB.reduce((acc, product) => acc + (Number(product.budget) || 0) * (Number(product.qty) || 0), 0);
   const totalSelesai = dataSPKproductFromDB
     .filter(product => product.status === "Completed")
     .reduce((acc, product) => acc + (product.harga * product.qty), 0);
@@ -1495,12 +1511,6 @@ useEffect(() => {
                           <td><h6 style={{ marginRight: '10px' }}>Total</h6></td>
                           <td><h6>: Rp. {totalData.toLocaleString('id-ID')}</h6></td>
                         </tr>
-                        {totalBudget > 0 && (
-                          <tr>
-                            <td><h6 style={{ marginRight: '10px', color: budgetWarna.teks }}>Budget</h6></td>
-                            <td><h6 style={{ color: budgetWarna.teks }}>: Rp. {totalBudget.toLocaleString('id-ID')}</h6></td>
-                          </tr>
-                        )}
                         <tr>
                           <td><h6 style={{ marginRight: '10px' }}>DP</h6></td>
                           <td><h6>: Rp. {totalDataPayment.toLocaleString('id-ID')}</h6></td>

@@ -784,21 +784,23 @@ const Quote = () => {
     return <span style={{ background: m.bg, color: '#fff', padding: '2px 10px', borderRadius: 12, fontSize: 12, fontWeight: 600 }}>{m.t}</span>;
   };
 
-  const inputStyle = { width: '100%', padding: '10px 12px', borderRadius: 8, border: `1px solid ${border}`, background: dark ? '#2b3038' : '#fff', color: text, fontSize: 15, boxSizing: 'border-box' };
+  const inputStyle = { width: '100%', padding: '10px 12px', borderRadius: 8, border: `1px solid ${border}`, background: dark ? '#2b3038' : '#fff', color: text, fontSize: 16, boxSizing: 'border-box' };
   const ui = { input: inputStyle, card, border, text, sub, dark };
   const btn = (color) => ({ background: color, color: '#fff', border: 'none', borderRadius: 8, padding: '10px 16px', fontWeight: 600, cursor: 'pointer', fontSize: 14 });
   const btnGhost = { background: 'transparent', color: text, border: `1px solid ${border}`, borderRadius: 8, padding: '8px 14px', cursor: 'pointer', fontSize: 14 };
+  // Tombol tab: tinggi & teks seragam; di HP jadi grid 2×2 sama besar (lihat .klf-quote-tabs)
+  const tabBtn = { minHeight: 44, padding: '8px 12px', fontSize: 14, fontWeight: 600, whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4, border: `1px solid ${border}` };
 
   // ================= renders =================
   const renderTabs = () => (
-    <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
-      <button style={view === 'folders' || view === 'customerDetail' ? btn(primary) : btnGhost}
+    <div className="klf-quote-tabs">
+      <button style={{ ...(view === 'folders' || view === 'customerDetail' ? btn(primary) : btnGhost), ...tabBtn }}
         onClick={() => { setView('folders'); fetchFolders(); }}>📁 Customer</button>
-      <button style={view === 'allQuotes' ? btn(primary) : btnGhost}
+      <button style={{ ...(view === 'allQuotes' ? btn(primary) : btnGhost), ...tabBtn }}
         onClick={() => { setView('allQuotes'); fetchAllQuotes(); }}>🧾 Semua Quote</button>
-      <div style={{ flex: 1 }} />
-      <button style={btnGhost} title="Atur template sub costing (Kayu, Jok, …)" onClick={() => setShowTplCosting(true)}>⚙️ Template Costing</button>
-      <button style={btn('#1e7b34')} onClick={() => openCreate(null)}>+ Quote Baru</button>
+      <div className="klf-quote-tabs-spacer" />
+      <button style={{ ...btnGhost, ...tabBtn }} title="Atur template sub costing (Kayu, Jok, …)" onClick={() => setShowTplCosting(true)}>⚙️ Template Costing</button>
+      <button style={{ ...btn('#1e7b34'), ...tabBtn }} onClick={() => openCreate(null)}>+ Quote Baru</button>
       <TemplateCostingManager open={showTplCosting} dark={dark} onClose={() => setShowTplCosting(false)} />
     </div>
   );
@@ -820,8 +822,9 @@ const Quote = () => {
           {filtered.map((c, idx) => (
             <div key={`${c.kodeCust || 'x'}-${idx}`} className="klf-quote-folder" style={{ background: card, border: `1px solid ${border}`, borderRadius: 12, padding: 16, cursor: 'pointer' }}
               onClick={() => fetchCustomerDetail(c.kodeCust)}>
-              <div style={{ fontSize: 30, marginBottom: 6 }}>📁</div>
-              <div style={{ fontWeight: 700, color: text, fontSize: 16, marginBottom: 2 }}>{c.namaCust || '(tanpa nama)'}</div>
+              <div style={{ fontWeight: 700, color: text, fontSize: 16, marginBottom: 2, display: 'flex', alignItems: 'center', gap: 8, overflowWrap: 'anywhere' }}>
+                <span style={{ fontSize: 24, lineHeight: 1 }}>📁</span>{c.namaCust || '(tanpa nama)'}
+              </div>
               <div style={{ color: sub, fontSize: 13 }}>{c.waCust || c.noTelpCust || ''}</div>
               <div style={{ marginTop: 10, display: 'flex', justifyContent: 'space-between', fontSize: 13, color: sub }}>
                 <span>{c.quoteCount} quote</span>
@@ -941,7 +944,7 @@ const Quote = () => {
                 </div>
               </div>
               <ThumbStrip q={q} />
-              <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap' }}>
+              <div className="klf-quote-btnrow" style={{ marginTop: 10 }}>
                 <a href={pdfUrl(baseUrl, q)} target="_blank" rel="noreferrer" style={{ ...btnGhost, textDecoration: 'none' }}>⬇ PDF</a>
                 <a href={pdfUrl(baseUrl, q, 'pricelist')} target="_blank" rel="noreferrer" style={{ ...btnGhost, textDecoration: 'none' }}>Pricelist</a>
                 <button style={btnGhost} onClick={() => openEdit(q.id)}>Edit</button>
@@ -971,7 +974,34 @@ const Quote = () => {
     return (
       <div>
         <input placeholder="Cari kode / customer…" value={search} onChange={(e) => setSearch(e.target.value)} style={{ ...inputStyle, marginBottom: 14 }} />
-        <div style={{ overflowX: 'auto', background: card, border: `1px solid ${border}`, borderRadius: 12 }}>
+        {/* HP: kartu per quote */}
+        <div className="klf-only-mobile" style={{ display: 'grid', gap: 10 }}>
+          {filtered.map((q) => {
+            const nilai = (q.items || []).reduce((a, it) => a + (Number(it.harga) || 0) * (Number(it.qty) || 0), 0) - (Number(q.discount) || 0);
+            return (
+              <div key={q.id} style={{ background: card, border: `1px solid ${border}`, borderRadius: 12, padding: 12 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'flex-start' }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontWeight: 700, color: text, overflowWrap: 'anywhere' }}>{q.customer || '(tanpa nama)'}</div>
+                    <div style={{ color: sub, fontSize: 13, overflowWrap: 'anywhere' }}>{q.kodeInvoice} · rev {q.rev}</div>
+                  </div>
+                  {statusBadge(q.status)}
+                </div>
+                <div style={{ fontWeight: 700, color: text, fontSize: 15, marginTop: 6 }}>{rupiah(nilai)}</div>
+                <ThumbStrip q={q} size={52} maxShown={5} />
+                <div className="klf-quote-btnrow" style={{ marginTop: 10 }}>
+                  <a href={pdfUrl(baseUrl, q)} target="_blank" rel="noreferrer" style={{ ...btnGhost, textDecoration: 'none' }}>⬇ PDF</a>
+                  <button style={btnGhost} onClick={() => openEdit(q.id)}>Edit</button>
+                  <button style={btnGhost} disabled={duplicating === q.id} onClick={() => duplicateQuote(q)}>
+                    {duplicating === q.id ? '…' : '⧉ Duplikat'}
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+          {filtered.length === 0 && <p style={{ color: sub }}>Tidak ada quote.</p>}
+        </div>
+        <div className="klf-only-desktop" style={{ overflowX: 'auto', background: card, border: `1px solid ${border}`, borderRadius: 12 }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 640, color: text }}>
             <thead>
               <tr style={{ background: dark ? '#2b3038' : '#f0f2f5' }}>
@@ -1527,7 +1557,20 @@ const Quote = () => {
         .klf-fld { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
         .klf-fld-full { grid-column: 1 / -1; }
         .klf-quote-actions { display: flex; gap: 10px; flex-wrap: wrap; position: sticky; bottom: 0; padding: 12px 0; margin-top: 8px; }
+        .klf-quote-tabs { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; align-items: center; }
+        .klf-quote-tabs-spacer { flex: 1; }
+        .klf-quote-btnrow { display: flex; gap: 6px; flex-wrap: wrap; }
+        .klf-only-desktop { display: none !important; }
+        @media (max-width: 639px) {
+          .klf-quote-tabs { display: grid; grid-template-columns: 1fr 1fr; }
+          .klf-quote-tabs > button { width: 100%; font-size: 13.5px !important; padding: 8px 6px !important; }
+          .klf-quote-tabs-spacer { display: none; }
+          .klf-quote-btnrow { display: grid; grid-template-columns: repeat(3, 1fr); }
+          .klf-quote-btnrow > * { min-height: 42px; padding: 8px 4px !important; font-size: 13px !important; text-align: center; display: flex; align-items: center; justify-content: center; }
+        }
         @media (min-width: 640px) {
+          .klf-only-mobile { display: none !important; }
+          .klf-only-desktop { display: block !important; }
           .klf-quote-grid { grid-template-columns: repeat(2, 1fr); }
           .klf-quote-form-grid { grid-template-columns: repeat(2, 1fr); }
           .klf-quote-costing { grid-template-columns: repeat(3, 1fr); }

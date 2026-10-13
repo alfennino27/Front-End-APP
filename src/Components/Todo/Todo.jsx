@@ -22,7 +22,7 @@ import ImageUploadZone from '../Pekerjaan/ImageUploadZone';
 const KATEGORI = ['Stainless', 'Besi', 'Kayu', 'Jok', 'Rotan', 'Marmer', 'Kaca', 'Fiber', 'Veneer', 'Finishing', 'Hardware', 'BarangJadi'];
 
 const BUCKETS = [
-  { key: 'urgent', label: 'Mendesak', color: '#b91c1c' }, // Terlambat + Minggu ini (default)
+  { key: 'urgent', label: 'Mendesak', color: '#b91c1c' }, // t.mendesak: telat/kirim minggu ini/Servis/QC/belum order di jendela pantau (default)
   { key: 'all', label: 'Semua', color: '#334155' },
   { key: 'overdue', label: 'Terlambat', color: '#dc2626' },
   { key: 'this_week', label: 'Minggu ini', color: '#d97706' },
@@ -169,13 +169,13 @@ const Todo = () => {
     const c = {};
     filtered.forEach((t) => { c[t.bucket] = (c[t.bucket] || 0) + 1; });
     c.all = filtered.length;
-    c.urgent = (c.overdue || 0) + (c.this_week || 0);
+    c.urgent = filtered.filter((t) => t.mendesak).length;
     return c;
   }, [filtered]);
 
   const groups = useMemo(() => {
     const list = tab === 'all' ? filtered
-      : tab === 'urgent' ? filtered.filter((t) => t.bucket === 'overdue' || t.bucket === 'this_week')
+      : tab === 'urgent' ? filtered.filter((t) => t.mendesak)
       : filtered.filter((t) => t.bucket === tab);
     const map = new Map();
     const keyOf = (t) => {
@@ -639,6 +639,17 @@ const TaskSheet = ({ t, C, users, userList, user, baseUrl, busy, sInput, sBtn, c
         </>
       )}
       {d.deadline_supplier && <div style={{ fontSize: 13, marginTop: 6 }}>Deadline supplier: {fmtTanggal(d.deadline_supplier)}</div>}
+      {t.jenis === 'pantau_progress' && (
+        <div style={{ fontSize: 13, marginTop: 6, color: C.muted }}>Cek progres ke supplier. Kalau sudah jadi, ubah status category ke <b>Selesai</b> → lanjut QC.</div>
+      )}
+      {t.jenis === 'qc' && (
+        <div style={{ fontSize: 13, marginTop: 6, background: C.soft, borderRadius: 8, padding: '6px 8px' }}>
+          Buka project → centang semua <b>Alur Kerja</b> {t.category}. Semua OK → status otomatis <b>QC Pass</b>; ada yang perlu servis → status <b>Servis</b>.
+        </div>
+      )}
+      {t.jenis === 'servis' && (
+        <div style={{ fontSize: 13, marginTop: 6, color: C.muted }}>Pantau perbaikan di supplier, lalu QC ulang lewat Alur Kerja sampai QC Pass.</div>
+      )}
 
       {/* Aksi utama */}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 14 }}>

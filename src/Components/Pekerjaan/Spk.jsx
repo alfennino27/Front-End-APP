@@ -20,6 +20,7 @@ import { getImageUrl } from '../../Utils/image';
 import { getSPKFromIndexedDB, saveSPKToIndexedDB } from '../../Helpers/spkStorage';
 import dayjs from 'dayjs';
 import useIsMobile from '../../Utils/useIsMobile';
+import { iconBtn as spkIconBtn, fieldStyle as spkField, kartuStyle } from '../../Utils/mobileUi';
 
 const { Option } = Select;
 const { TextArea } = Input;
@@ -1191,12 +1192,7 @@ useEffect(() => {
       handleEditProduct(product.id, product.idSPK, product.keterangan, product.harga, product.qty, product.deadline, product.status, product.image, product.idProduct, product.idProductBackUp, product.namaBarang);
     }
   };
-  const kartuMobile = {
-    borderRadius: 12, padding: 10, marginBottom: 8,
-    background: globalTheme === 'light' ? '#fff' : '#1f1f1f',
-    border: `1px solid ${globalTheme === 'light' ? '#d6d6d6' : '#444'}`,
-    color: globalTheme === 'light' ? '#111' : '#eee',
-  };
+  const kartuMobile = kartuStyle(globalTheme);
   const rpSPK = (n) => 'Rp ' + Number(n || 0).toLocaleString('id-ID');
 
   return (
@@ -2951,25 +2947,3 @@ function BudgetBadge({ budget, harga, dariQuote }) {
 }
 
 
-// Tombol ikon kepala daftar SPK (≥40px, ramah jari)
-function spkIconBtn(aktif, tema) {
-  const light = tema === 'light';
-  return {
-    width: 40, height: 40, borderRadius: 10, fontSize: 21, padding: 0,
-    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
-    border: `1px solid ${aktif ? '#234dba' : (light ? '#ccc' : '#555')}`,
-    background: aktif ? 'rgba(35,77,186,.12)' : 'transparent',
-    color: aktif ? '#234dba' : (light ? '#222' : '#eee'),
-  };
-}
-
-// Input/select filter daftar SPK — font 16px supaya iPhone tidak auto-zoom
-function spkField(tema, aktif = false) {
-  const light = tema === 'light';
-  return {
-    minHeight: 40, fontSize: 16, borderRadius: 10, padding: '6px 10px', minWidth: 0,
-    border: `1px solid ${aktif ? '#234dba' : (light ? '#ccc' : '#555')}`,
-    background: aktif ? (light ? '#eef2ff' : '#1d2a4d') : (light ? '#fff' : '#222'),
-    color: light ? '#111' : '#eee', fontWeight: aktif ? 600 : 400,
-  };
-}

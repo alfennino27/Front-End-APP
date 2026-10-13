@@ -7,7 +7,7 @@ import { MdAddCircleOutline } from "react-icons/md";
 import { Link } from 'react-router-dom';
 import dataPekerjaan from '../../assets/data/datapekerjaan';
 import { FaPaste, FaSearch } from 'react-icons/fa';
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { MdFormatListBulletedAdd, MdAssignment } from 'react-icons/md';
 import { BsPrinterFill } from "react-icons/bs";
@@ -24,6 +24,8 @@ import { getImageUrl } from '../../Utils/image';
 import { labelBulan, toMonth, campaignsForMonth, monthChoices } from '../../Utils/campaignMonth';
 import { RiFileExcel2Line } from "react-icons/ri";
 import OrderAssistant from '../AI/OrderAssistant';
+import useIsMobile from '../../Utils/useIsMobile';
+import { iconBtn, fieldStyle, kartuStyle } from '../../Utils/mobileUi';
 import { bukaTab } from '../../Utils/bukaTab';
 import RincianCostingSheet from '../Costing/RincianCostingSheet';
 import { useOngkirNotes, opsiOngkir, OngkirNoteManager } from '../Quote/OngkirNote';
@@ -116,7 +118,7 @@ const Invoice = () => {
   const [backUpDataInvoice, setBackUpDataInvoice] = useState([]);
   const { slug } = useParams();
 
-  const isMobile = window.innerWidth <= 768;
+  const isMobile = useIsMobile();
 
   const [showAddProductModal, setShowAddProductModal] = useState(false);
   const [fileToUpload, setFileToUpload] = useState(null);
@@ -1181,6 +1183,53 @@ const Invoice = () => {
   const pengeluaranLainSummary = (idInvoice) =>
     calculateSummary(dataAllPengeluaranFromDB, idInvoice, "nominalPengeluaran");
 
+  // ── Daftar invoice: filter bulan / pembayaran / urutan + ringkasan bulan ──
+  // Nilai order & dibayar per invoice dihitung SEKALI (map) dari data "all" yang
+  // sudah dimuat untuk summary — bukan filter ulang per kartu tiap render.
+  const [filterBulanInv, setFilterBulanInv] = useState('');
+  const [filterBayarInv, setFilterBayarInv] = useState('');
+  const [urutanInv, setUrutanInv] = useState(() => localStorage.getItem('invoiceUrutan') || 'baru');
+  useEffect(() => { localStorage.setItem('invoiceUrutan', urutanInv); }, [urutanInv]);
+  useEffect(() => { if (slug) fetchDataAllPayment(); }, [slug]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const nilaiPerInvoice = useMemo(() => {
+    const jual = {}; const bayar = {};
+    for (const p of dataAllProductFromDB) jual[p.idInvoice] = (jual[p.idInvoice] || 0) + (Number(p.Harga) || 0) * (Number(p.Qty) || 0);
+    for (const x of dataAllInvoicePaymentFromDB) bayar[x.idInvoice] = (bayar[x.idInvoice] || 0) + (parseFloat(x.jumlah) || 0);
+    return { jual, bayar, siap: dataAllProductFromDB.length > 0 };
+  }, [dataAllProductFromDB, dataAllInvoicePaymentFromDB]);
+  const nilaiInv = (inv) => {
+    const order = (nilaiPerInvoice.jual[inv.id] || 0) + (Number(inv.ongkirCustInvoice) || 0) - (Number(inv.discountInvoice) || 0);
+    const dibayar = nilaiPerInvoice.bayar[inv.id] || 0;
+    return { order, dibayar, sisa: order - dibayar, lunas: order > 0 && dibayar >= order };
+  };
+  const bulanInv = (inv) => String(inv.tanggalMulaiInvoice || '').slice(0, 7);
+  const bulanOpsiInv = useMemo(() => {
+    const set = new Set(invoice.map(bulanInv).filter((b) => /^\d{4}-\d{2}$/.test(b)));
+    return [...set].sort().reverse();
+  }, [invoice]);
+  const daftarInvoice = useMemo(() => {
+    const hasil = filteredData.filter((inv) => {
+      if (filterBulanInv && bulanInv(inv) !== filterBulanInv) return false;
+      if (filterBayarInv && nilaiPerInvoice.siap) {
+        const { lunas } = nilaiInv(inv);
+        if (filterBayarInv === 'lunas' ? !lunas : lunas) return false;
+      }
+      return true;
+    });
+    const tgl = (x) => String(x.tanggalMulaiInvoice || '');
+    return hasil.sort((a, b) => (urutanInv === 'lama' ? tgl(a).localeCompare(tgl(b)) : tgl(b).localeCompare(tgl(a))));
+  }, [filteredData, filterBulanInv, filterBayarInv, urutanInv, nilaiPerInvoice]); // eslint-disable-line react-hooks/exhaustive-deps
+  const ringkasBulan = useMemo(() => {
+    if (!filterBulanInv) return null;
+    return daftarInvoice.reduce((t, inv) => {
+      const n = nilaiInv(inv);
+      return { jumlah: t.jumlah + 1, order: t.order + n.order, sisa: t.sisa + Math.max(0, n.sisa) };
+    }, { jumlah: 0, order: 0, sisa: 0 });
+  }, [daftarInvoice, filterBulanInv]); // eslint-disable-line react-hooks/exhaustive-deps
+  const adaFilterInv = !!(searchTerm || filterBulanInv || filterBayarInv);
+  const rpInv = (n) => 'Rp ' + Math.round(Number(n) || 0).toLocaleString('id-ID');
+
 
 
   let totalNilaiOrder = 0;
@@ -1672,61 +1721,120 @@ const Invoice = () => {
           <Col md={4} className='lowonganPekerjaan overflow-auto pekerjaan' style={{ display: isMobile && slug || displayFull ? 'none' : '' }} ref={scrollableElementRef}>
 
 
-            <h4
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                position: 'sticky',
-                ...(isMobile ? { top: -1 } : { top: 0 }),
-                zIndex: 1,
-                padding: '10px',
-                backgroundColor: isScrolled ? (globalTheme === "light" ? "#f3f3f3" : "#151515") : "transparent",
-                borderRadius: "30px",
-                border: isScrolled ? (globalTheme === "light" ? "1px solid #5f5f5f" : "1px solid white") : "1px solid transparent",
-                transition: "background-color 1s ease, border 1s ease",
-              }}
-            >
-              <span style={{ display: showSearch ? "none" : "block", color: globalTheme == "light" ? "#000000" : "#ffffff" }}>List Invoice</span>
-              <input type="text" placeholder="Search..." defaultValue={searchTerm} onChange={useCallback(debounce((e) => setSearchTerm(e.target.value), 300), [])} style={{ fontSize: '12px', borderRadius: '20px', padding: '5px', display: showSearch ? 'block' : 'none' }} />
-              <div>
-                <span style={{ fontSize: '25px', cursor: "pointer", color: isIconBlue ? 'blue' : 'inherit' }} onClick={handleSearchClick}>
-                  <IoSearch className='button-effect' style={{ color: globalTheme == "light" ? "#000000" : "#ffffff" }} />
-                </span>
-                <span style={{ fontSize: "25px", cursor: "pointer", marginLeft: "5px" }} onClick={handleShowSummary} >
-                  <MdOutlineAssignment className='button-effect' style={{ color: globalTheme == "light" ? "#000000" : "#ffffff" }} />
-                </span>
-                <MdFormatListBulletedAdd className='button-effect' style={{ marginLeft: "5px", cursor: "pointer", color: globalTheme == "light" ? "#000000" : "#ffffff" }} onClick={() => { setShowAddInvoiceModal(true); refreshStateInvoice(); }} />
+            {/* Kepala daftar + cari & filter bulan (dulu cari tersembunyi di ikon, rekap bulanan di modal) */}
+            <div style={{
+              position: 'sticky', top: 0, zIndex: 2, padding: '8px 4px 10px',
+              background: globalTheme === 'light' ? '#f3f3f3' : '#151515',
+              borderBottom: `1px solid ${globalTheme === 'light' ? '#ddd' : '#333'}`, marginBottom: 8,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: globalTheme === 'light' ? '#000' : '#fff' }}>
+                <h4 style={{ margin: 0, flex: 1, fontWeight: 700, fontSize: isMobile ? 20 : 22 }}>List Invoice</h4>
+                <button type="button" title="Summary & rekap" onClick={handleShowSummary} style={iconBtn(false, globalTheme)}>
+                  <MdOutlineAssignment />
+                </button>
+                <button type="button" title="Tambah invoice" onClick={() => { setShowAddInvoiceModal(true); refreshStateInvoice(); }}
+                  style={{ ...iconBtn(false, globalTheme), background: '#234dba', color: '#fff', borderColor: '#234dba' }}>
+                  <MdFormatListBulletedAdd />
+                </button>
               </div>
-            </h4>
 
-            {filteredData.length === 0 ? (
-              // Show skeletons while loading
-              [...Array(20)].map((_, index) => (
-                <Row key={index}>
-                  <Col>
-                    <div className="listSPK d-flex position-relative mb-1 shadow" style={{ backgroundImage: globalTheme === "light" ? "linear-gradient(to right, #ffffff, #e7e7e7)" : "linear-gradient(to right, #151515, #252525)", border: globalTheme === "light" ? "2px solid #d2d2d2" : "2px solid #7a7a7a" }}>
-                      <div style={{ width: '100%', height: '100%' }}>
-                        <Skeleton active />
+              <div style={{ position: 'relative', marginTop: 8 }}>
+                <IoSearch style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#888', fontSize: 18 }} />
+                <input type="search" placeholder="Cari customer / kode invoice…" defaultValue={searchTerm}
+                  onChange={useCallback(debounce((e) => setSearchTerm(e.target.value), 300), [])}
+                  style={{ ...fieldStyle(globalTheme), width: '100%', paddingLeft: 38 }} />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1fr)', gap: 6, marginTop: 6 }}>
+                <select value={filterBulanInv} onChange={(e) => setFilterBulanInv(e.target.value)} style={fieldStyle(globalTheme, !!filterBulanInv)}>
+                  <option value="">Semua bulan</option>
+                  {bulanOpsiInv.map((b) => <option key={b} value={b}>{labelBulan(b)}</option>)}
+                </select>
+                <select value={filterBayarInv} onChange={(e) => setFilterBayarInv(e.target.value)} style={fieldStyle(globalTheme, !!filterBayarInv)}>
+                  <option value="">Semua</option>
+                  <option value="belum">Belum lunas</option>
+                  <option value="lunas">Lunas</option>
+                </select>
+                <select value={urutanInv} onChange={(e) => setUrutanInv(e.target.value)} style={fieldStyle(globalTheme)}>
+                  <option value="baru">Terbaru</option>
+                  <option value="lama">Terlama</option>
+                </select>
+              </div>
+
+              {ringkasBulan && (
+                <div style={{ marginTop: 8, borderRadius: 10, padding: '8px 10px', background: globalTheme === 'light' ? '#eef2ff' : '#1d2a4d', color: globalTheme === 'light' ? '#1e2a55' : '#dfe6ff' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 6 }}>
+                    {[['Invoice', ringkasBulan.jumlah, true], ['Nilai order', rpInv(ringkasBulan.order)], ['Kekurangan', rpInv(ringkasBulan.sisa)]].map(([l, v]) => (
+                      <div key={l} style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: 10.5, opacity: 0.75, textTransform: 'uppercase' }}>{l}</div>
+                        <div style={{ fontSize: 13.5, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{v}</div>
                       </div>
-                    </div>
-                  </Col>
-                </Row>
+                    ))}
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginTop: 8 }}>
+                    <button type="button" onClick={() => { setPaymentSummaryMonth(''); setSummaryMonth(filterBulanInv); }}
+                      style={{ minHeight: 38, borderRadius: 8, border: '1px solid #234dba', background: '#234dba', color: '#fff', fontSize: 13.5, fontWeight: 600 }}>📊 Rekap Invoice</button>
+                    <button type="button" onClick={() => { setSummaryMonth(''); setPaymentSummaryMonth(filterBulanInv); }}
+                      style={{ minHeight: 38, borderRadius: 8, border: '1px solid #234dba', background: 'transparent', color: 'inherit', fontSize: 13.5, fontWeight: 600 }}>💳 Rekap Payment</button>
+                  </div>
+                </div>
+              )}
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, fontSize: 13, color: '#888' }}>
+                <span style={{ flex: 1 }}>{invoice.length ? `${daftarInvoice.length} invoice` : 'Memuat…'}</span>
+                {adaFilterInv && (
+                  <button type="button" onClick={() => { setFilterBulanInv(''); setFilterBayarInv(''); }}
+                    style={{ border: '1px solid #c62828', color: '#c62828', background: 'transparent', borderRadius: 16, padding: '4px 12px', fontSize: 13, minHeight: 32 }}>Reset filter</button>
+                )}
+              </div>
+            </div>
+
+            {invoice.length === 0 ? (
+              // Show skeletons while loading
+              [...Array(8)].map((_, index) => (
+                <div key={index} className="listSPK d-flex position-relative mb-1 shadow" style={{ height: 'auto', backgroundImage: globalTheme === "light" ? "linear-gradient(to right, #ffffff, #e7e7e7)" : "linear-gradient(to right, #151515, #252525)", border: globalTheme === "light" ? "2px solid #d2d2d2" : "2px solid #7a7a7a" }}>
+                  <div style={{ width: '100%' }}><Skeleton active /></div>
+                </div>
               ))
             ) : null}
 
-            {filteredData.map((invoice, index) => (
-              <Row key={index}>
-                <Col>
-                  <Link to={`/invoice/${invoice.id}`}>
-                    <div className={`listSPK d-flex position-relative mb-1 shadow tema-${globalTheme} ${invoice.id === slug ? `selected` : ""}`} style={{ backgroundImage: invoice.id === slug ? (globalTheme === "light" ? "linear-gradient(to right, #cbcbcb, #e7e7e7)" : "linear-gradient(to right, #404040, #252525)") : (globalTheme === "light" ? "linear-gradient(to right, #ffffff, #e7e7e7)" : "linear-gradient(to right, #151515, #252525)"), border: invoice.id === slug ? (globalTheme === "light" ? "2px solid #c1c1c1" : "2px solid #8e8e8e") : (globalTheme === "light" ? "2px solid rgb(163, 163, 163)" : "2px solid #7a7a7a") }}>
-                      <h6 style={{ color: globalTheme == "light" ? "black" : "white" }}>{invoice.customer}</h6>
-                      <small className="position-absolute bottom-0 start-0 p-3" style={{ color: globalTheme == "light" ? "black" : "#e9e9e9" }}>{invoice.kodeInvoice}</small>
+            {invoice.length > 0 && daftarInvoice.length === 0 && (
+              <div style={{ textAlign: 'center', color: '#888', padding: '30px 10px' }}>Tidak ada invoice yang cocok.</div>
+            )}
+
+            {daftarInvoice.map((inv) => {
+              const n = nilaiInv(inv);
+              const dipilih = inv.id === slug;
+              const light = globalTheme === 'light';
+              return (
+                <Link key={inv.id} to={`/invoice/${inv.id}`}>
+                  <div className={`listSPK mb-2 shadow-sm tema-${globalTheme} ${dipilih ? 'selected' : ''}`}
+                    style={{
+                      height: 'auto', padding: '10px 12px', color: light ? '#111' : '#eee',
+                      backgroundImage: dipilih ? (light ? 'linear-gradient(to right, #cbcbcb, #e7e7e7)' : 'linear-gradient(to right, #404040, #252525)') : (light ? 'linear-gradient(to right, #ffffff, #f1f1f1)' : 'linear-gradient(to right, #151515, #252525)'),
+                      border: dipilih ? (light ? '2px solid #234dba' : '2px solid #4da3ff') : (light ? '1px solid #c8c8c8' : '1px solid #555'),
+                    }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'flex-start' }}>
+                      <div style={{ fontWeight: 700, fontSize: 15, minWidth: 0, overflowWrap: 'anywhere' }}>{inv.customer}</div>
+                      {nilaiPerInvoice.siap && n.order > 0 && (
+                        <span style={{ flexShrink: 0, fontSize: 11.5, fontWeight: 700, borderRadius: 12, padding: '1px 8px', color: n.lunas ? '#15803d' : '#c2410c', border: `1px solid ${n.lunas ? '#15803d' : '#c2410c'}` }}>
+                          {n.lunas ? 'LUNAS' : 'Belum lunas'}
+                        </span>
+                      )}
                     </div>
-                  </Link>
-                </Col>
-              </Row>
-            ))}
+                    <div style={{ fontSize: 12.5, opacity: 0.75, overflowWrap: 'anywhere' }}>{inv.kodeInvoice}</div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap', fontSize: 12.5, marginTop: 4 }}>
+                      <span style={{ opacity: 0.8 }}>{inv.tanggalMulaiInvoice ? new Date(inv.tanggalMulaiInvoice).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}</span>
+                      {nilaiPerInvoice.siap && n.order > 0 && (
+                        <span style={{ fontWeight: 600 }}>
+                          {rpInv(n.order)}{!n.lunas && <span style={{ color: '#c2410c' }}> · sisa {Math.round(n.sisa).toLocaleString('id-ID')}</span>}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </Link>
+              );
+            })}
           </Col>
           <Col md={displayFull ? 12 : 8} ref={scrollableElementRef2} className='lowonganPekerjaan overflow-auto pekerjaan' style={{ display: isMobile && !slug ? 'none' : '' }}>
 
@@ -1740,8 +1848,16 @@ const Invoice = () => {
                 color: globalTheme == "light" ? "#000000" : "#ffffff",
               }}
             >
-              <span>Detail Invoice</span>
-              <Button className='button-effect2' style={{ marginBottom: "-5px", marginTop: "-5px", display: slug ? 'block' : 'none' }} variant="secondary" onClick={() => setDisplayFull((prevDisplayFull) => !prevDisplayFull)}><FaDisplay /> {displayFull ? "Split" : "Full"}</Button>
+              {isMobile && slug ? (
+                <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <button type="button" onClick={() => navigate('/invoice')} aria-label="Kembali ke daftar invoice"
+                    style={{ ...iconBtn(false, globalTheme), width: 'auto', padding: '0 12px', fontSize: 16 }}>← Daftar</button>
+                  <span style={{ fontSize: 18, fontWeight: 700 }}>Detail Invoice</span>
+                </span>
+              ) : (
+                <span>Detail Invoice</span>
+              )}
+              <Button className='button-effect2' style={{ marginBottom: "-5px", marginTop: "-5px", display: slug && !isMobile ? 'block' : 'none' }} variant="secondary" onClick={() => setDisplayFull((prevDisplayFull) => !prevDisplayFull)}><FaDisplay /> {displayFull ? "Split" : "Full"}</Button>
             </h4>
 
 
@@ -1752,6 +1868,49 @@ const Invoice = () => {
               <div className='overflow-auto'>
                 <div className={`${isMobile ? '' : 'd-flex justify-content-between'}`} onClick={() => { setShowUpdateInvoiceModal(true); setSearchKodeCustomer(''); }} style={{ cursor: "pointer" }}>
 
+                  {isMobile ? (() => {
+                    const inv0 = dataInvoiceFromDB[0] || {};
+                    const totalJual = Number(totalPenjualan) + Number(ongkirCustInvoice) - Number(discountInvoice);
+                    const kurang = totalJual - Number(DpMasuk);
+                    const gp = Number(totalProfit) + Number(ongkirCustInvoice) - Number(ongkirPackingInvoice) - Number(adminInvoice) - Number(discountInvoice);
+                    const tgl = (d) => (d ? new Date(d).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '-');
+                    const rincian = [
+                      ['Stainless', totalStainless], ['Besi', totalBesi], ['Kayu', totalKayu], ['Jok', totalJok], ['Rotan', totalRotan],
+                      ['Finishing', totalFinishing], ['Marmer', totalMarmer], ['Fiber', totalFiber], ['Veneer', totalVeneer],
+                      ['Pengeluaran lain', pengeluaranLain], ['Admin', adminInvoice], ['Discount', discountInvoice],
+                      ['Ongkir cust', ongkirCustInvoice], ['Ongkir & packing', ongkirPackingInvoice],
+                    ];
+                    return (
+                      <div style={{ padding: 10, color: globalTheme === 'light' ? '#111' : '#eee' }}>
+                        <div style={{ fontSize: 17, fontWeight: 700, overflowWrap: 'anywhere' }}>{inv0.customer || ''}</div>
+                        <div style={{ fontSize: 13, opacity: 0.75, overflowWrap: 'anywhere' }}>{inv0.kodeInvoice || ''}{kodeCustomer ? ` · ${kodeCustomer}` : ''}</div>
+                        <div style={{ fontSize: 13, opacity: 0.75 }}>Mulai {tgl(inv0.tanggalMulaiInvoice)} · Deadline {tgl(inv0.deadlineInvoice)}</div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginTop: 10 }}>
+                          {[
+                            ['Total Penjualan', totalJual, null],
+                            ['DP Masuk', DpMasuk, '#15803d'],
+                            ['Kekurangan', kurang, kurang > 0 ? '#c2410c' : '#15803d'],
+                            ['Gross Profit', gp, gp >= 0 ? '#7c3aed' : '#dc2626'],
+                          ].map(([l, v, w]) => (
+                            <div key={l} style={{ background: globalTheme === 'light' ? 'rgba(0,0,0,.04)' : 'rgba(255,255,255,.06)', borderRadius: 8, padding: '6px 8px' }}>
+                              <div style={{ fontSize: 11, opacity: 0.7, textTransform: 'uppercase' }}>{l}</div>
+                              <div style={{ fontSize: 14, fontWeight: 700, color: w || undefined }}>{rpInv(v)}</div>
+                            </div>
+                          ))}
+                        </div>
+                        <details style={{ marginTop: 8 }} onClick={(e) => e.stopPropagation()}>
+                          <summary style={{ fontSize: 13, fontWeight: 600, cursor: 'pointer', padding: '6px 0' }}>Rincian biaya per kategori</summary>
+                          {rincian.filter(([, v]) => Number(v)).map(([l, v]) => (
+                            <div key={l} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '4px 0', borderBottom: `1px dashed ${globalTheme === 'light' ? '#ddd' : '#444'}` }}>
+                              <span style={{ opacity: 0.75 }}>{l}</span><span style={{ fontWeight: 600 }}>{rpInv(v)}</span>
+                            </div>
+                          ))}
+                          {!rincian.some(([, v]) => Number(v)) && <div style={{ fontSize: 13, opacity: 0.6 }}>Belum ada biaya.</div>}
+                        </details>
+                        <div style={{ fontSize: 11.5, opacity: 0.6, marginTop: 4 }}>Ketuk kotak ini untuk ubah data invoice</div>
+                      </div>
+                    );
+                  })() : (
                   <div className={`p-2 ${globalTheme === 'light' ? 'text-dark' : 'text-light'} hover-effect fw-semibold`}>
                     <table>
                       <tbody>
@@ -1840,6 +1999,7 @@ const Invoice = () => {
                       </tbody>
                     </table>
                   </div>
+                  )}
 
 
 
@@ -2157,6 +2317,59 @@ const Invoice = () => {
 
 
                 <div className={`p-2 ${globalTheme === 'light' ? 'text-dark' : 'text-light'}`}>
+                  {isMobile ? (
+                    <div>
+                      {dataProductFromDB.length === 0 && <div style={{ textAlign: 'center', opacity: 0.6, padding: 16 }}>Belum ada produk.</div>}
+                      {dataProductFromDB.map((product, index) => {
+                        const categories = ["Stainless", "Besi", "Kayu", "Jok", "Rotan", "Finishing", "Marmer", "Fiber", "Veneer"];
+                        const sel = categories.map((cat) => {
+                          const spk = dataSPKproductFromDB
+                            .filter(item => item.idProduct === product.id && item.category === cat)
+                            .reduce((t, i) => t + Number(i.harga), 0);
+                          const est = Number(product[`estimasi${cat}`] || 0);
+                          const nRincian = ((product.estimasiRincian || {})[cat] || []).length;
+                          return { cat, value: spk || est, isEstimasi: !spk && est > 0, hasSpk: spk > 0, nRincian };
+                        });
+                        const hpp = sel.reduce((t, c) => t + c.value, 0);
+                        const harga = Number(product.Harga) || 0;
+                        const gpUnit = harga - hpp;
+                        const persen = harga ? Math.round((gpUnit / harga) * 1000) / 10 : 0;
+                        return (
+                          <div key={product.id || index} style={{ ...kartuStyle(globalTheme), cursor: 'pointer' }}
+                            onClick={() => handleEditProduct(product.id, product.Spesifikasi, product.Harga, product.Qty, product.image1)}>
+                            <div style={{ display: 'flex', gap: 10 }}>
+                              <span onClick={(e) => e.stopPropagation()} style={{ flexShrink: 0 }}>
+                                <Image width={84} height={84} style={{ borderRadius: 8, objectFit: 'cover' }} src={getImageUrl(product.image1)} />
+                              </span>
+                              <div style={{ minWidth: 0, flex: 1 }}>
+                                <div style={{ fontWeight: 700, fontSize: 14, overflowWrap: 'anywhere' }}>{index + 1}. {product.NamaBarang}</div>
+                                {product.Spesifikasi && <div style={{ fontSize: 12.5, opacity: 0.8, whiteSpace: 'pre-line', overflowWrap: 'anywhere', marginTop: 2 }}>{product.Spesifikasi}</div>}
+                                <div style={{ fontSize: 13, marginTop: 4 }}>Jual {rpInv(harga)} × {product.Qty}</div>
+                                <div style={{ fontSize: 13 }}>
+                                  HPP {rpInv(hpp)} · GP <b style={{ color: gpUnit >= 0 ? '#15803d' : '#dc2626' }}>{rpInv(gpUnit)}</b> ({persen}%)
+                                </div>
+                              </div>
+                            </div>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+                              {sel.filter((c) => c.value || c.nRincian).map((c) => (
+                                <button key={c.cat} type="button"
+                                  onClick={(e) => { if (c.hasSpk && !c.nRincian) return; e.stopPropagation(); setEditingEstimasi({ product, category: c.cat, readOnly: c.hasSpk }); }}
+                                  style={{
+                                    minHeight: 34, borderRadius: 8, padding: '4px 10px', fontSize: 12.5, textAlign: 'left',
+                                    border: `1px solid ${c.isEstimasi ? '#e0b400' : (globalTheme === 'light' ? '#ccc' : '#555')}`,
+                                    background: c.isEstimasi ? '#fffde7' : 'transparent',
+                                    color: c.isEstimasi ? '#8a6500' : 'inherit',
+                                  }}>
+                                  {c.cat}: <b>{c.value ? Number(c.value).toLocaleString('id-ID') : '-'}</b>{c.isEstimasi ? ' (est)' : ''}{c.nRincian ? ` ☰${c.nRincian}` : ''}
+                                </button>
+                              ))}
+                              <span style={{ fontSize: 11.5, opacity: 0.6, alignSelf: 'center' }}>kuning = estimasi</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
                   <table>
                     <thead style={{ position: 'sticky', top: 0, zIndex: 2 }}>
                       <tr>
@@ -2245,13 +2458,14 @@ const Invoice = () => {
                             <td className='tableStyle text-center'>Rp. {Number(product.Harga).toLocaleString('id-ID')}</td>
                             <td className='tableStyle text-center'>{product.Qty}</td>
                             <td className='tableStyle text-center'>Rp. {(Number(product.Harga) - hpp).toLocaleString('id-ID')}</td>
-                            <td className='tableStyle text-center'>{((Number(product.Harga) - hpp) / Number(product.Harga)).toLocaleString('id-ID')}%</td>
+                            <td className='tableStyle text-center'>{Number(product.Harga) ? (Math.round(((Number(product.Harga) - hpp) / Number(product.Harga)) * 1000) / 10).toLocaleString('id-ID') : 0}%</td>
                           </tr>
                         );
                       })}
 
                     </tbody>
                   </table>
+                  )}
                   <RincianCostingSheet
                     open={!!editingEstimasi}
                     category={editingEstimasi?.category}
@@ -2307,6 +2521,31 @@ const Invoice = () => {
 
               <div className='SPK mt-1 shadow' style={{ backgroundImage: globalTheme === "light" ? "linear-gradient(to right, #ffffff, #e7e7e7)" : "linear-gradient(to right, #151515, #303030)", border: globalTheme === "light" ? "2px solid rgb(163, 163, 163)" : "2px solid #7a7a7a" }}>
                 <div className={`p-2 ${globalTheme === 'light' ? 'text-dark' : 'text-light'}`}>
+                  {isMobile ? (
+                    <div>
+                      {dataPengeluaranFromDB.length === 0 && <div style={{ textAlign: 'center', opacity: 0.6, padding: 12 }}>Belum ada pengeluaran.</div>}
+                      {dataPengeluaranFromDB.map((pengeluaran, index) => (
+                        <div key={pengeluaran.id || index} style={{ ...kartuStyle(globalTheme), display: 'flex', gap: 10, alignItems: 'center', cursor: 'pointer' }}
+                          onClick={() => handleEditPengeluaran(pengeluaran.id, pengeluaran.tanggalPengeluaran, pengeluaran.kategoriPengeluaran, pengeluaran.keteranganPengeluaran, pengeluaran.nominalPengeluaran)}>
+                          <div style={{ minWidth: 0, flex: 1 }}>
+                            <div style={{ fontWeight: 700, fontSize: 15 }}>{rpInv(pengeluaran.nominalPengeluaran)}</div>
+                            <div style={{ fontSize: 13, overflowWrap: 'anywhere' }}><b>{pengeluaran.kategoriPengeluaran}</b>{pengeluaran.keteranganPengeluaran ? ` — ${pengeluaran.keteranganPengeluaran}` : ''}</div>
+                            <div style={{ fontSize: 12, opacity: 0.65 }}>{new Date(pengeluaran.tanggalPengeluaran).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
+                          </div>
+                          <button type="button"
+                            onClick={(e) => { e.stopPropagation(); tandaiSudahDijurnal([pengeluaran.id], !pengeluaran.sudahDijurnal); }}
+                            style={{
+                              flexShrink: 0, minWidth: 70, minHeight: 38, padding: '2px 10px', borderRadius: 999, fontSize: 12.5, cursor: 'pointer',
+                              border: pengeluaran.sudahDijurnal ? '1px solid #1f8a4c' : '1px solid #9a9a9a',
+                              background: pengeluaran.sudahDijurnal ? '#e3f4ea' : 'transparent',
+                              color: pengeluaran.sudahDijurnal ? '#1f8a4c' : 'inherit',
+                            }}>
+                            {pengeluaran.sudahDijurnal ? '✓ Dijurnal' : 'Belum jurnal'}
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
                   <table>
                     <thead>
                       <tr>
@@ -2346,6 +2585,7 @@ const Invoice = () => {
                       ))}
                     </tbody>
                   </table>
+                  )}
                   {dataPengeluaranFromDB.some((x) => x.sudahDijurnal) && (
                     <small className='d-block mt-2' style={{ opacity: 0.8 }}>
                       Sudah dijurnal: Rp. {dataPengeluaranFromDB.filter((x) => x.sudahDijurnal).reduce((t, x) => t + Number(x.nominalPengeluaran || 0), 0).toLocaleString('id-ID')}
@@ -2374,6 +2614,30 @@ const Invoice = () => {
 
               <div className='SPK shadow mt-1' style={{ backgroundImage: globalTheme === "light" ? "linear-gradient(to right, #ffffff, #e7e7e7)" : "linear-gradient(to right, #151515, #303030)", border: globalTheme === "light" ? "2px solid rgb(163, 163, 163)" : "2px solid #7a7a7a" }}>
                 <div className='p-2'>
+                  {isMobile ? (
+                    <div>
+                      {dataInvoicePaymentFromDB.length === 0 && <div style={{ textAlign: 'center', opacity: 0.6, padding: 12, color: globalTheme === 'light' ? '#111' : '#eee' }}>Belum ada pembayaran.</div>}
+                      {dataInvoicePaymentFromDB.map((payment, index) => (
+                        <div key={payment.id || index} style={{ ...kartuStyle(globalTheme), display: 'flex', gap: 10, alignItems: 'center', cursor: 'pointer' }}
+                          onClick={() => handleEditPayment(payment.id, payment.detail, payment.tanggal, payment.tanggalWD, payment.status, payment.jumlah, payment.image, payment.akunPenerima, payment.jurnalOtomatis)}>
+                          <span onClick={(e) => e.stopPropagation()} style={{ flexShrink: 0 }}>
+                            <Image width={60} height={60} style={{ borderRadius: 8, objectFit: 'cover' }} src={getImageUrl(payment.image)} />
+                          </span>
+                          <div style={{ minWidth: 0, flex: 1 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6 }}>
+                              <span style={{ fontWeight: 700, fontSize: 15 }}>{rpInv(payment.jumlah)}</span>
+                              <span style={{ fontSize: 12, fontWeight: 600, opacity: 0.8 }}>{payment.status}</span>
+                            </div>
+                            <div style={{ fontSize: 12.5, opacity: 0.8, overflowWrap: 'anywhere' }}>{payment.detail}</div>
+                            <div style={{ fontSize: 12, opacity: 0.65 }}>
+                              {payment.tanggal}{payment.status === 'Withdraw' ? ` (Hold) · ${payment.tanggalWD || '-'} (WD)` : ''}
+                              {payment.akunPenerima ? ` · → ${REKENING_PENERIMA[payment.akunPenerima] || payment.akunPenerima}` : ''}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
                   <table className={`${globalTheme === 'light' ? 'text-dark' : 'text-light'}`}>
                     <thead>
                       <tr>
@@ -2414,6 +2678,7 @@ const Invoice = () => {
                       ))}
                     </tbody>
                   </table>
+                  )}
                 </div>
               </div>
             </div>
@@ -2983,7 +3248,8 @@ const Invoice = () => {
                 transition: "background-color 1s ease",
               }}
             >
-              <span style={{ display: showSearch ? "none" : "block" }}>Invoice Summary - {new Date(summaryMonth).toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })}</span>
+              {<button type="button" onClick={handleStopShowSummary} style={{ ...iconBtn(false, globalTheme), width: 'auto', padding: '0 10px', fontSize: 15, marginRight: 8 }}>← Daftar</button>}
+              <span style={{ display: showSearch ? "none" : "block", flex: 1, fontSize: isMobile ? 17 : undefined }}>Invoice Summary - {new Date(summaryMonth).toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })}</span>
               <input type="text" placeholder="Search..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} style={{ fontSize: '12px', borderRadius: '20px', padding: '5px', display: showSearch ? 'block' : 'none' }} />
               <div>
                 {/* <span style={{ fontSize: '20px', color: isIconBlue ? 'blue' : 'inherit' }} onClick={handleSearchClick}>
@@ -2996,8 +3262,8 @@ const Invoice = () => {
 
 
 
-            <div className="SPK mb-1 shadow" style={{ backgroundImage: globalTheme === "light" ? "linear-gradient(to right, #ffffff, #e7e7e7)" : "linear-gradient(to right, #151515, #303030)", border: globalTheme === "light" ? "2px solid #d2d2d2" : "2px solid #7a7a7a" }}>
-              <table className="table table-bordered table-hover table-striped">
+            <div className="SPK mb-1 shadow" style={{ overflowX: 'auto', backgroundImage: globalTheme === "light" ? "linear-gradient(to right, #ffffff, #e7e7e7)" : "linear-gradient(to right, #151515, #303030)", border: globalTheme === "light" ? "2px solid #d2d2d2" : "2px solid #7a7a7a" }}>
+              <table className="table table-bordered table-hover table-striped" style={isMobile ? { minWidth: 620, fontSize: 13 } : undefined}>
                 <thead className={`${globalTheme === 'light' ? 'table-primary' : 'table-dark'}`}>
                   <tr>
                     <th className="text-center">No</th>
@@ -3102,7 +3368,8 @@ const Invoice = () => {
                 transition: "background-color 1s ease",
               }}
             >
-              <span style={{ display: showSearch ? "none" : "block" }}>Payment Summary - {new Date(paymentSummaryMonth).toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })}</span>
+              {<button type="button" onClick={handleStopShowSummary} style={{ ...iconBtn(false, globalTheme), width: 'auto', padding: '0 10px', fontSize: 15, marginRight: 8 }}>← Daftar</button>}
+              <span style={{ display: showSearch ? "none" : "block", flex: 1, fontSize: isMobile ? 17 : undefined }}>Payment Summary - {new Date(paymentSummaryMonth).toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })}</span>
               <input type="text" placeholder="Search..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} style={{ fontSize: '12px', borderRadius: '20px', padding: '5px', display: showSearch ? 'block' : 'none' }} />
               <div>
                 <select style={{
@@ -3126,8 +3393,8 @@ const Invoice = () => {
 
 
 
-            <div className="SPK mb-1 shadow" style={{ backgroundImage: globalTheme === "light" ? "linear-gradient(to right, #ffffff, #e7e7e7)" : "linear-gradient(to right, #151515, #303030)", border: globalTheme === "light" ? "2px solid #d2d2d2" : "2px solid #7a7a7a" }}>
-              <table className="table table-bordered table-hover table-striped">
+            <div className="SPK mb-1 shadow" style={{ overflowX: 'auto', backgroundImage: globalTheme === "light" ? "linear-gradient(to right, #ffffff, #e7e7e7)" : "linear-gradient(to right, #151515, #303030)", border: globalTheme === "light" ? "2px solid #d2d2d2" : "2px solid #7a7a7a" }}>
+              <table className="table table-bordered table-hover table-striped" style={isMobile ? { minWidth: 620, fontSize: 13 } : undefined}>
                 <thead className={`${globalTheme === 'light' ? 'table-primary' : 'table-dark'}`}>
                   <tr>
                     <th className="text-center">No</th>

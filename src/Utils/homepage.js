@@ -12,7 +12,6 @@ export const HOMEPAGE_OPTIONS = [
   { path: '/category', label: 'Category', menu: 'Category' },
   { path: '/todo', label: 'To-Do & QC', menu: 'Todo' },
   { path: '/pengiriman', label: 'Pengiriman', menu: 'Pengiriman' },
-  { path: '/books', label: 'Books', menu: 'Books' },
   { path: '/crm', label: 'CRM', menu: 'CRM' },
   { path: '/calendar', label: 'Calendar', menu: 'Calendar' },
   { path: '/notes', label: 'Notes', menu: 'Notes' },

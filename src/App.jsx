@@ -37,7 +37,6 @@ const AccountingTemuanKoreksiPage = lazyPage(() => import('./Pages/AccountingTem
 const AccountingJurnalAssistantPage = lazyPage(() => import('./Pages/AccountingJurnalAssistantPage'));
 const AccountingCashFlowPage = lazyPage(() => import('./Pages/AccountingCashFlowPage'));
 const AccountingBalanceSheetPage = lazyPage(() => import('./Pages/AccountingBalanceSheetPage'));
-const BooksPage = lazyPage(() => import('./Pages/BooksPage'));
 const NotesPage = lazyPage(() => import('./Pages/NotesPage'));
 const StoragePage = lazyPage(() => import('./Pages/StoragePage'));
 const CrmPage = lazyPage(() => import('./Pages/CrmPage'));
@@ -113,7 +112,6 @@ function App() {
         <Route path="/accounting/balance-sheet" element={<AccountingBalanceSheetPage />} />
         <Route path="/spk" element={<SpkPage />} />
         <Route path="/spk/:slug" element={<SpkPage />} />
-        <Route path="/books" element={<BooksPage />} />
         <Route path="/notes" element={<NotesPage />} />
         <Route path="/catalog" element={<StoragePage />} />
         <Route path="/catalog/:slug" element={<StoragePage />} />

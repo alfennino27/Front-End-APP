@@ -38,7 +38,6 @@ const GROUPS = [
       { key: 'Category', label: 'Category', desc: 'Analisa proses per project (PM)' },
       { key: 'Todo', label: 'To-Do & QC' },
       { key: 'Pengiriman', label: 'Pengiriman' },
-      { key: 'Books', label: 'Books' },
       { key: 'Lihat Telepon', label: 'Lihat nomor telepon', desc: 'Nomor customer tidak disensor', izin: true },
       { key: 'QC Alur Kerja', label: 'Centang QC Alur Kerja', desc: 'QC Pass / Servis', izin: true },
       { key: 'Delivery Tracker', label: 'Delivery Tracker', izin: true },

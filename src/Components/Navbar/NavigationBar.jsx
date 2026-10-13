@@ -17,7 +17,7 @@ import { format } from "date-fns";
 import { id } from 'date-fns/locale';
 import { Drawer, Divider, Avatar, Switch, Popover, notification } from 'antd';
 import { FaChartBar, FaCode, FaFileInvoiceDollar, FaLayerGroup, FaPaintBrush, FaPencilAlt, FaRegCalendarAlt, FaRegFileAlt, FaRegFolderOpen, FaRegIdBadge, FaRegImages } from 'react-icons/fa';
-import { BsBook, BsCashCoin, BsCurrencyDollar, BsFillClipboard2DataFill, BsFillPersonVcardFill, BsPeopleFill } from 'react-icons/bs';
+import { BsCashCoin, BsCurrencyDollar, BsFillClipboard2DataFill, BsFillPersonVcardFill, BsPeopleFill } from 'react-icons/bs';
 import { LuClipboardList } from "react-icons/lu";
 import { SiWikibooks } from "react-icons/si";
 import { IoCloseSharp, IoPeople } from 'react-icons/io5';
@@ -602,7 +602,6 @@ const NavigationBar = () => {
         menuItem('SPK', '/spk', 'SPK', <FaRegFileAlt />),
         menuItem('Category', '/category', 'Category', <SiWikibooks />),
         menuItem('Todo', '/todo', 'To-Do & QC', <LuClipboardList />),
-        menuItem('Books', '/books', 'Books', <BsBook />),
         menuItem('CRM', '/crm', 'CRM', <BsPeopleFill />),
         menuItem('Knowledge', '/knowledge', 'Knowledge Base', <span role="img" aria-label="knowledge">🧠</span>),
       ],
@@ -1193,15 +1192,6 @@ const NavigationBar = () => {
           </>
         )}
 
-
-        {hasMenuAccess(user.uid, "Books") && (
-          <>
-            <Link to="/books" style={{ textDecoration: 'none', color: location.pathname.startsWith('/books') ? '#234dba' : (globalTheme === "light" ? "black" : "white"), display: 'flex', alignItems: 'center' }} className='d-flex mb-4 link-hover'>
-              <BsBook /> <p className='fw-semibold' style={{ margin: 0, paddingLeft: '10px' }}>Books</p>
-            </Link>
-            <Divider style={{ borderColor: theme == "light" ? '#bdbdbd' : '#313a51', color: theme == "light" ? '#bdbdbd' : '#313a51' }} />
-          </>
-        )}
 
         {hasMenuAccess(user.uid, "SPK") && (
           <>

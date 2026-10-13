@@ -11,6 +11,7 @@ import {
 import AbsensiAzwad from './AbsensiAzwad';
 import { cetakAbsensiHarian } from '../../Utils/absensiPdf';
 import AbsensiPakde from './AbsensiPakde';
+import useAutoSave, { StatusSimpan, JamInput } from './useAutoSave';
 
 // Label & warna badge per tipe karyawan.
 const TIPE_META = {
@@ -47,7 +48,6 @@ export default function Absensi() {
   const [potongBon, setPotongBon] = useState(0);
   const [catatan, setCatatan] = useState('');
   const [absensiId, setAbsensiId] = useState(null);
-  const [dirty, setDirty] = useState(false);
 
   const [showKaryawanModal, setShowKaryawanModal] = useState(false);
   const [editingKaryawan, setEditingKaryawan] = useState(null);
@@ -116,60 +116,59 @@ export default function Absensi() {
         setPotongBon(Number(doc?.potongBon) || 0);
         setCatatan(doc?.catatan || '');
         setAbsensiId(doc?.id || null);
-        setDirty(false);
+        auto.reset();
       } catch (e) {
         console.error(e);
         if (!batal) setRows(gabungBaris(periodeStart, null));
       }
     })();
     return () => { batal = true; };
-  }, [baseUrl, selectedKaryawanId, periodeStart, isHarian]);
+  }, [baseUrl, selectedKaryawanId, periodeStart, isHarian]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ─── Aksi ───────────────────────────────────────────────────────────────────
+
+  // Ganti periode/karyawan: simpan dulu perubahan periode yang sedang dibuka
+  const gantiPeriode = async (baru) => { await auto.flush(); setPeriodeStart(baru); };
+  const gantiKaryawan = async (id) => { if (isHarian) await auto.flush(); setSelectedKaryawanId(id); };
 
   const geserPeriode = (arah) => {
     const d = new Date(periodeStart);
     d.setHours(12, 0, 0, 0);
     d.setDate(d.getDate() + arah * 7);
-    setPeriodeStart(awalMinggu(d));
+    gantiPeriode(awalMinggu(d));
   };
 
   const ubahJam = (idx, key, value) => {
     setRows((prev) => prev.map((r, i) => (i === idx ? { ...r, [key]: value } : r)));
-    setDirty(true);
+    auto.tandai();
   };
 
-  const simpanAbsensi = async () => {
+  // Simpan ke server (dipanggil auto-save). Throw kalau gagal.
+  const simpanKeServer = async ({ keepalive } = {}) => {
     if (!selectedKaryawan) return;
-    setSaving(true);
-    try {
-      const { detail, ...rekapRingkas } = rekap; // detail per hari tidak perlu disimpan, bisa dihitung ulang
-      const res = await fetch(baseUrl + '/absensi/save', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          karyawanId: selectedKaryawan.id,
-          karyawanNama: selectedKaryawan.nama,
-          periodeStart,
-          periodeEnd: akhirMinggu(periodeStart),
-          gajiHarian,
-          lemburPerJam,
-          hari: rows,
-          potongBon: Number(potongBon) || 0,
-          catatan,
-          rekap: rekapRingkas,
-        }),
-      });
-      const d = await res.json();
-      if (!res.ok) throw new Error(d.message || 'Gagal menyimpan');
-      setAbsensiId(d.id || absensiId);
-      setDirty(false);
-    } catch (e) {
-      console.error(e);
-      alert('Gagal menyimpan absensi: ' + e.message);
-    }
-    setSaving(false);
+    const { detail, ...rekapRingkas } = rekap; // detail per hari tidak perlu disimpan, bisa dihitung ulang
+    const res = await fetch(baseUrl + '/absensi/save', {
+      method: 'POST',
+      keepalive,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        karyawanId: selectedKaryawan.id,
+        karyawanNama: selectedKaryawan.nama,
+        periodeStart,
+        periodeEnd: akhirMinggu(periodeStart),
+        gajiHarian,
+        lemburPerJam,
+        hari: rows,
+        potongBon: Number(potongBon) || 0,
+        catatan,
+        rekap: rekapRingkas,
+      }),
+    });
+    const d = await res.json();
+    if (!res.ok) throw new Error(d.message || 'Gagal menyimpan');
+    setAbsensiId(d.id || absensiId);
   };
+  const auto = useAutoSave(simpanKeServer);
 
   const submitKaryawan = async () => {
     if (!karyawanForm.nama.trim()) { alert('Nama karyawan wajib diisi'); return; }
@@ -250,8 +249,8 @@ export default function Absensi() {
             </Button>
           )}
           {activeTab === 'absensi' && selectedKaryawan && isHarian && (
-            <Button size="sm" variant={dirty ? 'primary' : 'outline-secondary'} disabled={saving} onClick={simpanAbsensi}>
-              {saving ? <Spinner size="sm" /> : <><MdSave /> {dirty ? 'Simpan Perubahan' : 'Tersimpan'}</>}
+            <Button size="sm" variant={auto.dirty ? 'primary' : 'outline-secondary'} disabled={auto.saving} onClick={() => auto.simpan()}>
+              {auto.saving ? <Spinner size="sm" /> : <><MdSave /> {auto.dirty ? 'Simpan Sekarang' : 'Tersimpan'}</>}
             </Button>
           )}
         </div>
@@ -282,7 +281,7 @@ export default function Absensi() {
               <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center', marginBottom: 16 }}>
                 <select
                   value={selectedKaryawanId}
-                  onChange={(e) => setSelectedKaryawanId(e.target.value)}
+                  onChange={(e) => gantiKaryawan(e.target.value)}
                   style={{ fontSize: 13, padding: '6px 12px', borderRadius: 6, border: dark ? '1px solid #444' : '1px solid #ddd', background: cardBg, color: text, fontWeight: 600, cursor: 'pointer' }}
                 >
                   {karyawanAktif.map((k) => <option key={k.id} value={k.id}>{k.nama} — {tipeMeta(k.tipe).label}</option>)}
@@ -291,8 +290,8 @@ export default function Absensi() {
 
               {/* Karyawan bulanan mingguan (Pakde) & bulanan biasa (Azwad) pakai
                   komponen sendiri; harian tetap pakai tampilan di bawah. */}
-              {isPakde && <AbsensiPakde baseUrl={baseUrl} karyawan={selectedKaryawan} dark={dark} />}
-              {isAzwad && <AbsensiAzwad baseUrl={baseUrl} karyawan={selectedKaryawan} dark={dark} />}
+              {isPakde && <AbsensiPakde key={selectedKaryawan.id} baseUrl={baseUrl} karyawan={selectedKaryawan} dark={dark} />}
+              {isAzwad && <AbsensiAzwad key={selectedKaryawan.id} baseUrl={baseUrl} karyawan={selectedKaryawan} dark={dark} />}
 
               {isHarian && <>
               {/* Toolbar periode (harian) */}
@@ -302,11 +301,11 @@ export default function Absensi() {
                   <input
                     type="date"
                     value={periodeStart}
-                    onChange={(e) => e.target.value && setPeriodeStart(awalMinggu(e.target.value))}
+                    onChange={(e) => e.target.value && gantiPeriode(awalMinggu(e.target.value))}
                     style={{ fontSize: 13, padding: '5px 10px', borderRadius: 6, border: dark ? '1px solid #444' : '1px solid #ddd', background: cardBg, color: text, colorScheme: dark ? 'dark' : 'light' }}
                   />
                   <Button size="sm" variant="outline-secondary" onClick={() => geserPeriode(1)}><MdChevronRight /></Button>
-                  <Button size="sm" variant="outline-secondary" onClick={() => setPeriodeStart(awalMinggu(new Date()))}>Minggu ini</Button>
+                  <Button size="sm" variant="outline-secondary" onClick={() => gantiPeriode(awalMinggu(new Date()))}>Minggu ini</Button>
                 </div>
 
                 <Button
@@ -316,7 +315,7 @@ export default function Absensi() {
                   <FaFilePdf /> Export PDF
                 </Button>
 
-                {dirty && <span style={{ fontSize: 12, color: '#c2410c', fontWeight: 600 }}>Ada perubahan belum disimpan</span>}
+                {selectedKaryawan && <StatusSimpan auto={auto} muted={muted} />}
               </div>
 
               {/* Header: nama, periode, rate */}
@@ -343,7 +342,7 @@ export default function Absensi() {
 
               {/* Tabel absensi */}
               <div style={{ overflowX: 'auto', background: cardBg, border, borderRadius: 10 }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1100 }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1250 }}>
                   <thead>
                     <tr>
                       <th style={th({ textAlign: 'left' })} rowSpan={2}>HARI</th>
@@ -373,9 +372,8 @@ export default function Absensi() {
                             </div>
                           </td>
                           {KOLOM_JAM.map((c) => (
-                            <td key={c.key} style={td({ padding: 0 })}>
-                              <input type="time" value={row[c.key] || ''} style={inputJam}
-                                onChange={(e) => ubahJam(i, c.key, e.target.value)} />
+                            <td key={c.key} style={td({ padding: '0 2px' })}>
+                              <JamInput value={row[c.key]} style={inputJam} onChange={(v) => ubahJam(i, c.key, v)} />
                             </td>
                           ))}
                           <td style={td({ fontWeight: 600, color: '#0369a1' })}>{fmtJam(d.menitNormal)}</td>
@@ -401,7 +399,7 @@ export default function Absensi() {
                       <td style={td({ padding: 0 })}>
                         <input
                           type="number" min={0} value={potongBon}
-                          onChange={(e) => { setPotongBon(e.target.value === '' ? 0 : Number(e.target.value)); setDirty(true); }}
+                          onChange={(e) => { setPotongBon(e.target.value === '' ? 0 : Number(e.target.value)); auto.tandai(); }}
                           style={{ ...inputJam, textAlign: 'right', padding: '4px 8px', color: '#c62828', fontWeight: 700 }}
                         />
                       </td>
@@ -433,7 +431,7 @@ export default function Absensi() {
                 <Form.Control
                   as="textarea" rows={2} placeholder="Catatan periode ini (opsional)"
                   value={catatan}
-                  onChange={(e) => { setCatatan(e.target.value); setDirty(true); }}
+                  onChange={(e) => { setCatatan(e.target.value); auto.tandai(); }}
                   style={{ background: cardBg, color: text, border, fontSize: 13 }}
                 />
               </div>

@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Button, Form, Spinner } from 'react-bootstrap';
 import { MdSave, MdChevronLeft, MdChevronRight } from 'react-icons/md';
 import { FaFilePdf } from 'react-icons/fa';
+import useAutoSave, { StatusSimpan } from './useAutoSave';
 import { cetakAbsensiBulanan } from '../../Utils/absensiPdf';
 import {
   hitungPeriodeBulanan, parseJamMenit, LEAVE_TYPES,
@@ -32,8 +33,6 @@ export default function AbsensiAzwad({ baseUrl, karyawan, dark }) {
   const [potongJamKerja, setPotongJamKerja] = useState(0);
   const [catatan, setCatatan] = useState('');
   const [absensiId, setAbsensiId] = useState(null);
-  const [dirty, setDirty] = useState(false);
-  const [saving, setSaving] = useState(false);
 
   const rekap = useMemo(
     () => hitungPeriodeBulanan(rows, gajiBulanan, lemburPerJam, potongAbsenPerHari, { potongBon, lainLain, potongJamKerja }),
@@ -56,7 +55,7 @@ export default function AbsensiAzwad({ baseUrl, karyawan, dark }) {
         setPotongJamKerja(Number(doc?.potongJamKerja) || 0);
         setCatatan(doc?.catatan || '');
         setAbsensiId(doc?.id || null);
-        setDirty(false);
+        auto.reset();
       } catch (e) {
         console.error(e);
         if (!batal) setRows(gabungBarisBulan(periodeStart, null));
@@ -65,56 +64,53 @@ export default function AbsensiAzwad({ baseUrl, karyawan, dark }) {
     return () => { batal = true; };
   }, [baseUrl, karyawan?.id, periodeStart]);
 
+  // Ganti periode: simpan dulu perubahan periode yang sedang dibuka
+  const gantiPeriode = async (baru) => { await auto.flush(); setPeriodeStart(baru); };
   const geserBulan = (arah) => {
     const d = new Date(periodeStart);
     d.setHours(12, 0, 0, 0);
     d.setMonth(d.getMonth() + arah, 1);
-    setPeriodeStart(awalBulan(d));
+    gantiPeriode(awalBulan(d));
   };
 
   const ubahLembur = (idx, value) => {
     setRows((prev) => prev.map((r, i) => (i === idx ? { ...r, lembur: value, lemburMenit: parseJamMenit(value) } : r)));
-    setDirty(true);
+    auto.tandai();
   };
   const ubahAbsen = (idx, value) => {
     setRows((prev) => prev.map((r, i) => (i === idx ? { ...r, absen: value } : r)));
-    setDirty(true);
+    auto.tandai();
   };
 
-  const simpan = useCallback(async () => {
+  // Simpan ke server (dipanggil auto-save). Throw kalau gagal.
+  const simpanKeServer = async ({ keepalive } = {}) => {
     if (!karyawan) return;
-    setSaving(true);
-    try {
-      const res = await fetch(baseUrl + '/absensi/save', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          karyawanId: karyawan.id,
-          karyawanNama: karyawan.nama,
-          periodeStart,
-          periodeEnd: akhirBulan(periodeStart),
-          tipe: 'bulanan',
-          gajiBulanan,
-          lemburPerJam,
-          potongAbsenPerHari,
-          hari: rows,
-          potongBon: Number(potongBon) || 0,
-          lainLain: Number(lainLain) || 0,
-          potongJamKerja: Number(potongJamKerja) || 0,
-          catatan,
-          rekap,
-        }),
-      });
-      const d = await res.json();
-      if (!res.ok) throw new Error(d.message || 'Gagal menyimpan');
-      setAbsensiId(d.id || absensiId);
-      setDirty(false);
-    } catch (e) {
-      console.error(e);
-      alert('Gagal menyimpan absensi: ' + e.message);
-    }
-    setSaving(false);
-  }, [baseUrl, karyawan, periodeStart, gajiBulanan, lemburPerJam, potongAbsenPerHari, rows, potongBon, lainLain, potongJamKerja, catatan, rekap, absensiId]);
+    const res = await fetch(baseUrl + '/absensi/save', {
+      method: 'POST',
+      keepalive,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        karyawanId: karyawan.id,
+        karyawanNama: karyawan.nama,
+        periodeStart,
+        periodeEnd: akhirBulan(periodeStart),
+        tipe: 'bulanan',
+        gajiBulanan,
+        lemburPerJam,
+        potongAbsenPerHari,
+        hari: rows,
+        potongBon: Number(potongBon) || 0,
+        lainLain: Number(lainLain) || 0,
+        potongJamKerja: Number(potongJamKerja) || 0,
+        catatan,
+        rekap,
+      }),
+    });
+    const d = await res.json();
+    if (!res.ok) throw new Error(d.message || 'Gagal menyimpan');
+    setAbsensiId(d.id || absensiId);
+  };
+  const auto = useAutoSave(simpanKeServer);
 
   const th = (extra = {}) => ({
     border: cellBorder, padding: '6px 8px', fontSize: 11, fontWeight: 700,
@@ -136,10 +132,10 @@ export default function AbsensiAzwad({ baseUrl, karyawan, dark }) {
           <Button size="sm" variant="outline-secondary" onClick={() => geserBulan(-1)}><MdChevronLeft /></Button>
           <span style={{ fontSize: 14, fontWeight: 700, color: text, minWidth: 130, textAlign: 'center' }}>{fmtBulan(periodeStart)}</span>
           <Button size="sm" variant="outline-secondary" onClick={() => geserBulan(1)}><MdChevronRight /></Button>
-          <Button size="sm" variant="outline-secondary" onClick={() => setPeriodeStart(awalBulan(new Date()))}>Bulan ini</Button>
+          <Button size="sm" variant="outline-secondary" onClick={() => gantiPeriode(awalBulan(new Date()))}>Bulan ini</Button>
         </div>
-        <Button size="sm" variant={dirty ? 'primary' : 'outline-secondary'} disabled={saving} onClick={simpan}>
-          {saving ? <Spinner size="sm" /> : <><MdSave /> {dirty ? 'Simpan Perubahan' : 'Tersimpan'}</>}
+        <Button size="sm" variant={auto.dirty ? 'primary' : 'outline-secondary'} disabled={auto.saving} onClick={() => auto.simpan()}>
+          {auto.saving ? <Spinner size="sm" /> : <><MdSave /> {auto.dirty ? 'Simpan Sekarang' : 'Tersimpan'}</>}
         </Button>
         <Button
           size="sm" variant="outline-primary" title="Export slip gaji bulan ini ke PDF"
@@ -147,7 +143,7 @@ export default function AbsensiAzwad({ baseUrl, karyawan, dark }) {
         >
           <FaFilePdf /> Export PDF
         </Button>
-        {dirty && <span style={{ fontSize: 12, color: '#c2410c', fontWeight: 600 }}>Ada perubahan belum disimpan</span>}
+        <StatusSimpan auto={auto} muted={muted} />
       </div>
 
       {/* Header: nama, bulan, rate */}
@@ -226,15 +222,15 @@ export default function AbsensiAzwad({ baseUrl, karyawan, dark }) {
           <div style={{ fontSize: 12, fontWeight: 700, color: text, marginBottom: 8, textTransform: 'uppercase' }}>Pendapatan</div>
           <Baris label="Gaji Pokok" value={fmtRp(rekap.pokok)} {...{ muted, text }} />
           <Baris label={`Lembur (${fmtJam(rekap.totalLemburMenit)} jam × ${fmtRp(rekap.perJamLembur)})`} value={fmtRp(rekap.upahLembur)} {...{ muted, text }} />
-          <BarisInput label="Lain-lain" value={lainLain} onChange={(v) => { setLainLain(v); setDirty(true); }} color="#15803d" {...{ muted, dark, text }} />
+          <BarisInput label="Lain-lain" value={lainLain} onChange={(v) => { setLainLain(v); auto.tandai(); }} color="#15803d" {...{ muted, dark, text }} />
           <Baris label="Total Pendapatan" value={fmtRp(rekap.totalPendapatan)} bold {...{ muted, text }} />
         </div>
         {/* Potongan */}
         <div style={{ flex: '1 1 320px', background: cardBg, border, borderRadius: 10, padding: '12px 16px' }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: text, marginBottom: 8, textTransform: 'uppercase' }}>Potongan</div>
-          <BarisInput label="Potong Bon" value={potongBon} onChange={(v) => { setPotongBon(v); setDirty(true); }} color="#c62828" {...{ muted, dark, text }} />
+          <BarisInput label="Potong Bon" value={potongBon} onChange={(v) => { setPotongBon(v); auto.tandai(); }} color="#c62828" {...{ muted, dark, text }} />
           <Baris label={`Potong Absen (${rekap.totalHariPotong} hari × ${fmtRp(potongAbsenPerHari)})`} value={fmtRp(rekap.potongAbsen)} color="#c62828" {...{ muted, text }} />
-          <BarisInput label="Potong Jam Kerja" value={potongJamKerja} onChange={(v) => { setPotongJamKerja(v); setDirty(true); }} color="#c62828" {...{ muted, dark, text }} />
+          <BarisInput label="Potong Jam Kerja" value={potongJamKerja} onChange={(v) => { setPotongJamKerja(v); auto.tandai(); }} color="#c62828" {...{ muted, dark, text }} />
           <Baris label="Total Potongan" value={fmtRp(rekap.totalPotongan)} bold color="#c62828" {...{ muted, text }} />
         </div>
       </div>
@@ -258,7 +254,7 @@ export default function AbsensiAzwad({ baseUrl, karyawan, dark }) {
         <Form.Control
           as="textarea" rows={2} placeholder="Catatan bulan ini (opsional)"
           value={catatan}
-          onChange={(e) => { setCatatan(e.target.value); setDirty(true); }}
+          onChange={(e) => { setCatatan(e.target.value); auto.tandai(); }}
           style={{ background: cardBg, color: text, border, fontSize: 13 }}
         />
       </div>

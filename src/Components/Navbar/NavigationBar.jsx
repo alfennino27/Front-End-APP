@@ -363,11 +363,11 @@ const NavigationBar = () => {
 
 
   useEffect(() => {
-    // Bell "Important!" nyala kalau ada tag @saya yang BELUM dibalas DAN BELUM
-    // saya buka. Read-state (userField) sengaja ikut dihitung: tanpa itu satu-
-    // satunya cara mematikan tag adalah membalas thread-nya, jadi kalau thread
-    // sudah dihapus atau tag sudah diganti orang lain, bell berkedip selamanya
-    // dan user tidak punya jalan keluar. Sekarang klik notif = tag mereda.
+    // Bell "Important!" nyala selama ada tag @saya yang BELUM dibalas — sekadar
+    // membuka notif TIDAK mematikannya (tag = minta jawaban). Thread yang sudah
+    // dihapus / tag yang diganti tetap tidak nyangkut: rekonsiliasi di server
+    // (users.js updateCache) mengosongkan text notif usang ≤30 detik, sehingga
+    // tidak lagi cocok `@nama`.
     // userName di-guard karena diisi async — kalau masih kosong, `@${userName}`
     // jadi "@" dan cocok dengan SEMUA mention siapa pun (false positive).
     if (!userName) {
@@ -375,12 +375,10 @@ const NavigationBar = () => {
       return;
     }
 
-    const readField = `user${user.uid}`;
     const isReplyType = (t) => t === 'reply' || t === 'EditReply';
 
     const hasImportantNotif = dataNotifFromDB.some((notif) => {
       if (!notif.text || !notif.text.includes(`@${userName}`)) return false;
-      if (notif[readField] === 'true') return false;
 
       const threadId = isReplyType(notif.type) ? notif.commentId : notif.id;
       const sudahDibalas = dataNotifFromDB.some((other) =>
@@ -917,14 +915,17 @@ const NavigationBar = () => {
 
 
 
-                      {/* Notif tag ikut meredup setelah dibuka. Dulu kondisinya
-                          `... && !notif.isTagged` sehingga notif tag tidak pernah
-                          bisa ditandai terbaca → nyangkut merah selamanya. */}
-                      {processedNotifications.map((notif, index) => (
+                      {/* Notif biasa meredup setelah dibuka; notif TAG baru meredup
+                          setelah dibalas (dibuka saja belum cukup). Tag yang
+                          thread-nya dihapus/diedit tidak nyangkut karena text-nya
+                          dikosongkan server → isTagged false. */}
+                      {processedNotifications.map((notif, index) => {
+                        const selesai = notif.isTagged ? notif.isReplied : (notif[`user${user.uid}`] === 'true' || notif.isReplied);
+                        return (
                         <li
                           key={index}
-                          className={`${theme === 'light' ? 'bg-light' : 'bg-dark'} dropdown-item ${notif[`user${user.uid}`] === 'true' || notif.isReplied ? 'text-secondary' : ''} notif-hover-effect`}
-                          style={{ opacity: notif[`user${user.uid}`] === 'true' || notif.isReplied ? 0.4 : 1, display: myMention && !notif.isTagged ? "none" : "" }}
+                          className={`${theme === 'light' ? 'bg-light' : 'bg-dark'} dropdown-item ${selesai ? 'text-secondary' : ''} notif-hover-effect`}
+                          style={{ opacity: selesai ? 0.4 : 1, display: myMention && !notif.isTagged ? "none" : "" }}
                           onClick={async () => {
                             // Memanggil API untuk update status notif
                             try {
@@ -984,7 +985,8 @@ const NavigationBar = () => {
                           </p>
                           <hr style={{ color: theme === 'light' ? 'black' : 'white' }} />
                         </li>
-                      ))}
+                        );
+                      })}
 
                     </ul>
                   </div>

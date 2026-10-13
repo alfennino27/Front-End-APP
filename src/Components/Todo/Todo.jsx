@@ -244,7 +244,7 @@ const Todo = () => {
   // --- Style kecil ------------------------------------------------------------
   const sInput = {
     background: C.input, color: C.text, border: `1px solid ${C.border}`, borderRadius: 10,
-    padding: '8px 10px', fontSize: 14, minHeight: 38,
+    padding: '8px 10px', fontSize: 16, minHeight: 42,
   };
   const sBtn = (bg, fg = '#fff') => ({
     background: bg, color: fg, border: 'none', borderRadius: 10, padding: '10px 14px',
@@ -452,26 +452,66 @@ const Todo = () => {
 // ============================================================================
 // Bottom sheet
 // ============================================================================
-const Sheet = ({ C, onClose, title, children }) => (
-  <div
-    onClick={onClose}
-    style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1050, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}
-  >
+// Tinggi area yang benar-benar terlihat (HP: dikurangi toolbar browser & keyboard).
+// 100vh di Chrome/Safari HP lebih tinggi dari layar → bagian atas sheet (tombol ×) ketutup.
+const useLayarTerlihat = () => {
+  const baca = () => {
+    const vv = typeof window !== 'undefined' ? window.visualViewport : null;
+    return vv ? { h: vv.height, top: vv.offsetTop } : { h: typeof window !== 'undefined' ? window.innerHeight : 800, top: 0 };
+  };
+  const [v, setV] = useState(baca);
+  useEffect(() => {
+    const vv = window.visualViewport;
+    const upd = () => setV(baca());
+    window.addEventListener('resize', upd);
+    vv?.addEventListener('resize', upd);
+    vv?.addEventListener('scroll', upd);
+    return () => {
+      window.removeEventListener('resize', upd);
+      vv?.removeEventListener('resize', upd);
+      vv?.removeEventListener('scroll', upd);
+    };
+  }, []);
+  return v;
+};
+
+const Sheet = ({ C, onClose, title, children }) => {
+  const layar = useLayarTerlihat();
+  // Kunci scroll halaman di belakang sheet (iOS suka ikut menggulir halaman).
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prev; };
+  }, []);
+
+  return (
     <div
-      onClick={(e) => e.stopPropagation()}
+      onClick={onClose}
       style={{
-        background: C.card, color: C.text, width: '100%', maxWidth: 640, maxHeight: '92vh', overflowY: 'auto',
-        borderRadius: '16px 16px 0 0', padding: '14px 16px 24px', boxShadow: '0 -8px 30px rgba(0,0,0,0.25)',
+        position: 'fixed', left: 0, right: 0, top: layar.top, height: layar.h, background: 'rgba(0,0,0,0.45)', zIndex: 1050,
+        display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-        <div style={{ flex: 1, fontWeight: 700, fontSize: 16 }}>{title}</div>
-        <button type="button" onClick={onClose} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 22, cursor: 'pointer', padding: '0 6px' }}>×</button>
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: C.card, color: C.text, width: '100%', maxWidth: 640, maxHeight: layar.h - 16,
+          display: 'flex', flexDirection: 'column', borderRadius: '16px 16px 0 0', boxShadow: '0 -8px 30px rgba(0,0,0,0.25)',
+        }}
+      >
+        {/* Header tidak ikut menggulir → tombol × selalu terlihat */}
+        <div style={{ flex: 'none', display: 'flex', alignItems: 'center', gap: 8, padding: '10px 8px 8px 16px', borderBottom: `1px solid ${C.border}` }}>
+          <div style={{ flex: 1, minWidth: 0, fontWeight: 700, fontSize: 16, lineHeight: 1.3, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{title}</div>
+          <button type="button" onClick={onClose} aria-label="Tutup"
+            style={{ flex: '0 0 44px', width: 44, height: 44, borderRadius: 999, background: C.soft, border: 'none', color: C.text, fontSize: 24, lineHeight: 1, cursor: 'pointer' }}>×</button>
+        </div>
+        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch', padding: '12px 16px calc(24px + env(safe-area-inset-bottom))' }}>
+          {children}
+        </div>
       </div>
-      {children}
     </div>
-  </div>
-);
+  );
+};
 
 const Label = ({ C, children }) => <div style={{ fontSize: 12, color: C.muted, fontWeight: 600, margin: '12px 0 4px' }}>{children}</div>;
 
@@ -737,7 +777,7 @@ const TaskSheet = ({ t, C, users, userList, user, baseUrl, busy, sInput, sBtn, c
           placeholder="Tulis komentar… ketik @ untuk tag orang"
           options={users.map((n) => ({ value: n, label: n }))}
           getPopupContainer={(node) => node.parentElement || document.body}
-          style={{ width: '100%', fontSize: 15 }}
+          style={{ width: '100%', fontSize: 16 }}
         />
         {showFiles && (
           <div style={{ marginTop: 6 }}>

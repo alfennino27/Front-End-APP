@@ -117,7 +117,9 @@ export default function RingkasanIklan({ baseUrl, bulan, dark, text, muted, card
       {/* ── Level 1 ── */}
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
         <Angka label="Biaya / Lead Serius" nilai={fmtRb(r.biaya_per_serius)} warna={warnaTarget} sub={`target ${fmtRb(r.target_biaya_serius)}`} />
-        <Angka label="Lead Serius" nilai={`${r.serius} / ${r.chat}`} sub={`${r.pct_serius}% dari chat iklan`} />
+        <Angka label="Lead Serius" nilai={`${r.serius} / ${r.chat}`} sub={`${r.pct_serius}% dari chat${r.ql_per_juta != null ? ` · ${String(r.ql_per_juta).replace('.', ',')} per Rp1 jt` : ''}`} />
+        <Angka label="QL 🏢 B2B · 🏠 B2C" nilai={`${r.ql_b2b ?? 0} · ${r.ql_b2c ?? 0}`} warna={biru}
+          sub={`porsi B2B ${r.pct_ql_b2b ?? 0}%${r.ql_segmen_belum ? ` · ${r.ql_segmen_belum} belum tahu` : ''}`} />
         <Angka label="Deal dari iklan" nilai={r.deal} sub={r.revenue ? fmtRb(r.revenue) : null} />
         <Angka label="GP − Spend" nilai={fmtRb(r.gp_minus_spend)} warna={r.gp_minus_spend >= 0 ? hijau : merah} sub={`spend ${fmtRb(r.spend)}`} />
       </div>
@@ -186,6 +188,8 @@ export default function RingkasanIklan({ baseUrl, bulan, dark, text, muted, card
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 18 }}>
               <div><div style={{ fontWeight: 600, fontSize: 12, color: text, marginBottom: 6 }}>Produk dicari (lead serius)</div><Bar items={data.detail.produk_serius} total={r.serius} /></div>
               <div><div style={{ fontWeight: 600, fontSize: 12, color: text, marginBottom: 6 }}>Kota (lead serius)</div><Bar items={data.detail.kota_serius} total={r.serius} /></div>
+              <div><div style={{ fontWeight: 600, fontSize: 12, color: text, marginBottom: 6 }}>Segmen (lead serius)</div><Bar items={data.detail.segmen_serius || []} total={r.serius} nama={(k) => NAMA_SEGMEN[k] || k} warna="#0b5cad" />
+                <div style={{ fontSize: 11, color: muted, marginTop: 6 }}>Chat B2B: {r.chat_b2b ?? 0} · deal B2B: {r.deal_b2b ?? 0} (deal dihitung ke bulan klik pertama)</div></div>
               <div><div style={{ fontWeight: 600, fontSize: 12, color: text, marginBottom: 6 }}>Segmen (semua chat)</div><Bar items={data.detail.segmen} total={r.dinilai} nama={(k) => NAMA_SEGMEN[k] || k} /></div>
               <div><div style={{ fontWeight: 600, fontSize: 12, color: text, marginBottom: 6 }}>Kota (semua chat)</div><Bar items={data.detail.kota.slice(0, 8)} total={r.dinilai} warna="#7F77DD" /></div>
             </div>
@@ -194,6 +198,7 @@ export default function RingkasanIklan({ baseUrl, bulan, dark, text, muted, card
           {bagian === 'gagal' && (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 18 }}>
               <div><div style={{ fontWeight: 600, fontSize: 12, color: text, marginBottom: 6 }}>Alasan tidak lanjut</div><Bar items={data.detail.alasan_gagal} total={data.detail.alasan_gagal.reduce((s, x) => s + x.jumlah, 0)} nama={(k) => NAMA_GAGAL[k] || k} warna={merah} /></div>
+              {(data.detail.alasan_gagal_b2b || []).length > 0 && <div><div style={{ fontWeight: 600, fontSize: 12, color: text, marginBottom: 6 }}>Alasan tidak lanjut — B2B</div><Bar items={data.detail.alasan_gagal_b2b} total={data.detail.alasan_gagal_b2b.reduce((s, x) => s + x.jumlah, 0)} nama={(k) => NAMA_GAGAL[k] || k} warna="#0b5cad" /></div>}
               <div><div style={{ fontWeight: 600, fontSize: 12, color: text, marginBottom: 6 }}>Hari lead serius masuk</div><Bar items={data.detail.hari_serius} total={r.serius} warna={hijau} /></div>
               <div><div style={{ fontWeight: 600, fontSize: 12, color: text, marginBottom: 6 }}>Jam lead serius masuk (WIB)</div><Bar items={data.detail.jam_serius} total={r.serius} warna={hijau} nama={(j) => `${j}.00`} /></div>
             </div>

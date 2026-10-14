@@ -1635,8 +1635,12 @@ const ListPekerjaan = () => {
           <Row key={index} id={project.id}>
             <Col>
               <Link to={`/project/${project.id}`}>
-                <div className={`listPekerjaan d-flex flex-column position-relative mb-1 shadow tema-${globalTheme} ${project.id === slug ? `selected` : ""}`} style={{ backgroundImage: project.id === slug ? (globalTheme === "light" ? "linear-gradient(to right, #cbcbcb, #e7e7e7)" : "linear-gradient(to right, #404040, #252525)") : (globalTheme === "light" ? "linear-gradient(to right, #ffffff, #e7e7e7)" : "linear-gradient(to right, #151515, #252525)"), border: project.id === slug ? (globalTheme === "light" ? "2px solid #c1c1c1" : "2px solid #8e8e8e") : (globalTheme === "light" ? "2px solid rgb(163, 163, 163)" : "2px solid #7a7a7a") }}>
-                  <div className="d-flex" style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
+                <div className={`listPekerjaan d-flex flex-column position-relative mb-1 shadow tema-${globalTheme} ${project.id === slug ? `selected` : ""}`} style={{ backgroundImage: project.id === slug ? (globalTheme === "light" ? "linear-gradient(to right, #cbcbcb, #e7e7e7)" : "linear-gradient(to right, #404040, #252525)") : (globalTheme === "light" ? "linear-gradient(to right, #ffffff, #e7e7e7)" : "linear-gradient(to right, #151515, #252525)"), border: project.id === slug ? (globalTheme === "light" ? "2px solid #c1c1c1" : "2px solid #8e8e8e") : (globalTheme === "light" ? "2px solid rgb(163, 163, 163)" : "2px solid #7a7a7a"),
+                  // Tinggi tetap 150px (pekerjaan.css) bikin isi kartu terpotong di HP:
+                  // judul 2 baris mendorong buyer & progress bar keluar kartu.
+                  // Sekarang tinggi mengikuti isi; teks di-clamp supaya tetap rapi.
+                  height: 'auto', minHeight: isMobile ? 0 : 150, padding: isMobile ? 12 : 15 }}>
+                  <div className="d-flex" style={{ flex: 1, minHeight: 0 }}>
                   <div className="me-3">
                     <img src={getImageUrl(project.image1)} alt=""
                       loading="lazy"
@@ -1651,11 +1655,11 @@ const ListPekerjaan = () => {
                       (width 100%) ikut melar mengikuti judul panjang sehingga
                       jebol keluar kartu di lebar window tertentu. */}
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <h5 style={{ color: globalTheme == "light" ? "black" : "#ffffff" }}>{project.NamaBarang}</h5>
+                    <h5 style={{ color: globalTheme == "light" ? "black" : "#ffffff", fontSize: isMobile ? 16 : 18, lineHeight: 1.25, marginBottom: 2, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word' }}>{project.NamaBarang}</h5>
                     {/* Buyer dulu #c0c0c0: di HP low-end (panel TN/gamma jelek)
                         abu-abu setipis itu nyaris lenyap di atas latar gelap.
                         Dinaikkan ke #e3e3e3 + weight 500 supaya tetap terbaca. */}
-                    <h6 style={{ color: globalTheme == "light" ? "#292929" : "#e3e3e3", fontWeight: globalTheme == "light" ? 400 : 500 }}>{project.Buyer}</h6>
+                    <h6 style={{ color: globalTheme == "light" ? "#292929" : "#e3e3e3", fontWeight: globalTheme == "light" ? 400 : 500, fontSize: isMobile ? 13 : 15, marginBottom: 8, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{project.Buyer}</h6>
                     <small>
                       <div className="progress" role="progressbar" style={{ backgroundColor: '#4c4c4c', height: "15px", width: '100%' }}>
                         <div className="progress-bar" style={{ width: `${Math.min(100, Math.max(0, Number(project.Percentage) || 0))}%`, background: globalTheme == "light" ? `linear-gradient(to left, #007EFF, #14C2F6)` : `linear-gradient(to left, #003797, #00c6ff)` }}>{project.Percentage}%</div>
@@ -1669,7 +1673,7 @@ const ListPekerjaan = () => {
                     start-0) sehingga saling menimpa, dan status SPK digeser paksa
                     dengan marginLeft 100px yang meleset di lebar lain. Sekarang
                     satu baris flex — tidak mungkin tumpang tindih lagi. */}
-                <div className="d-flex align-items-center flex-wrap" style={{ gap: '2px 12px', fontSize: '0.8rem', lineHeight: 1.4 }}>
+                <div className="d-flex align-items-center flex-wrap" style={{ gap: '2px 12px', fontSize: isMobile ? '0.75rem' : '0.8rem', lineHeight: 1.4, marginTop: 10, paddingTop: 8, borderTop: globalTheme === "light" ? '1px solid rgba(0,0,0,0.08)' : '1px solid rgba(255,255,255,0.1)' }}>
                   {searchSupplier && (
                     <span style={{
                       color: (globalTheme === "light" ? {

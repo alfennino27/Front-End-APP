@@ -1103,6 +1103,11 @@ const DetailPekerjaan = () => {
       setSupplierGambarKerja(data.SupplierGambarKerja);
 
       setDataProjectFromDB([data]); // karena sebelumnya berbentuk array
+
+      // refreshData() hanya dipanggil setelah mutasi (status, supplier/SPK
+      // category, alur kerja, checkbox, edit info, dst). Kabari ListPekerjaan
+      // supaya keterangan status & SPK di kartu ikut berubah tanpa reload.
+      window.dispatchEvent(new CustomEvent('projectDataChanged', { detail: { projectId: slug } }));
     } catch (err) {
       console.error('Error saat refresh data:', err.message);
     }

@@ -468,6 +468,50 @@ const ListPekerjaan = () => {
     getDataAllSPK();
   }, []);
 
+  // Keterangan di kartu (status category & status SPK) dulu hanya diambil sekali
+  // saat list dibuka, jadi baru berubah setelah reload. Sekarang diambil ulang:
+  // - setelah ada perubahan di panel detail (event projectDataChanged),
+  // - saat tab/app kembali aktif (habis dari halaman SPK, tab lain, atau HP di-unlock),
+  // - tiap 60 detik selama halaman terlihat (perubahan user lain / Hermes / AI).
+  // Ambil ulang diam-diam — tanpa skeleton, filter & tab tidak berubah.
+  const refreshListRef = useRef(null);
+  refreshListRef.current = () => {
+    fetchAllProjects();
+    getDataAllSPKproduct();
+    getDataAllSPK();
+  };
+
+  useEffect(() => {
+    let debounce = null;
+    let lastRefresh = Date.now();
+    const refresh = () => {
+      clearTimeout(debounce);
+      // beberapa mutasi beruntun (mis. simpan category + komentar) cukup 1x ambil ulang
+      debounce = setTimeout(() => {
+        lastRefresh = Date.now();
+        refreshListRef.current?.();
+      }, 400);
+    };
+    const onVisible = () => {
+      // focus & visibilitychange sering datang berbarengan; jangan ambil dobel
+      if (document.visibilityState === 'visible' && Date.now() - lastRefresh > 5000) refresh();
+    };
+    const timer = setInterval(() => {
+      if (document.visibilityState === 'visible') refresh();
+    }, 60000);
+
+    window.addEventListener('projectDataChanged', refresh);
+    window.addEventListener('focus', onVisible);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      clearTimeout(debounce);
+      clearInterval(timer);
+      window.removeEventListener('projectDataChanged', refresh);
+      window.removeEventListener('focus', onVisible);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, []);
+
   const getDataAllSPKproduct = async () => {
     try {
       const res = await fetch(`${baseUrl}/spkproduct/all/get`);

@@ -29,6 +29,7 @@ import { heicToJpeg } from '../../Utils/heic';
 import noImageAvailable from '../../assets/images/noImageAvailable.png';
 import glbLogoImg from '../../assets/images/glbLogo.webp';
 import { bukaTab } from '../../Utils/bukaTab';
+import { mintaRefreshNotif } from '../../Utils/notifRefresh';
 
 const { Option } = Select;
 
@@ -509,6 +510,7 @@ const DetailPekerjaan = () => {
       }
 
       console.log('Komentar berhasil dihapus:', result.message);
+      mintaRefreshNotif();
     } catch (error) {
       console.error('Terjadi kesalahan saat menghapus komentar:', error.message);
     }
@@ -965,6 +967,7 @@ const DetailPekerjaan = () => {
 
       // Retry untuk sinyal lapangan yang jelek: coba beberapa kali sebelum menyerah.
       await postWithRetry(`${baseUrl}/comments/create`, formData);
+      mintaRefreshNotif();
 
       // Sukses → baru tutup & bersihkan (gambar tidak hilang kalau tadi gagal).
       setShowModal(false);
@@ -1013,6 +1016,7 @@ const DetailPekerjaan = () => {
       if (!res.ok) {
         throw new Error(data.message || 'Gagal mengirim reply');
       }
+      mintaRefreshNotif(); // tag yang barusan dibalas langsung padam
 
       await commentsData(); // refresh komentar
       setTimeout(() => {
@@ -1059,6 +1063,7 @@ const DetailPekerjaan = () => {
       }
 
       console.log('Komentar berhasil diupdate:', result.message);
+      mintaRefreshNotif();
     } catch (error) {
       console.error('Terjadi kesalahan:', error.message);
     }

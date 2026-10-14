@@ -28,6 +28,7 @@ import { VscMention } from "react-icons/vsc";
 import { CgSmartphoneChip } from "react-icons/cg";
 import { ImPriceTags } from "react-icons/im";
 import { getImageUrl } from '../../Utils/image';
+import { NOTIF_REFRESH_EVENT } from '../../Utils/notifRefresh';
 import { IoIosArrowDown, IoIosArrowUp } from "react-icons/io";
 import { GrWorkshop } from "react-icons/gr";
 import { GiMoneyStack } from "react-icons/gi";
@@ -45,16 +46,13 @@ const NavigationBar = () => {
   const [userName, setUserName] = useState('');
   const [profilePicture, setProfilePicture] = useState('');
   const isMobile = window.innerWidth <= 768;
-  const [dataNotifFromDB, setDataNotifFromDB] = useState([]);
-  const [dataUserFromDB, setDataUserFromDB] = useState([]);
-  const [dataProductFromDB, setDataProductFromDB] = useState([]);
+  const [notifData, setNotifData] = useState({ items: [], pendingMention: 0, unreadReply: 0 });
   const [dataAlurKerjaNotif, setDataAlurKerjaNotif] = useState([]);
-  let [notifStatus, setNotifStatus] = useState(localStorage.getItem('notifStatus'));
 
   const [showBoardModal, setShowBoardModal] = useState(false);
 
   const [myMention, setMyMention] = useState(false);
-  const [notifPenting, setNotifPenting] = useState(false);
+  const notifPenting = notifData.pendingMention > 0;
 
   const handleClose = () => setShow(false);
   const handleShow = () => setShow(true);
@@ -146,43 +144,44 @@ const NavigationBar = () => {
     fetchData();
   }, []); // ← hanya dijalankan sekali saat komponen mount
 
-  const fetchNotifikasi = async () => {
+  // Bel notifikasi komentar — aturan & hitungan di server (utils/notifKomentar.js):
+  //  • mention @saya → persisten (merah "Important!") sampai saya membalas, maks 30 hari
+  //  • balasan orang lain di thread milik saya / yang saya ikut balas → padam saat diklik
+  // Selain itu tidak ada notif. Dihitung ulang tiap 30 detik, saat tab kembali
+  // aktif, dan LANGSUNG setelah kita kirim/edit/hapus komentar (mintaRefreshNotif).
+  const fetchNotifikasi = useCallback(async () => {
+    if (!user?.uid) return;
     try {
-      const res = await fetch(`${baseUrl}/notif/get`);
+      const res = await fetch(`${baseUrl}/notif/mine?uid=${encodeURIComponent(user.uid)}`);
+      if (!res.ok) return;
       const data = await res.json();
+      const items = Array.isArray(data.items) ? data.items : [];
+      setNotifData({ items, pendingMention: data.pendingMention || 0, unreadReply: data.unreadReply || 0 });
 
-      setDataNotifFromDB(data);
-
-      // Nyalakan bel hanya kalau ada notif BARU dari ORANG LAIN.
-      // Aksi sendiri (komentar/balasan kita, termasuk yang ditulis lewat
-      // WhatsApp via Hermes) tidak perlu memberi tahu diri sendiri — dulu
-      // membalas berarti bel ERP ikut menyala dan harus diklik untuk padam.
-      // Dicek dari seluruh notif yang lebih baru dari yang terakhir dilihat,
-      // bukan cuma yang paling atas, supaya notif orang lain tidak terlewat
-      // kalau notif kita kebetulan datang belakangan.
-      if (data.length > 0 && localStorage.getItem('firstNotif') !== data[0]?.id) {
-        const lastSeenId = localStorage.getItem('firstNotif');
-        const lastSeenIdx = data.findIndex((n) => n.id === lastSeenId);
-        const baru = lastSeenIdx === -1 ? data : data.slice(0, lastSeenIdx);
-        const adaDariOrangLain = baru.some((n) => n.user !== user?.uid);
-
-        localStorage.setItem('firstNotif', data[0]?.id);
-        if (adaDariOrangLain) {
-          localStorage.setItem('notifStatus', 'on');
-          setNotifStatus('on');
-          showNotification();
-        }
-      }
+      // Popup browser hanya untuk notif AKTIF yang belum pernah terlihat.
+      // Kunjungan pertama (belum ada daftar tersimpan) cukup dicatat, tanpa popup.
+      const aktif = items.filter((n) => n.aktif).map((n) => n.key);
+      let seen = null;
+      try { seen = JSON.parse(localStorage.getItem('notifSeenKeys') || 'null'); } catch (e) { seen = null; }
+      if (Array.isArray(seen) && aktif.some((k) => !seen.includes(k))) showNotification();
+      try { localStorage.setItem('notifSeenKeys', JSON.stringify(aktif)); } catch (e) { /* abaikan */ }
     } catch (error) {
       console.error('Gagal mengambil notifikasi:', error);
     }
-  };
+  }, [baseUrl]);
 
   useEffect(() => {
-    const interval = setInterval(fetchNotifikasi, 30000); // Panggil tiap 30 detik
-
-    return () => clearInterval(interval); // Hentikan saat unmount
-  }, []);
+    fetchNotifikasi();
+    const interval = setInterval(fetchNotifikasi, 30000);
+    const onVisible = () => { if (document.visibilityState === 'visible') fetchNotifikasi(); };
+    window.addEventListener(NOTIF_REFRESH_EVENT, fetchNotifikasi);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener(NOTIF_REFRESH_EVENT, fetchNotifikasi);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [fetchNotifikasi]);
 
   const fetchAlurKerjaNotif = async () => {
     try {
@@ -200,33 +199,20 @@ const NavigationBar = () => {
     return () => clearInterval(interval);
   }, []);
 
-  useEffect(() => {
-    // fetchNotifikasi(); // Panggilan pertama saat komponen mount
-
-    const timeout = setTimeout(() => {
-      fetchNotifikasi(); // Panggilan kedua setelah 5 detik
-    }, 2000); // 5000ms = 5 detik
-
-    return () => clearTimeout(timeout); // Bersihkan timeout saat unmount
-  }, []);
-
-
-
-  let granted = false;
   const showNotification = async () => {
+    // iPhone/iPad Safari (non-PWA) tidak punya Notification API
+    if (typeof Notification === 'undefined') return;
 
     // check notification permission
-    if (Notification.permission === 'granted') {
-      granted = true;
-    } else if (Notification.permission !== 'denied') {
-      let permission = await Notification.requestPermission();
-      granted = permission === 'granted' ? true : false;
+    if (Notification.permission === 'denied') return;
+    if (Notification.permission !== 'granted') {
+      const permission = await Notification.requestPermission();
+      if (permission !== 'granted') return;
     }
-
 
     // create a new notification
     const notification = new Notification('KLF App', {
-      body: "Hey there! You've got a new comment or reply on your project",
+      body: 'Ada mention atau balasan baru untuk Anda',
       icon: './img/klflogo.png'
     });
 
@@ -249,44 +235,8 @@ const NavigationBar = () => {
   const handleNotifClick = (e) => {
     const rect = e?.currentTarget?.getBoundingClientRect?.();
     if (rect) setNotifTop(Math.round(rect.bottom + 8));
-    localStorage.removeItem('notifStatus');
-    setNotifStatus(localStorage.getItem('notifStatus'));
+    fetchNotifikasi();
   };
-
-  useEffect(() => {
-    const fetchUsers = async () => {
-      try {
-        const res = await fetch(`${baseUrl}/users/all/get`, {
-          method: 'GET',
-        });
-
-        if (!res.ok) throw new Error('Gagal ambil data user');
-
-        const data = await res.json();
-        setDataUserFromDB(data);
-      } catch (error) {
-        console.error('Error fetching users:', error);
-      }
-    };
-
-    const fetchProjects = async () => {
-      try {
-        const res = await fetch(`${baseUrl}/projects/get`, {
-          method: 'GET',
-        });
-
-        if (!res.ok) throw new Error('Gagal ambil data project');
-
-        const data = await res.json();
-        setDataProductFromDB(data);
-      } catch (error) {
-        console.error('Error fetching projects:', error);
-      }
-    };
-
-    fetchUsers();
-    fetchProjects();
-  }, []);
 
 
   const handleLogout = () => {
@@ -362,44 +312,6 @@ const NavigationBar = () => {
   };
 
 
-  useEffect(() => {
-    // Bell "Important!" nyala selama ada tag @saya yang BELUM dibalas — sekadar
-    // membuka notif TIDAK mematikannya (tag = minta jawaban). Thread yang sudah
-    // dihapus / tag yang diganti tetap tidak nyangkut: rekonsiliasi di server
-    // (users.js updateCache) mengosongkan text notif usang ≤30 detik, sehingga
-    // tidak lagi cocok `@nama`.
-    // userName di-guard karena diisi async — kalau masih kosong, `@${userName}`
-    // jadi "@" dan cocok dengan SEMUA mention siapa pun (false positive).
-    if (!userName) {
-      setNotifPenting(false);
-      return;
-    }
-
-    const isReplyType = (t) => t === 'reply' || t === 'EditReply';
-
-    const hasImportantNotif = dataNotifFromDB.some((notif) => {
-      if (!notif.text || !notif.text.includes(`@${userName}`)) return false;
-
-      const threadId = isReplyType(notif.type) ? notif.commentId : notif.id;
-      const sudahDibalas = dataNotifFromDB.some((other) =>
-        isReplyType(other.type) &&
-        other.user === user.uid &&
-        other.commentId === threadId &&
-        other.date.value._seconds > notif.date.value._seconds
-      );
-
-      return !sudahDibalas;
-    });
-
-    setNotifPenting(hasImportantNotif);
-  }, [dataNotifFromDB, user.uid, userName]);
-
-  useEffect(() => {
-    if (notifPenting) {
-      // openNotification('topLeft')
-    }
-  }, [notifPenting]);
-
   const [api, contextHolder] = notification.useNotification();
   const openNotification = (placement) => {
     api.info({
@@ -422,70 +334,19 @@ const NavigationBar = () => {
     return () => clearInterval(interval); // Bersihkan interval saat komponen di-unmount
   }, []);
 
-  const processedNotifications = useMemo(() => {
-    // Buat map untuk data user dan produk
-    const userMap = dataUserFromDB.reduce((acc, user) => {
-      acc[user.uid] = user;
-      return acc;
-    }, {});
-
-    const productMap = dataProductFromDB.reduce((acc, product) => {
-      acc[product.id] = product;
-      return acc;
-    }, {});
-
-    // Buat map untuk mengecek balasan
-    const replyMap = dataNotifFromDB.reduce((acc, notif) => {
-      if (notif.type === 'reply' || notif.type === 'EditReply') {
-        if (!acc[notif.commentId]) {
-          acc[notif.commentId] = [];
-        }
-        acc[notif.commentId].push(notif);
-      }
-      return acc;
-    }, {});
-
-    // Proses notifikasi
-    return dataNotifFromDB.map((notif) => {
-      const notifUserName = userMap[notif.user]?.name || 'Unknown';
-      const UserProfilePicture = userMap[notif.user]?.profilePicture || 'Unknown';
-      const productName = productMap[notif.idProduct]?.NamaBarang || 'Unknown';
-
-      let message = '';
-      let isTagged = false;
-
-      if (notif.text && notif.text.includes(`@${userName}`)) {
-        message = `tagged you on "${productName}"`;
-        isTagged = true;
-      } else if (notif.type === 'comment') {
-        message = `added a comment on "${productName}"`;
-      } else if (notif.type === 'reply') {
-        message = `replied to a comment on "${productName}"`;
-      } else if (notif.type === 'EditComment') {
-        message = `edited their comment on "${productName}"`;
-      } else if (notif.type === 'EditReply') {
-        message = `edited their reply on "${productName}"`;
-      } else if (notif.type === 'DeleteComment') {
-        message = `deleted a comment on "${productName}"`;
-      } else if (notif.type === 'DeleteReply') {
-        message = `deleted a reply on "${productName}"`;
-      }
-
-      // Cek apakah komentar atau balasan sudah di-reply
-      let isReplied = false;
-      if (notif.type === 'comment' || notif.type === 'EditComment') {
-        isReplied = (replyMap[notif.id] || []).some(
-          (reply) => reply.user === user.uid && reply.date.value._seconds > notif.date.value._seconds
-        );
-      } else if (notif.type === 'reply' || notif.type === 'EditReply') {
-        isReplied = (replyMap[notif.commentId] || []).some(
-          (reply) => reply.user === user.uid && reply.date.value._seconds > notif.date.value._seconds
-        );
-      }
-
-      return { ...notif, notifUserName, productName, UserProfilePicture, isTagged, message, isReplied };
-    });
-  }, [dataNotifFromDB, dataUserFromDB, dataProductFromDB, userName]);
+  // Teks tiap notif + urutan tampil: mention yang belum dibalas selalu di atas
+  // (supaya yang bikin bel merah gampang ditemukan), sisanya terbaru dulu.
+  const notifList = useMemo(() => {
+    const pesan = {
+      'mention': 'menandai Anda di',
+      'reply-mine': 'membalas komentar Anda di',
+      'reply-thread': 'ikut membalas diskusi di',
+    };
+    const list = notifData.items.map((n) => ({ ...n, message: `${pesan[n.kind] || 'membalas di'} "${n.productName || '-'}"` }));
+    const pending = list.filter((n) => n.kind === 'mention' && n.aktif);
+    const lain = list.filter((n) => !(n.kind === 'mention' && n.aktif));
+    return { pending, lain };
+  }, [notifData]);
 
 
   // Hak akses menu di-cache di localStorage: kalau fetch gagal (sinyal jelek /
@@ -854,7 +715,7 @@ const NavigationBar = () => {
                         </Popover>
                       )
 
-                    ) : notifStatus === 'on' ? (
+                    ) : notifData.unreadReply > 0 ? (
                       <MdNotificationsActive
                         style={{ fontSize: '24px', marginRight: '5px', color: 'white' }}
                         onClick={handleNotifClick}
@@ -872,6 +733,11 @@ const NavigationBar = () => {
                         aria-expanded="false"
                         className='bell-hover'
                       />
+                    )}
+                    {!notifPenting && notifData.unreadReply > 0 && (
+                      <span style={{ position: 'absolute', top: -4, right: 0, background: '#dc3545', color: 'white', borderRadius: 10, fontSize: 10, fontWeight: 700, minWidth: 16, height: 16, lineHeight: '16px', textAlign: 'center', padding: '0 4px', pointerEvents: 'none' }}>
+                        {notifData.unreadReply > 9 ? '9+' : notifData.unreadReply}
+                      </span>
                     )}
 
                     <ul className={`dropdown-menu ${theme === 'light' ? 'bg-light' : 'bg-dark'}`} style={{
@@ -914,41 +780,44 @@ const NavigationBar = () => {
 
 
 
-                      {/* Notif biasa meredup setelah dibuka; notif TAG baru meredup
-                          setelah dibalas (dibuka saja belum cukup). Tag yang
-                          thread-nya dihapus/diedit tidak nyangkut karena text-nya
-                          dikosongkan server → isTagged false. */}
-                      {processedNotifications.map((notif, index) => {
-                        const selesai = notif.isTagged ? notif.isReplied : (notif[`user${user.uid}`] === 'true' || notif.isReplied);
+                      {/* Mention belum dibalas = merah & selalu di atas; padam HANYA kalau dibalas.
+                          Balasan lain padam saat diklik. Yang sudah selesai meredup. */}
+                      {notifList.pending.length > 0 && (
+                        <li className="px-3 pb-1" style={{ fontSize: 12, fontWeight: 700, color: '#dc3545' }}>
+                          Perlu dibalas ({notifList.pending.length})
+                        </li>
+                      )}
+                      {[...notifList.pending, ...notifList.lain.filter((n) => !myMention || n.kind === 'mention')].map((notif, index) => {
+                        const isMention = notif.kind === 'mention';
+                        const selesai = !notif.aktif;
+                        const pertamaLain = index === notifList.pending.length && notifList.pending.length > 0;
                         return (
+                        <React.Fragment key={notif.key}>
+                        {pertamaLain && (
+                          <li className="px-3 pb-1 text-secondary" style={{ fontSize: 12, fontWeight: 700 }}>Lainnya</li>
+                        )}
                         <li
-                          key={index}
                           className={`${theme === 'light' ? 'bg-light' : 'bg-dark'} dropdown-item ${selesai ? 'text-secondary' : ''} notif-hover-effect`}
-                          style={{ opacity: selesai ? 0.4 : 1, display: myMention && !notif.isTagged ? "none" : "" }}
+                          style={{ opacity: selesai ? 0.45 : 1, cursor: 'pointer', whiteSpace: 'normal' }}
                           onClick={async () => {
-                            // Memanggil API untuk update status notif
-                            try {
-                              const res = await fetch(`${baseUrl}/notif/update`, {
-                                method: 'POST',
-                                headers: {
-                                  'Content-Type': 'application/json',
-                                },
-                                body: JSON.stringify({
-                                  notifId: notif.idNotif,
-                                  userId: user.uid,
-                                }),
-                              });
-                              if (res.ok) {
-                                handleRedirect(notif.idProduct, notif.category, notif.id);
+                            // Balasan biasa padam saat diklik; mention tetap nyala sampai dibalas
+                            if (!isMention && notif.aktif) {
+                              try {
+                                await fetch(`${baseUrl}/notif/read`, {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ uid: user.uid, key: notif.key }),
+                                });
+                              } catch (error) {
+                                console.error('Failed to update notification:', error);
                               }
-                            } catch (error) {
-                              console.error('Failed to update notification:', error);
                             }
+                            handleRedirect(notif.idProduct, notif.category, notif.id);
                           }}
                         >
-                          <div style={{ display: 'flex', alignItems: 'center' }} className="mb-2">
+                          <div style={{ display: 'flex', alignItems: 'center' }} className="mb-1">
                             <img
-                              src={getImageUrl(notif.UserProfilePicture)}
+                              src={getImageUrl(notif.profilePicture)}
                               alt="profile"
                               style={{
                                 width: '30px',
@@ -963,13 +832,16 @@ const NavigationBar = () => {
                               style={{ margin: '0', fontWeight: '600' }}
                               className={theme === 'light' ? 'text-dark' : 'text-light'}
                             >
-                              {notif.notifUserName}
+                              {notif.userName}
                             </p>
+                            {notif.aktif && (
+                              <span style={{ width: 8, height: 8, borderRadius: '50%', background: isMention ? '#dc3545' : '#0d6efd', marginLeft: 6, flexShrink: 0 }} />
+                            )}
                             <small
-                              style={{ margin: '0', marginLeft: 'auto' }}
+                              style={{ margin: '0', marginLeft: 'auto', paddingLeft: 8 }}
                               className="text-secondary"
                             >
-                              {format(new Date(notif.date.value._seconds * 1000), 'd MMMM yyyy, HH.mm', { locale: id })}
+                              {format(new Date(notif.seconds * 1000), 'd MMM yyyy, HH.mm', { locale: id })}
                             </small>
                           </div>
                           <p
@@ -977,15 +849,27 @@ const NavigationBar = () => {
                               margin: '0',
                               wordWrap: 'break-word',
                               whiteSpace: 'pre-wrap',
+                              fontWeight: notif.aktif ? 600 : 400,
                             }}
-                            className={notif.isTagged ? 'text-danger' : theme === 'light' ? 'text-dark' : 'text-light'}
+                            className={isMention && notif.aktif ? 'text-danger' : theme === 'light' ? 'text-dark' : 'text-light'}
                           >
                             {notif.message}
                           </p>
-                          <hr style={{ color: theme === 'light' ? 'black' : 'white' }} />
+                          {notif.snippet && (
+                            <small className="text-secondary" style={{ display: 'block', wordWrap: 'break-word', whiteSpace: 'normal' }}>
+                              “{notif.snippet}”
+                            </small>
+                          )}
+                          <hr style={{ color: theme === 'light' ? 'black' : 'white', margin: '8px 0 0 0' }} />
                         </li>
+                        </React.Fragment>
                         );
                       })}
+                      {notifData.items.length === 0 && (
+                        <li className="px-3 py-2 text-secondary" style={{ fontSize: 13 }}>
+                          Belum ada mention atau balasan dalam 30 hari terakhir.
+                        </li>
+                      )}
 
                     </ul>
                   </div>

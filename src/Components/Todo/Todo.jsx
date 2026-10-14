@@ -8,6 +8,7 @@ import { Image, Mentions } from 'antd';
 import { format } from 'date-fns';
 import { id as localeId } from 'date-fns/locale';
 import ImageUploadZone from '../Pekerjaan/ImageUploadZone';
+import { mintaRefreshNotif } from '../../Utils/notifRefresh';
 
 // ============================================================================
 // AGENDA TO-DO & QC
@@ -612,6 +613,7 @@ const TaskSheet = ({ t, C, users, userList, user, baseUrl, busy, sInput, sBtn, c
       files.forEach((f) => f && fd.append('images', f));
       const r = await fetch(`${baseUrl}/comments/create`, { method: 'POST', body: fd });
       if (!r.ok) throw new Error('Gagal mengirim komentar');
+      mintaRefreshNotif();
       setKomen(''); setFiles([]); setShowFiles(false);
       await loadComments();
     } catch (err) {

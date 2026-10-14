@@ -85,6 +85,8 @@ export default function LeadMasuk({ baseUrl, bulan, dark, text, muted, cardBg, b
   // Baris status Conversions API: satu chat bisa kirim QualifiedLead DAN Purchase.
   const StatusMeta = ({ c }) => {
     const ql = (c.konfirmasi?.keputusan === 'serius') ? statusEvent(c, 'QualifiedLead') : null;
+    // InitiateCheckout = kembaran QualifiedLead untuk optimasi ad set Sales
+    const ic = (c.konfirmasi?.keputusan === 'serius') ? statusEvent(c, 'InitiateCheckout') : null;
     const pu = c.deal ? statusEvent(c, 'Purchase') : null;
     if (!ql && !pu) return null;
     const teks = { ok: '✓', gagal: '✗ gagal', basi: '– tidak dikirim (klik > 28 hr)', antre: '⏳ antre' };
@@ -93,6 +95,7 @@ export default function LeadMasuk({ baseUrl, bulan, dark, text, muted, cardBg, b
       <div style={{ fontSize: 11, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
         <span style={{ color: muted }}>Meta:</span>
         {ql && <span style={{ color: warna[ql] }}>{teks[ql]} Qualified Lead</span>}
+        {ic && <span style={{ color: warna[ic] }} title="Kembaran Qualified Lead — target optimasi iklan">{teks[ic]} Initiate Checkout</span>}
         {pu && <span style={{ color: warna[pu] }}>{teks[pu]} Purchase</span>}
       </div>
     );

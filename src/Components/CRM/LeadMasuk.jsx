@@ -11,7 +11,23 @@ const LABEL = {
   menunggu: { t: 'Menunggu', c: '#7F77DD', bg: '#EEEDFC' },
   tidak: { t: 'Tidak', c: '#a32d2d', bg: '#F8E1E1' },
 };
-const TABS = [['kandidat', 'Perlu konfirmasi'], ['followup', 'Perlu follow-up'], ['serius', 'Serius'], ['proses', 'Masih proses'], ['tidak', 'Tidak'], ['semua', 'Semua']];
+const TABS = [['kandidat', 'Perlu konfirmasi'], ['followup', 'Perlu follow-up'], ['serius', 'Serius'], ['purchase', 'Purchase'], ['proses', 'Masih proses'], ['tidak', 'Tidak'], ['semua', 'Semua']];
+
+const rupiahSingkat = (n) => {
+  const v = Number(n) || 0;
+  if (v >= 1e9) return `Rp ${(v / 1e9).toLocaleString('id-ID', { maximumFractionDigits: 2 })} M`;
+  if (v >= 1e6) return `Rp ${(v / 1e6).toLocaleString('id-ID', { maximumFractionDigits: 1 })} jt`;
+  return `Rp ${v.toLocaleString('id-ID')}`;
+};
+// Status CAPI per event: terkirim (✓) / gagal (✗) / tidak dikirim (klik > 28 hari)
+const BATAS_KIRIM_HARI = 28;
+const statusEvent = (c, nama) => {
+  const ev = (c.capi || []).filter((e) => e.event_name === nama && !e.test);
+  if (ev.some((e) => e.ok)) return 'ok';
+  if (ev.length) return 'gagal';
+  if (c.ad_clicked_at && Date.now() - new Date(c.ad_clicked_at).getTime() > BATAS_KIRIM_HARI * 86400000) return 'basi';
+  return 'antre';
+};
 
 const fmtTgl = (d) => (d ? new Date(d).toLocaleString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '-');
 const uidSaya = () => { try { return JSON.parse(localStorage.getItem('user'))?.uid || null; } catch { return null; } };
@@ -66,6 +82,24 @@ export default function LeadMasuk({ baseUrl, bulan, dark, text, muted, cardBg, b
     );
   };
 
+  // Baris status Conversions API: satu chat bisa kirim QualifiedLead DAN Purchase.
+  const StatusMeta = ({ c }) => {
+    const ql = (c.konfirmasi?.keputusan === 'serius') ? statusEvent(c, 'QualifiedLead') : null;
+    const pu = c.deal ? statusEvent(c, 'Purchase') : null;
+    if (!ql && !pu) return null;
+    const teks = { ok: '✓', gagal: '✗ gagal', basi: '– tidak dikirim (klik > 28 hr)', antre: '⏳ antre' };
+    const warna = { ok: '#1877F2', gagal: '#a32d2d', basi: muted, antre: '#b26a00' };
+    return (
+      <div style={{ fontSize: 11, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+        <span style={{ color: muted }}>Meta:</span>
+        {ql && <span style={{ color: warna[ql] }}>{teks[ql]} Qualified Lead</span>}
+        {pu && <span style={{ color: warna[pu] }}>{teks[pu]} Purchase</span>}
+      </div>
+    );
+  };
+
+  const totalPurchase = tab === 'purchase' ? list.reduce((a, c) => a + (Number(c.deal?.deal_value) || 0), 0) : 0;
+
   return (
     <div>
       <div style={{ fontSize: 12, color: muted, marginBottom: 10 }}>
@@ -78,6 +112,12 @@ export default function LeadMasuk({ baseUrl, bulan, dark, text, muted, cardBg, b
         ))}
       </div>
 
+      {tab === 'purchase' && !loading && list.length > 0 && (
+        <div style={{ fontSize: 13, color: text, marginBottom: 10 }}>
+          <b>{list.length}</b> chat iklan jadi purchase · total <b>{rupiahSingkat(totalPurchase)}</b>
+          <span style={{ color: muted }}> — nilai dari Quote berstatus Deal (subtotal − diskon), dikirim ke Meta sebagai event Purchase.</span>
+        </div>
+      )}
       {loading ? <div style={{ textAlign: 'center', padding: 40 }}><Spinner /></div> : list.length === 0 ? (
         <div style={{ textAlign: 'center', color: muted, padding: 40 }}>{tab === 'kandidat' ? 'Tidak ada yang perlu dikonfirmasi 🎉' : tab === 'followup' ? 'Semua lead bagus sudah di-follow up 👍' : 'Kosong.'}</div>
       ) : (
@@ -109,10 +149,15 @@ export default function LeadMasuk({ baseUrl, bulan, dark, text, muted, cardBg, b
                 <span>🕒 klik {fmtTgl(c.ad_clicked_at)}</span>
                 <span>💬 {c.jml_masuk}</span>
                 {c.kontak_lama && <span style={{ color: '#b26a00' }}>↩ kontak lama</span>}
-                {c.deal && <span style={{ color: '#2e7d32', fontWeight: 700 }}>💰 deal</span>}
                 {!c.deal && c.quotation && <span style={{ color: '#7F77DD' }}>🧾 quotation</span>}
-                {(c.capi || []).some((e) => e.ok && !e.test) && <span style={{ color: '#1877F2' }}>✓ terkirim ke Meta</span>}
               </div>
+              {c.deal && (
+                <div style={{ fontSize: 12, background: dark ? '#14281a' : '#EAF6EC', border: '1px solid ' + (dark ? '#2e5a3a' : '#bfe3c6'), borderRadius: 6, padding: '6px 8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                  <span style={{ color: '#2e7d32', fontWeight: 700 }}>💰 Purchase {rupiahSingkat(c.deal.deal_value)}</span>
+                  <span style={{ color: muted, fontSize: 11, textAlign: 'right' }}>{c.deal.sumber === 'invoice' ? 'dari invoice' : 'dari quote'}{c.deal.kode_invoice ? ` · ${c.deal.kode_invoice}` : ''}</span>
+                </div>
+              )}
+              <StatusMeta c={c} />
               <TombolKonfirmasi c={c} />
             </div>
           ))}

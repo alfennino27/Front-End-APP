@@ -24,7 +24,7 @@ import { IoCloseSharp, IoPeople } from 'react-icons/io5';
 import klf_logo_navbar_dark from '../../assets/images/klflogo.png';
 import klf_logo_navbar_light from '../../assets/images/klflogo-navbar.png';
 import { useTheme } from '../../ThemeContext';
-import { VscMention } from "react-icons/vsc";
+import { VscComment, VscMention } from "react-icons/vsc";
 import { CgSmartphoneChip } from "react-icons/cg";
 import { ImPriceTags } from "react-icons/im";
 import { getImageUrl } from '../../Utils/image';
@@ -36,6 +36,26 @@ import { BiArchive } from "react-icons/bi";
 import { FaGear } from "react-icons/fa6";
 import { motion, AnimatePresence } from "framer-motion";
 
+
+// ── Item bel notifikasi: thumbnail produk (gambar utama = Projects.image1) ──
+const clamp = (n) => ({ display: '-webkit-box', WebkitLineClamp: n, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word', whiteSpace: 'normal' });
+const notifItemStyle = (theme) => ({
+  display: 'flex', alignItems: 'flex-start', gap: 12,
+  padding: '10px 12px', minHeight: 64, cursor: 'pointer', whiteSpace: 'normal',
+  borderBottom: `1px solid ${theme === 'light' ? '#e9ecef' : '#343a40'}`,
+});
+const NotifThumb = ({ src, theme }) => {
+  const [gagal, setGagal] = useState(false);
+  const box = { width: 48, height: 48, borderRadius: 8, flexShrink: 0, background: theme === 'light' ? '#e9ecef' : '#343a40' };
+  if (!src || gagal) {
+    return (
+      <div style={{ ...box, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#adb5bd' }}>
+        <FaRegImages size={20} />
+      </div>
+    );
+  }
+  return <img src={getImageUrl(src)} alt="" loading="lazy" onError={() => setGagal(true)} style={{ ...box, objectFit: 'cover' }} />;
+};
 
 const NavigationBar = () => {
   const baseUrl = getApiBaseUrl();
@@ -51,7 +71,9 @@ const NavigationBar = () => {
 
   const [showBoardModal, setShowBoardModal] = useState(false);
 
-  const [myMention, setMyMention] = useState(false);
+  // Tab bel: 'semua' | 'mention' (filter) | 'riwayat' (komentar & balasan saya)
+  const [notifTab, setNotifTab] = useState('semua');
+  const [riwayat, setRiwayat] = useState({ items: [], loading: false });
   const notifPenting = notifData.pendingMention > 0;
 
   const handleClose = () => setShow(false);
@@ -183,6 +205,19 @@ const NavigationBar = () => {
     };
   }, [fetchNotifikasi]);
 
+  const fetchRiwayat = useCallback(async () => {
+    if (!user?.uid) return;
+    setRiwayat((r) => ({ ...r, loading: true }));
+    try {
+      const res = await fetch(`${baseUrl}/notif/riwayat?uid=${encodeURIComponent(user.uid)}`);
+      const data = await res.json();
+      setRiwayat({ items: Array.isArray(data.items) ? data.items : [], loading: false });
+    } catch (error) {
+      console.error('Gagal mengambil riwayat komentar:', error);
+      setRiwayat((r) => ({ ...r, loading: false }));
+    }
+  }, [user?.uid]);
+
   const fetchAlurKerjaNotif = async () => {
     try {
       const res = await fetch(`${baseUrl}/projects/alurkerja/notifications`);
@@ -236,6 +271,7 @@ const NavigationBar = () => {
     const rect = e?.currentTarget?.getBoundingClientRect?.();
     if (rect) setNotifTop(Math.round(rect.bottom + 8));
     fetchNotifikasi();
+    if (notifTab === 'riwayat') fetchRiwayat();
   };
 
 
@@ -740,65 +776,108 @@ const NavigationBar = () => {
                       </span>
                     )}
 
-                    <ul className={`dropdown-menu ${theme === 'light' ? 'bg-light' : 'bg-dark'}`} style={{
+                    <ul className={`dropdown-menu p-0 ${theme === 'light' ? 'bg-light' : 'bg-dark'}`} style={{
                       overflowY: 'auto',
+                      overscrollBehavior: 'contain',
                       ...(isMobile
-                        ? { position: 'fixed', left: 8, right: 8, top: notifTop, width: 'auto', margin: 0, maxHeight: `calc(100vh - ${notifTop + 16}px)`, zIndex: 1080 }
-                        : { maxHeight: '500px', width: '350px' }),
+                        ? { position: 'fixed', left: 8, right: 8, top: notifTop, width: 'auto', margin: 0, maxHeight: `calc(100dvh - ${notifTop + 16}px)`, zIndex: 1080, borderRadius: 14 }
+                        : { maxHeight: '520px', width: '380px', borderRadius: 12 }),
                     }}>
+                      {/* Header sticky: @ = filter mention, 💬 = riwayat komentar saya */}
                       <li
-                        className={`dropdown-item ${theme === 'light' ? 'bg-light text-dark' : 'bg-dark text-light'}`}
+                        onClick={(e) => e.stopPropagation()}
                         style={{
-                          alignItems: 'center',           // Tengah secara vertikal
-                          textAlign: 'center',
+                          position: 'sticky', top: 0, zIndex: 2,
+                          display: 'flex', alignItems: 'center', gap: 4,
+                          padding: '8px 10px',
+                          background: theme === 'light' ? '#f8f9fa' : '#212529',
+                          borderBottom: `1px solid ${theme === 'light' ? '#dee2e6' : '#495057'}`,
                         }}
                       >
-                        {/* Icon di sisi kiri */}
-                        <div
-                          style={{
-                            display: 'grid',
-                            gridTemplateColumns: 'auto 1fr', // Kolom pertama untuk ikon, kolom kedua untuk teks
-                            alignItems: 'center',           // Tengah secara vertikal
-                            textAlign: 'center',
-                          }}
-                        >
-                          <VscMention
-                            size={25}
-                            style={{ color: myMention ? "blue" : "" }}
-                            onClick={(e) => {
-                              e.stopPropagation(); // Prevent dropdown from closing
-                              setMyMention((prevState) => !prevState);
-                            }}
-                            className='bell-hover'
-                          />
-                          {/* Teks di tengah */}
-                          <h6 style={{ margin: "0px 20px 0px 0px" }}>Notifications</h6>
-                        </div>
-
-                        <hr />
+                        {[
+                          { key: 'mention', icon: <VscMention size={24} />, title: 'Hanya mention' },
+                          { key: 'riwayat', icon: <VscComment size={20} />, title: 'Riwayat komentar saya' },
+                        ].map((t) => {
+                          const aktif = notifTab === t.key;
+                          return (
+                            <button
+                              key={t.key}
+                              type="button"
+                              title={t.title}
+                              aria-pressed={aktif}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const next = aktif ? 'semua' : t.key;
+                                setNotifTab(next);
+                                if (next === 'riwayat') fetchRiwayat();
+                              }}
+                              style={{
+                                width: 40, height: 40, borderRadius: 10, border: 'none', flexShrink: 0,
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                background: aktif ? '#0d6efd' : 'transparent',
+                                color: aktif ? 'white' : theme === 'light' ? '#212529' : '#f8f9fa',
+                              }}
+                            >
+                              {t.icon}
+                            </button>
+                          );
+                        })}
+                        <h6 className={theme === 'light' ? 'text-dark' : 'text-light'} style={{ margin: 0, flex: 1, textAlign: 'center', paddingRight: 44 }}>
+                          {notifTab === 'riwayat' ? 'Riwayat Komentar' : notifTab === 'mention' ? 'Mention' : 'Notifications'}
+                        </h6>
                       </li>
 
-
-
+                      {notifTab === 'riwayat' ? (
+                        <>
+                          {riwayat.loading && riwayat.items.length === 0 && (
+                            <li className="px-3 py-3 text-secondary" style={{ fontSize: 13 }}>Memuat…</li>
+                          )}
+                          {!riwayat.loading && riwayat.items.length === 0 && (
+                            <li className="px-3 py-3 text-secondary" style={{ fontSize: 13 }}>Anda belum pernah berkomentar.</li>
+                          )}
+                          {riwayat.items.map((r) => (
+                            <li
+                              key={r.key}
+                              className={`${theme === 'light' ? 'bg-light' : 'bg-dark'} dropdown-item notif-hover-effect`}
+                              style={notifItemStyle(theme)}
+                              onClick={() => handleRedirect(r.idProduct, r.category, r.id)}
+                            >
+                              <NotifThumb src={r.productImage} theme={theme} />
+                              <div style={{ minWidth: 0, flex: 1 }}>
+                                <div className={theme === 'light' ? 'text-dark' : 'text-light'} style={{ fontSize: 14, fontWeight: 600, lineHeight: 1.3, ...clamp(2) }}>
+                                  {r.productName || '-'}
+                                </div>
+                                <small className="text-secondary" style={{ display: 'block', fontSize: 12 }}>
+                                  {r.kind === 'reply' ? 'Balasan' : 'Komentar'} · {r.category} · {format(new Date(r.seconds * 1000), 'd MMM yyyy, HH.mm', { locale: id })}
+                                </small>
+                                {r.snippet && (
+                                  <small className="text-secondary" style={{ display: 'block', fontSize: 12.5, marginTop: 2, ...clamp(2) }}>“{r.snippet}”</small>
+                                )}
+                              </div>
+                            </li>
+                          ))}
+                        </>
+                      ) : (
+                        <>
                       {/* Mention belum dibalas = merah & selalu di atas; padam HANYA kalau dibalas.
                           Balasan lain padam saat diklik. Yang sudah selesai meredup. */}
                       {notifList.pending.length > 0 && (
-                        <li className="px-3 pb-1" style={{ fontSize: 12, fontWeight: 700, color: '#dc3545' }}>
+                        <li className="px-3 pt-2 pb-1" style={{ fontSize: 12, fontWeight: 700, color: '#dc3545' }}>
                           Perlu dibalas ({notifList.pending.length})
                         </li>
                       )}
-                      {[...notifList.pending, ...notifList.lain.filter((n) => !myMention || n.kind === 'mention')].map((notif, index) => {
+                      {[...notifList.pending, ...notifList.lain.filter((n) => notifTab !== 'mention' || n.kind === 'mention')].map((notif, index) => {
                         const isMention = notif.kind === 'mention';
                         const selesai = !notif.aktif;
                         const pertamaLain = index === notifList.pending.length && notifList.pending.length > 0;
                         return (
                         <React.Fragment key={notif.key}>
                         {pertamaLain && (
-                          <li className="px-3 pb-1 text-secondary" style={{ fontSize: 12, fontWeight: 700 }}>Lainnya</li>
+                          <li className="px-3 pt-2 pb-1 text-secondary" style={{ fontSize: 12, fontWeight: 700 }}>Lainnya</li>
                         )}
                         <li
-                          className={`${theme === 'light' ? 'bg-light' : 'bg-dark'} dropdown-item ${selesai ? 'text-secondary' : ''} notif-hover-effect`}
-                          style={{ opacity: selesai ? 0.45 : 1, cursor: 'pointer', whiteSpace: 'normal' }}
+                          className={`${theme === 'light' ? 'bg-light' : 'bg-dark'} dropdown-item notif-hover-effect`}
+                          style={{ ...notifItemStyle(theme), opacity: selesai ? 0.55 : 1 }}
                           onClick={async () => {
                             // Balasan biasa padam saat diklik; mention tetap nyala sampai dibalas
                             if (!isMention && notif.aktif) {
@@ -815,62 +894,55 @@ const NavigationBar = () => {
                             handleRedirect(notif.idProduct, notif.category, notif.id);
                           }}
                         >
-                          <div style={{ display: 'flex', alignItems: 'center' }} className="mb-1">
+                          {/* Thumbnail produk + avatar pengirim di pojok (gaya Facebook) */}
+                          <div style={{ position: 'relative', flexShrink: 0 }}>
+                            <NotifThumb src={notif.productImage} theme={theme} />
                             <img
                               src={getImageUrl(notif.profilePicture)}
-                              alt="profile"
+                              alt=""
                               style={{
-                                width: '30px',
-                                height: '30px',
-                                borderRadius: '50%',
-                                marginRight: '5px',
-                                border: '2px solid black',
+                                position: 'absolute', right: -4, bottom: -4,
+                                width: 22, height: 22, borderRadius: '50%', objectFit: 'cover',
+                                border: `2px solid ${theme === 'light' ? '#f8f9fa' : '#212529'}`,
+                                background: '#ccc',
                               }}
-                              className="profile-img"
                             />
-                            <p
-                              style={{ margin: '0', fontWeight: '600' }}
-                              className={theme === 'light' ? 'text-dark' : 'text-light'}
-                            >
-                              {notif.userName}
-                            </p>
-                            {notif.aktif && (
-                              <span style={{ width: 8, height: 8, borderRadius: '50%', background: isMention ? '#dc3545' : '#0d6efd', marginLeft: 6, flexShrink: 0 }} />
-                            )}
-                            <small
-                              style={{ margin: '0', marginLeft: 'auto', paddingLeft: 8 }}
-                              className="text-secondary"
-                            >
-                              {format(new Date(notif.seconds * 1000), 'd MMM yyyy, HH.mm', { locale: id })}
-                            </small>
                           </div>
-                          <p
-                            style={{
-                              margin: '0',
-                              wordWrap: 'break-word',
-                              whiteSpace: 'pre-wrap',
-                              fontWeight: notif.aktif ? 600 : 400,
-                            }}
-                            className={isMention && notif.aktif ? 'text-danger' : theme === 'light' ? 'text-dark' : 'text-light'}
-                          >
-                            {notif.message}
-                          </p>
-                          {notif.snippet && (
-                            <small className="text-secondary" style={{ display: 'block', wordWrap: 'break-word', whiteSpace: 'normal' }}>
-                              “{notif.snippet}”
-                            </small>
-                          )}
-                          <hr style={{ color: theme === 'light' ? 'black' : 'white', margin: '8px 0 0 0' }} />
+                          <div style={{ minWidth: 0, flex: 1 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <span className={theme === 'light' ? 'text-dark' : 'text-light'} style={{ fontWeight: 700, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {notif.userName}
+                              </span>
+                              {notif.aktif && (
+                                <span style={{ width: 8, height: 8, borderRadius: '50%', background: isMention ? '#dc3545' : '#0d6efd', flexShrink: 0 }} />
+                              )}
+                              <small className="text-secondary" style={{ marginLeft: 'auto', fontSize: 11.5, whiteSpace: 'nowrap', flexShrink: 0 }}>
+                                {format(new Date(notif.seconds * 1000), 'd MMM, HH.mm', { locale: id })}
+                              </small>
+                            </div>
+                            <div
+                              style={{ fontSize: 13.5, lineHeight: 1.35, fontWeight: notif.aktif ? 600 : 400, ...clamp(2) }}
+                              className={isMention && notif.aktif ? 'text-danger' : theme === 'light' ? 'text-dark' : 'text-light'}
+                            >
+                              {notif.message}
+                            </div>
+                            {notif.snippet && (
+                              <small className="text-secondary" style={{ display: 'block', fontSize: 12.5, marginTop: 2, ...clamp(2) }}>
+                                “{notif.snippet}”
+                              </small>
+                            )}
+                          </div>
                         </li>
                         </React.Fragment>
                         );
                       })}
                       {notifData.items.length === 0 && (
-                        <li className="px-3 py-2 text-secondary" style={{ fontSize: 13 }}>
+                        <li className="px-3 py-3 text-secondary" style={{ fontSize: 13 }}>
                           Belum ada mention atau balasan dalam 30 hari terakhir.
                         </li>
                       )}
-
+                        </>
+                      )}
                     </ul>
                   </div>
 

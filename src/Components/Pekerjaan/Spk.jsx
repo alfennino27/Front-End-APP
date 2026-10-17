@@ -113,6 +113,7 @@ const Spk = () => {
   const [imageEdit, setImageEdit] = useState('');
   const [imageDelete, setImageDelete] = useState(false);
   const [showEditProductModal, setShowEditProductModal] = useState(false);
+  const [costingProduk, setCostingProduk] = useState(null); // popup costing view-only (klik thumbnail)
   const [showDeleteProductModal, setShowDeleteProductModal] = useState(false);
   const handleEditProduct = (id, idSPK, keterangan, harga, qty, deadline, status, image, idProduct, idProductBackUp, namaBarang) => {
     refreshState();
@@ -1672,8 +1673,8 @@ useEffect(() => {
                     {dataSPKproductFromDB.length === 0 && <div style={{ textAlign: 'center', opacity: 0.6, padding: 16 }}>Belum ada produk di SPK ini.</div>}
                     {dataSPKproductFromDB.map((product, index) => (
                       <div key={product.id || index} style={{ ...kartuMobile, display: 'flex', gap: 10, cursor: 'pointer' }} onClick={() => bukaEditProdukSPK(product)}>
-                        <span onClick={(e) => e.stopPropagation()} style={{ flexShrink: 0 }}>
-                          <Image width={84} height={84} style={{ borderRadius: 8, objectFit: 'cover' }} src={getImageUrl(product.image)} />
+                        <span onClick={(e) => { e.stopPropagation(); setCostingProduk(product); }} style={{ flexShrink: 0 }}>
+                          <img alt="" style={{ width: 84, height: 84, borderRadius: 8, objectFit: 'cover', display: 'block' }} src={getImageUrl(product.image)} />
                         </span>
                         <div style={{ minWidth: 0, flex: 1 }}>
                           <div style={{ fontWeight: 700, fontSize: 14, overflowWrap: 'anywhere' }}>{index + 1}. {product.namaBarang || '-'}</div>
@@ -1710,8 +1711,8 @@ useEffect(() => {
                           <td className='tableStyle text-center'>{index + 1}</td>
                           <td className='tableStyle text-center'>
                             {/* <img style={{ width: "100px" }} src={product.image} /> */}
-                            <span onClick={(e) => { e.stopPropagation(); }}>
-                              <Image width={100} height={'auto'} style={{ borderRadius: "10px" }} src={getImageUrl(product.image)} />
+                            <span onClick={(e) => { e.stopPropagation(); setCostingProduk(product); }} title="Lihat costing produk">
+                              <img alt="" style={{ width: 100, borderRadius: 10 }} src={getImageUrl(product.image)} />
                             </span>
                           </td>
                           <td className='tableStyle text-center' style={{ whiteSpace: 'pre-line' }}><span className='fw-semibold text-muted'>{product.namaBarang}</span><hr/>{product.keterangan}</td>
@@ -2917,11 +2918,126 @@ useEffect(() => {
 
       </div >
 
+
+      <CostingPopup
+        product={costingProduk}
+        onClose={() => setCostingProduk(null)}
+        onEdit={(p) => { setCostingProduk(null); bukaEditProdukSPK(p); }}
+        onQuote={(qid) => navigate(`/quote/${qid}`)}
+        isMobile={isMobile}
+        dark={globalTheme === 'dark'}
+      />
     </>
   );
 };
 
 export default Spk;
+
+// Popup view-only: gambar besar + costing semua kategori (budget vs real) + harga jual & margin.
+// Ubah angka lewat Edit item SPK atau Quote — sengaja tidak bisa diedit di sini.
+const rpC = (n) => 'Rp ' + Math.round(Number(n) || 0).toLocaleString('id-ID');
+function CostingPopup({ product, onClose, onEdit, onQuote, isMobile, dark }) {
+  const [data, setData] = useState(null);
+  const [err, setErr] = useState('');
+  const idProduct = product && product.idProduct;
+  useEffect(() => {
+    if (!idProduct) return;
+    let batal = false;
+    setData(null); setErr('');
+    fetch(`${getApiBaseUrl()}/spkproduct/costing/${encodeURIComponent(idProduct)}`)
+      .then((r) => r.json().then((j) => (r.ok ? j : Promise.reject(new Error(j.message || 'Gagal')))))
+      .then((j) => { if (!batal) setData(j); })
+      .catch((e) => { if (!batal) setErr(e.message); });
+    return () => { batal = true; };
+  }, [idProduct]);
+
+  const muted = dark ? 'rgba(255,255,255,0.6)' : '#64748b';
+  const garis = dark ? 'rgba(255,255,255,0.12)' : '#e2e8f0';
+  const panel = dark ? 'rgba(255,255,255,0.05)' : '#f1f5f9';
+  const img = (product && product.image) || (data && data.image);
+  const marginUnit = data ? data.harga - data.hppUnit : 0;
+  const pct = data && data.harga > 0 ? (marginUnit / data.harga) * 100 : 0;
+  const warnaMargin = pct >= 25 ? '#16a34a' : pct >= 15 ? '#d97706' : '#dc2626';
+  const stat = (label, nilai, sub, warna) => (
+    <div style={{ minWidth: 0 }}>
+      <div style={{ fontSize: 11.5, color: muted }}>{label}</div>
+      <div style={{ fontWeight: 700, fontSize: 15, color: warna }}>{nilai}</div>
+      {sub && <div style={{ fontSize: 11, color: muted }}>{sub}</div>}
+    </div>
+  );
+
+  return (
+    <Modal open={!!product} onCancel={onClose} footer={null} centered={!isMobile} width={isMobile ? '100%' : 620}
+      style={isMobile ? { top: 8, maxWidth: 'calc(100vw - 16px)', margin: '0 auto' } : undefined}
+      title={<span style={{ overflowWrap: 'anywhere' }}>{(data && data.namaBarang) || (product && product.namaBarang) || 'Costing produk'}</span>}>
+      {product && (
+        <div>
+          {img && (
+            <Image src={getImageUrl(img)} width="100%" style={{ maxHeight: isMobile ? 300 : 360, objectFit: 'contain', borderRadius: 10, background: panel }} />
+          )}
+          {data && (
+            <div style={{ fontSize: 12.5, color: muted, margin: '8px 0 10px' }}>
+              {data.kodeInvoice || '-'}{data.buyer ? ` · ${data.buyer}` : ''} · Qty {data.qty}
+            </div>
+          )}
+          {err && <div style={{ color: '#dc2626', padding: 8 }}>{err}</div>}
+          {!data && !err && <Skeleton active paragraph={{ rows: 4 }} />}
+          {data && (
+            <>
+              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, 1fr)', gap: 10, background: panel, borderRadius: 10, padding: 12 }}>
+                {stat('Harga jual / unit', rpC(data.harga), `Total ${rpC(data.harga * data.qty)}`)}
+                {stat('HPP / unit', rpC(data.hppUnit), data.budgetUnit !== data.hppUnit ? `Budget ${rpC(data.budgetUnit)}` : 'sesuai budget')}
+                {stat('Margin / unit', rpC(marginUnit), `${pct.toFixed(1)}%`, warnaMargin)}
+                {stat('Total margin', rpC(marginUnit * data.qty), `× ${data.qty} unit`, warnaMargin)}
+              </div>
+
+              <div style={{ marginTop: 12, fontSize: 13 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: '0 12px', fontSize: 11.5, color: muted, padding: '0 2px 4px', borderBottom: `1px solid ${garis}` }}>
+                  <span>Kategori</span><span style={{ textAlign: 'right' }}>Budget</span><span style={{ textAlign: 'right', minWidth: 92 }}>Real</span>
+                </div>
+                {data.categories.length === 0 && <div style={{ padding: 10, color: muted, textAlign: 'center' }}>Belum ada costing.</div>}
+                {data.categories.map((c) => {
+                  const selisih = c.real - c.estimasi;
+                  const aktif = c.category === product.category;
+                  return (
+                    <div key={c.category} style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: '0 12px', alignItems: 'center', padding: '7px 4px', borderBottom: `1px solid ${garis}`, background: aktif ? budgetWarna.bg : undefined, borderRadius: aktif ? 6 : 0 }}>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontWeight: 600 }}>{c.category}{aktif && <span style={{ fontSize: 11, color: budgetWarna.teks, marginLeft: 6 }}>• SPK ini</span>}</div>
+                        <div style={{ fontSize: 11, color: muted, overflowWrap: 'anywhere' }}>
+                          {c.source === 'spk' ? `SPK${c.supplier ? ' ' + c.supplier : ''}` : c.source === 'tenaga' ? `borong tenaga${c.supplier ? ' ' + c.supplier : ''}` : 'masih estimasi'}
+                        </div>
+                      </div>
+                      <div style={{ textAlign: 'right', color: budgetWarna.teks }}>{c.estimasi > 0 ? rpC(c.estimasi) : '-'}</div>
+                      <div style={{ textAlign: 'right', minWidth: 92 }}>
+                        <div style={{ fontWeight: 600 }}>{rpC(c.real)}</div>
+                        {c.estimasi > 0 && selisih !== 0 && (
+                          <div style={{ fontSize: 11, fontWeight: 600, color: selisih > 0 ? '#dc2626' : '#16a34a' }}>{selisih > 0 ? '▲' : '▼'} {rpC(Math.abs(selisih))}</div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: '0 12px', padding: '8px 4px', fontWeight: 700 }}>
+                  <span>Total / unit</span>
+                  <span style={{ textAlign: 'right', color: budgetWarna.teks }}>{rpC(data.budgetUnit)}</span>
+                  <span style={{ textAlign: 'right', minWidth: 92 }}>{rpC(data.hppUnit)}</span>
+                </div>
+              </div>
+
+              <div style={{ fontSize: 11.5, color: muted, marginTop: 4 }}>
+                Harga rekomendasi 30%: <b>{rpC(data.hppUnit / 0.7)}</b> · Real = harga SPK kalau sudah ada, selain itu estimasi. View only — ubah lewat Edit SPK atau Quote.
+              </div>
+              <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+                <Button size="large" style={{ flex: 1 }} onClick={() => onEdit(product)}>Edit item SPK</Button>
+                {data.fromQuoteId && <Button size="large" style={{ flex: 1 }} onClick={() => onQuote(data.fromQuoteId)}>Buka Quote</Button>}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </Modal>
+  );
+}
 
 // Budget (estimasi project = budget costing Quote) — warna ungu supaya beda dari harga SPK.
 const budgetWarna = { teks: '#7c3aed', bg: 'rgba(124, 58, 237, 0.10)', border: 'rgba(124, 58, 237, 0.45)' };

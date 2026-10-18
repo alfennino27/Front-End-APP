@@ -647,8 +647,11 @@ const ListPekerjaan = () => {
       // Produk yang prosesnya di supplier ini sudah beres (Selesai / QC Pass) tidak
       // perlu dicetak lagi, walaupun barangnya belum terkirim ke customer.
       const belumBeres = (p) => !['Selesai', 'QC Pass'].includes(p[statusKey]);
+      // Belum ada supplier tapi category sudah ditandai (buletan biru / status terisi)
+      // → tetap dicetak, dikelompokkan "Belum ada Supplier" di paling bawah.
+      const ditandai = (p) => !!p[`${pdfSupplierCategory}Reminder`] || !!p[statusKey];
       let filtered = pdfSupplierName === ''
-        ? masterDataFalse.filter(p => p[supplierKey] && p[supplierKey] !== '' && belumBeres(p)).sort((a, b) => (a[supplierKey] || '').localeCompare(b[supplierKey] || ''))
+        ? masterDataFalse.filter(p => belumBeres(p) && ((p[supplierKey] && p[supplierKey] !== '') || ditandai(p))).sort((a, b) => (a[supplierKey] || '').localeCompare(b[supplierKey] || ''))
         : masterDataFalse.filter(p => p[supplierKey] === pdfSupplierName && belumBeres(p));
 
       if (pdfTargetKirimFilter !== 'semua') {
@@ -659,7 +662,7 @@ const ListPekerjaan = () => {
           // Basis 'supplier' = deadline SPK per item (DeadlineSupplier<cat>); 'customer' = target kirim ke customer.
           const dateStr = pdfFilterBasis === 'supplier'
             ? p[`DeadlineSupplier${pdfSupplierCategory}`]
-            : (p.TargetKirim || p.Deadline);
+            : p.TargetKirim;
           if (!dateStr) return false;
           const d = new Date(dateStr);
           return d >= start && d <= end;
@@ -669,6 +672,7 @@ const ListPekerjaan = () => {
         items: filtered,
         category: pdfSupplierCategory,
         supplier: pdfSupplierName,
+        basis: pdfFilterBasis,
       }));
       bukaTab('/cetakLabelSupplier');
       return;

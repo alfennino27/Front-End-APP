@@ -29,6 +29,8 @@ const extractDimensiBahan = (text) => {
   return result.join('\n').trim() || text;
 };
 
+const BELUM_ADA_SUPPLIER = 'Belum ada Supplier';
+
 const fmtDeadline = (d) => {
   if (!d) return '-';
   const date = new Date(d);
@@ -40,6 +42,7 @@ const CetakLabelSupplier = () => {
   const [items, setItems] = useState([]);
   const [category, setCategory] = useState('');
   const [supplier, setSupplier] = useState('');
+  const [basis, setBasis] = useState('supplier');
 
   useEffect(() => {
     const stored = localStorage.getItem('cetakLabelSupplier') ?? sessionStorage.getItem('cetakLabelSupplier');
@@ -48,8 +51,14 @@ const CetakLabelSupplier = () => {
       setItems(data.items || []);
       setCategory(data.category || '');
       setSupplier(data.supplier || '');
+      // Data lama tanpa basis → tetap tampil deadline supplier seperti sebelumnya.
+      setBasis(data.basis || 'supplier');
     }
   }, []);
+
+  // Kolom tanggal ikut filter: customer = Target Kirim project, supplier = deadline SPK per category.
+  const tanggalItem = (item) => basis === 'customer' ? item.TargetKirim : item[`DeadlineSupplier${category}`];
+  const judulTanggal = basis === 'customer' ? 'Deadline Kirim' : 'Deadline Supplier';
 
   useEffect(() => {
     if (items.length > 0) window.print();
@@ -83,7 +92,7 @@ const CetakLabelSupplier = () => {
             <th>Gambar</th>
             <th>Produk / Customer</th>
             <th>Deskripsi Spesifik</th>
-            <th>Deadline</th>
+            <th>{judulTanggal}</th>
           </tr>
         </thead>
         <tbody>
@@ -92,12 +101,14 @@ const CetakLabelSupplier = () => {
             (() => {
               const groups = {};
               items.forEach(item => {
-                const s = item[`Supplier${category}`] || '(Tanpa Supplier)';
+                const s = item[`Supplier${category}`] || BELUM_ADA_SUPPLIER;
                 if (!groups[s]) groups[s] = [];
                 groups[s].push(item);
               });
               let globalNo = 0;
-              return Object.entries(groups).map(([supplierName, groupItems]) => (
+              // Grup "Belum ada Supplier" selalu paling bawah.
+              const entries = Object.entries(groups).sort(([a], [b]) => (a === BELUM_ADA_SUPPLIER) - (b === BELUM_ADA_SUPPLIER));
+              return entries.map(([supplierName, groupItems]) => (
                 <React.Fragment key={supplierName}>
                   <tr>
                     <td colSpan={5} style={{ background: '#dce4f0', fontWeight: 'bold', fontSize: '13px', padding: '6px 8px' }}>
@@ -120,7 +131,7 @@ const CetakLabelSupplier = () => {
                           {item.Buyer && <><br /><span style={{ color: '#555' }}>{item.Buyer}</span></>}
                         </td>
                         <td style={{ whiteSpace: 'pre-wrap' }}>{extractDimensiBahan(item[`Description${category}`])}</td>
-                        <td className="deadline">{fmtDeadline(item[`DeadlineSupplier${category}`])}</td>
+                        <td className="deadline">{fmtDeadline(tanggalItem(item))}</td>
                       </tr>
                     );
                   })}
@@ -143,7 +154,7 @@ const CetakLabelSupplier = () => {
                   {item.Buyer && <><br /><span style={{ color: '#555' }}>{item.Buyer}</span></>}
                 </td>
                 <td style={{ whiteSpace: 'pre-wrap' }}>{extractDimensiBahan(item[`Description${category}`])}</td>
-                <td className="deadline">{fmtDeadline(item[`DeadlineSupplier${category}`])}</td>
+                <td className="deadline">{fmtDeadline(tanggalItem(item))}</td>
               </tr>
             ))
           )}

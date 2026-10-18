@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { labelKategori } from '../../Utils/kategori';
 import { Col, Container, Modal, Button, Dropdown, Toast } from 'react-bootstrap';
 import '../Pekerjaan/pekerjaan.css';
 import { MdDelete, MdOutlineLocationOn } from 'react-icons/md';
@@ -2196,7 +2197,7 @@ const DetailPekerjaan = () => {
           transition: "background-color 0.3s ease", // Animasi perubahan warna
         }}
       >
-        Category ({category ? category.split(/(?=[A-Z])/).join(" ") : "Select Category"})
+        Category ({category ? labelKategori(category).split(/(?=[A-Z][a-z])/).join(" ").replace(/\s+/g, " ") : "Select Category"})
       </h4>
       {/* Modal */}
       <Modal className={`${globalTheme === 'light' ? 'modalKLFlight' : 'modalKLF'}`} show={showCategoryModal} onHide={handleCloseCategoryModal}>
@@ -2209,7 +2210,7 @@ const DetailPekerjaan = () => {
 
 
 
-          {["Stainless", "Besi", "Kayu", "Jok", "Rotan", "Marmer", "Kaca", "Fiber", "Veneer", "Finishing", "Hardware", "BarangJadi", "GambarKerja", "Pengiriman", "Testimoni"]
+          {["Besi", "Kayu", "Jok", "Rotan", "Marmer", "Fiber", "Veneer", "Finishing", "Hardware", "BarangJadi", "GambarKerja", "Pengiriman", "Testimoni"]
             // Kategori "Kain" sudah DIHAPUS (kain sekarang masuk Jok). Tetap ditampilkan
             // di paling bawah HANYA untuk item lama yang terlanjur punya data Kain,
             // supaya riwayatnya tidak hilang. Item baru tidak akan pernah memunculkannya.
@@ -2283,7 +2284,7 @@ const DetailPekerjaan = () => {
                   style={{ marginRight: '15px', cursor: 'pointer', flex: 1 }}
                   onClick={() => handleCategoryChange(category)}
                 >
-                  {supplier !== undefined ? <span>&#9679;</span> : <span>&#9675;</span>} {category}
+                  {supplier !== undefined ? <span>&#9679;</span> : <span>&#9675;</span>} {labelKategori(category)}
                 </span>
 
                 {/* Bagian status, worker badge, dan checkbox */}
@@ -3221,22 +3222,6 @@ const DetailPekerjaan = () => {
           {/* Your comment form here */}
 
           <div className="d-flex justify-content-between align-items-center">
-            <p>Supplier Stainless :</p><MdAddCircleOutline style={{ width: "25px", height: "auto", marginTop: "-15px" }} onClick={() => handleAddSupplierModal('Stainless')} />
-          </div>
-          <ul>
-            {dataSupplierFromDB.map((supplier, index) => {
-              if (supplier.category == 'Stainless') {
-                return (
-                  <div className="d-flex justify-content-between align-items-center">
-                    <li key={index}>{supplier.supplierName}</li><HiOutlineMinusCircle style={{ width: "20px", height: "auto" }} onClick={() => handleDeleteSupplierClick(supplier.id)} />
-                  </div>
-                )
-              }
-
-            })}
-          </ul>
-
-          <div className="d-flex justify-content-between align-items-center">
             <p>Supplier Besi :</p><MdAddCircleOutline style={{ width: "25px", height: "auto", marginTop: "-15px" }} onClick={() => handleAddSupplierModal('Besi')} />
           </div>
           <ul>
@@ -3301,27 +3286,11 @@ const DetailPekerjaan = () => {
           </ul>
 
           <div className="d-flex justify-content-between align-items-center">
-            <p>Supplier Marmer :</p><MdAddCircleOutline style={{ width: "25px", height: "auto", marginTop: "-15px" }} onClick={() => handleAddSupplierModal('Marmer')} />
+            <p>Supplier Marmer &amp; Kaca :</p><MdAddCircleOutline style={{ width: "25px", height: "auto", marginTop: "-15px" }} onClick={() => handleAddSupplierModal('Marmer')} />
           </div>
           <ul>
             {dataSupplierFromDB.map((supplier, index) => {
               if (supplier.category == 'Marmer') {
-                return (
-                  <div className="d-flex justify-content-between align-items-center">
-                    <li key={index}>{supplier.supplierName}</li><HiOutlineMinusCircle style={{ width: "20px", height: "auto" }} onClick={() => handleDeleteSupplierClick(supplier.id)} />
-                  </div>
-                )
-              }
-
-            })}
-          </ul>
-
-          <div className="d-flex justify-content-between align-items-center">
-            <p>Supplier Kaca :</p><MdAddCircleOutline style={{ width: "25px", height: "auto", marginTop: "-15px" }} onClick={() => handleAddSupplierModal('Kaca')} />
-          </div>
-          <ul>
-            {dataSupplierFromDB.map((supplier, index) => {
-              if (supplier.category == 'Kaca') {
                 return (
                   <div className="d-flex justify-content-between align-items-center">
                     <li key={index}>{supplier.supplierName}</li><HiOutlineMinusCircle style={{ width: "20px", height: "auto" }} onClick={() => handleDeleteSupplierClick(supplier.id)} />
@@ -3419,7 +3388,7 @@ const DetailPekerjaan = () => {
       {/* Modal */}
       <Modal className={`${globalTheme === 'light' ? 'modalKLFlight' : 'modalKLF'}`} show={showAddSupplier} onHide={handleCloseAddSupplierModal}>
         <Modal.Header closeButton>
-          <Modal.Title>Add Supplier {supplierCategory}</Modal.Title>
+          <Modal.Title>Add Supplier {labelKategori(supplierCategory)}</Modal.Title>
         </Modal.Header>
         <Modal.Body>
           {/* Your comment form here */}

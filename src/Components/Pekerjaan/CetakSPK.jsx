@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { labelKategori } from '../../Utils/kategori';
 import { getImageUrl } from '../../Utils/image';
 import klfLogo from '../../assets/images/klflogo.png';
 import { SPK_TEMPLATES, SLOT_LETTERS, gridAreasValue, defaultTemplateFor } from './spkTemplates';
@@ -271,7 +272,7 @@ const CetakSPK = () => {
         return (
           <div key={pageIdx} className="page img-page">
             <div className="img-page-title">
-              Gambar Spesifik — {project.NamaBarang} ({category})
+              Gambar Spesifik — {project.NamaBarang} ({labelKategori(category)})
             </div>
             <div
               className="img-grid"

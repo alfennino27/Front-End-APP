@@ -1,4 +1,5 @@
 import { Col, Row, Modal, Button, Container, Dropdown, Form } from 'react-bootstrap';
+import { labelKategori } from '../../Utils/kategori';
 import '../Pekerjaan/pekerjaan.css';
 import { MdFilterList, MdOutlineAssignment, MdOutlineLocationOn } from 'react-icons/md';
 import { MdAssignment } from "react-icons/md";
@@ -282,8 +283,8 @@ const ListPekerjaan = () => {
     if (searchSupplier) {
       const categoryKey = `Supplier${searchSupplierCategory}`;
       const kategoriUmum = [
-        'Stainless', 'Besi', 'Kayu', 'Jok', 'Rotan',
-        'Marmer', 'Kaca', 'Fiber', 'Veneer',
+        'Besi', 'Kayu', 'Jok', 'Rotan',
+        'Marmer', 'Fiber', 'Veneer',
         'Finishing', 'Hardware', 'BarangJadi'
       ];
 
@@ -1259,22 +1260,6 @@ const ListPekerjaan = () => {
         <Modal.Body >
           {/* Your comment form here */}
           <div className="d-flex justify-content-between align-items-center">
-            <p className="fw-semibold" style={{ cursor: 'pointer' }} onClick={() => handleSearchSupplier('Stainless', 'Stainless')}>Supplier Stainless :</p>
-          </div>
-          <ul>
-            {dataSupplierFromDB.map((supplier, index) => {
-              if (supplier.category == 'Stainless') {
-                return (
-                  <div className="d-flex justify-content-between align-items-center">
-                    <li style={{ cursor: 'pointer' }} key={index} onClick={() => handleSearchSupplier(supplier.supplierName, 'Stainless')}>{supplier.supplierName}</li>
-                  </div>
-                )
-              }
-
-            })}
-          </ul>
-
-          <div className="d-flex justify-content-between align-items-center">
             <p className="fw-semibold" style={{ cursor: 'pointer' }} onClick={() => handleSearchSupplier('Besi', 'Besi')}>Supplier Besi :</p>
           </div>
           <ul>
@@ -1339,7 +1324,7 @@ const ListPekerjaan = () => {
           </ul>
 
           <div className="d-flex justify-content-between align-items-center">
-            <p className="fw-semibold" style={{ cursor: 'pointer' }} onClick={() => handleSearchSupplier('Marmer', 'Marmer')}>Supplier Marmer :</p>
+            <p className="fw-semibold" style={{ cursor: 'pointer' }} onClick={() => handleSearchSupplier('Marmer', 'Marmer')}>Supplier Marmer &amp; Kaca :</p>
           </div>
           <ul>
             {dataSupplierFromDB.map((supplier, index) => {
@@ -1347,22 +1332,6 @@ const ListPekerjaan = () => {
                 return (
                   <div className="d-flex justify-content-between align-items-center">
                     <li style={{ cursor: 'pointer' }} key={index} onClick={() => handleSearchSupplier(supplier.supplierName, 'Marmer')}>{supplier.supplierName}</li>
-                  </div>
-                )
-              }
-
-            })}
-          </ul>
-
-          <div className="d-flex justify-content-between align-items-center">
-            <p className="fw-semibold" style={{ cursor: 'pointer' }} onClick={() => handleSearchSupplier('Kaca', 'Kaca')}>Supplier Kaca :</p>
-          </div>
-          <ul>
-            {dataSupplierFromDB.map((supplier, index) => {
-              if (supplier.category == 'Kaca') {
-                return (
-                  <div className="d-flex justify-content-between align-items-center">
-                    <li style={{ cursor: 'pointer' }} key={index} onClick={() => handleSearchSupplier(supplier.supplierName, 'Kaca')}>{supplier.supplierName}</li>
                   </div>
                 )
               }
@@ -1491,8 +1460,8 @@ const ListPekerjaan = () => {
               <Form.Group className="mb-2">
                 <Form.Label>Category</Form.Label>
                 <Form.Select value={pdfSupplierCategory} onChange={(e) => { setPdfSupplierCategory(e.target.value); setPdfSupplierName(''); }}>
-                  {['Stainless','Besi','Kayu','Jok','Rotan','Marmer','Kaca','Fiber','Veneer','Finishing','Hardware'].map(c => (
-                    <option key={c} value={c}>{c}</option>
+                  {['Besi','Kayu','Jok','Rotan','Marmer','Fiber','Veneer','Finishing','Hardware'].map(c => (
+                    <option key={c} value={c}>{labelKategori(c)}</option>
                   ))}
                 </Form.Select>
               </Form.Group>

@@ -1,4 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react';
+import { labelKategori } from '../../Utils/kategori';
 import { Modal } from 'react-bootstrap';
 import { Image } from 'antd';
 import { getImageUrl } from '../../Utils/image';
@@ -244,7 +245,7 @@ const InvoiceBiayaModal = ({
                   return (
                     <div key={cat} style={s.baris}>
                       <div style={s.namaKat}>
-                        {cat}
+                        {labelKategori(cat)}
                         <div>
                           {terkunci ? (
                             <span style={s.badge(BADGE.spk)}>SPK 🔒</span>

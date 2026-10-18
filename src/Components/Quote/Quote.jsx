@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { labelKategori } from '../../Utils/kategori';
 import { useNavigate, useParams } from 'react-router-dom';
 import { getApiBaseUrl } from '../../Config/APIurl';
 import { useTheme } from '../../ThemeContext';
@@ -46,7 +47,7 @@ const SearchableSelect = ({ options, value, onChange, placeholder, ui }) => {
 
 // Kategori costing = kategori estimasi sistem (mirror backend). Saat quote jadi
 // invoice, costing → estimasi<Category> (biaya sementara / budget).
-const CATEGORIES = ['Stainless', 'Besi', 'Kayu', 'Jok', 'Rotan', 'Finishing', 'Marmer', 'Fiber', 'Veneer'];
+const CATEGORIES = ['Besi', 'Kayu', 'Jok', 'Rotan', 'Finishing', 'Marmer', 'Fiber', 'Veneer'];
 
 const ONGKIR_OPTIONS = [
   { value: 'none', label: 'Tanpa catatan ongkir' },
@@ -108,6 +109,8 @@ const emptyItem = () => ({
   qty: 1,
   costing: CATEGORIES.reduce((a, c) => ({ ...a, [c]: '' }), {}),
   costingRincian: {}, // { [cat]: [{nama, qty, harga}] } — sub costing; total cat = Σ qty×harga
+  lainNominal: '',  // pengeluaran lain per unit (perkiraan internal, mis. coating PPF)
+  lainKet: '',
   costingOpen: false,
 });
 
@@ -288,6 +291,7 @@ const Quote = () => {
     deadline: '',
     targetKirim: '',   // tanggal target kirim (date) → Project.Deadline + TargetKirim saat convert
     discount: '',
+    estimasiOngkir: '', // perkiraan biaya kirim (internal) — menambah HPP & mengurangi margin quote
     grandTotal: '',
     hideTotals: false,
     termsTemplateId: '',
@@ -411,10 +415,14 @@ const Quote = () => {
   // Ringkasan HPP & margin per item (internal — tidak dicetak di PDF customer).
   // HPP costing = per-unit (mirror estimasi<cat>); HPP total item = hppUnit × qty.
   // Margin item = (harga − hppUnit) × qty. Konsisten dgn crmSync.computeInvoiceFinancials.
+  // Pengeluaran lain per unit ikut HPP item (perkiraan) — hanya untuk margin quote,
+  // tidak masuk estimasi Projects / Laba Rugi (biaya riilnya dicatat di Pengeluaran Order invoice).
   const itemFin = useMemo(() => form.items.map((it) => {
     const harga = numParse(it.harga);
     const qty = numParse(it.qty);
-    const hppUnit = CATEGORIES.reduce((a, c) => a + numParse(it.costing[c]), 0);
+    const hppKategoriUnit = CATEGORIES.reduce((a, c) => a + numParse(it.costing[c]), 0);
+    const lainUnit = numParse(it.lainNominal);
+    const hppUnit = hppKategoriUnit + lainUnit;
     const hppTotal = hppUnit * qty;
     const sale = harga * qty;
     const marginPerUnit = harga - hppUnit;
@@ -423,12 +431,16 @@ const Quote = () => {
     // (harga − HPP = 30% × harga  →  harga = HPP / 0,7). Tidak ikut disimpan.
     const rekomendasi30 = hppUnit > 0 ? hppUnit / 0.7 : 0;
     const marginPct = sale > 0 ? (marginTotal / sale) * 100 : 0;
-    return { hppUnit, hppTotal, sale, marginPerUnit, marginTotal, marginPct, rekomendasi30 };
+    return { hppKategoriUnit, lainUnit, hppUnit, hppTotal, sale, marginPerUnit, marginTotal, marginPct, rekomendasi30 };
   }), [form.items]);
-  const totalHPP = useMemo(() => itemFin.reduce((a, f) => a + f.hppTotal, 0), [itemFin]);
+  const estimasiOngkir = numParse(form.estimasiOngkir);
+  const totalHPPKategori = useMemo(() => itemFin.reduce((a, f, i) => a + f.hppKategoriUnit * numParse(form.items[i]?.qty), 0), [itemFin, form.items]);
+  const totalLainEst = useMemo(() => itemFin.reduce((a, f, i) => a + f.lainUnit * numParse(form.items[i]?.qty), 0), [itemFin, form.items]);
+  // Total HPP = costing kategori + pengeluaran lain item + estimasi ongkir.
+  const totalHPP = useMemo(() => itemFin.reduce((a, f) => a + f.hppTotal, 0), [itemFin]) + estimasiOngkir;
   const totalMarginRaw = useMemo(() => itemFin.reduce((a, f) => a + f.marginTotal, 0), [itemFin]);
-  // Total margin invoice = Σ margin item − discount (= gross profit; ongkir/admin quote = 0).
-  const totalMargin = totalMarginRaw - numParse(form.discount);
+  // Total margin = Σ margin item (sudah dikurangi pengeluaran lain) − discount − estimasi ongkir.
+  const totalMargin = totalMarginRaw - numParse(form.discount) - estimasiOngkir;
   // Total penjualan bersih = subtotal − discount. Ini basis margin % (bukan subtotal kotor).
   const totalPenjualanNet = subtotal - numParse(form.discount);
   const totalMarginPct = totalPenjualanNet > 0 ? (totalMargin / totalPenjualanNet) * 100 : 0;
@@ -453,8 +465,12 @@ const Quote = () => {
   const hasReal = !!realCost && itemReal.some(Boolean);
   const totalHPPReal = useMemo(() => itemReal.reduce((a, f) => a + (f ? f.hppTotal : 0), 0), [itemReal]);
   const totalPengeluaran = (realCost && realCost.totalPengeluaran) || 0;
-  // Margin real = Σ margin real item − discount − pengeluaran lain (mirror crmSync.gross_profit; ongkir/admin quote = 0)
-  const totalMarginReal = itemReal.reduce((a, f) => a + (f ? f.marginTotal : 0), 0) - numParse(form.discount) - totalPengeluaran;
+  // Pengeluaran lain real: yang tercatat di Pengeluaran Order invoice; selama belum ada, masih pakai perkiraan quote.
+  const lainRealPakaiEst = totalPengeluaran <= 0 && totalLainEst > 0;
+  const lainReal = lainRealPakaiEst ? totalLainEst : totalPengeluaran;
+  // Margin real = Σ margin real item − discount − pengeluaran lain − ongkir. Ongkir riil tidak tercatat
+  // per invoice (masuk jurnal ongkir bulanan), jadi di sini tetap pakai estimasi ongkir.
+  const totalMarginReal = itemReal.reduce((a, f) => a + (f ? f.marginTotal : 0), 0) - numParse(form.discount) - lainReal - estimasiOngkir;
   const totalMarginRealPct = totalPenjualanNet > 0 ? (totalMarginReal / totalPenjualanNet) * 100 : 0;
 
   // Sumber "pakai T&C dari quote lain": diambil sekali saat form dibuka.
@@ -509,6 +525,7 @@ const Quote = () => {
           ...blankForm(),
           ...q,
           discount: formatRibuan(q.discount),
+          estimasiOngkir: formatRibuan(q.estimasiOngkir),
           grandTotal: formatRibuan(q.grandTotal),
           paymentRows: (q.paymentRows && q.paymentRows.length) ? q.paymentRows.map((p) => ({ label: p.label, amount: formatRibuan(p.amount), paid: !!p.paid })) : [{ label: 'DP 1', amount: '', paid: false }],
           items: (q.items && q.items.length ? q.items : [emptyItem()]).map((it) => ({
@@ -521,6 +538,8 @@ const Quote = () => {
             qty: it.qty || 1,
             costing: CATEGORIES.reduce((a, c) => ({ ...a, [c]: formatRibuan(it.costing && it.costing[c]) }), {}),
             costingRincian: it.costingRincian || {},
+            lainNominal: formatRibuan(it.lainNominal),
+            lainKet: it.lainKet || '',
             costingOpen: false,
           })),
           poAttachments: (q.poAttachments || []).map((a) => ({ url: a.url, name: a.name, type: a.type, uploadedAt: a.uploadedAt })),
@@ -643,7 +662,7 @@ const Quote = () => {
       it.images.filter((im) => im.file).forEach((im) => fd.append(`item_${idx}_image`, im.file));
       const costing = {};
       CATEGORIES.forEach((c) => { costing[c] = numParse(it.costing[c]); });
-      return { pid: it.pid || null, kategori: it.kategori || '', judul: it.judul || '', images: existingUrls, details: it.details, harga: numParse(it.harga), qty: numParse(it.qty), costing, costingRincian: it.costingRincian || {} };
+      return { pid: it.pid || null, kategori: it.kategori || '', judul: it.judul || '', images: existingUrls, details: it.details, harga: numParse(it.harga), qty: numParse(it.qty), costing, costingRincian: it.costingRincian || {}, lainNominal: numParse(it.lainNominal), lainKet: (it.lainKet || '').trim() };
     });
     fd.append('items', JSON.stringify(itemsPayload));
     fd.append('poAttachments', JSON.stringify(form.poAttachments.filter((a) => a.url).map(({ url, name, type, uploadedAt }) => ({ url, name, type, uploadedAt }))));
@@ -660,6 +679,7 @@ const Quote = () => {
     fd.append('deadline', form.deadline);
     fd.append('targetKirim', form.targetKirim || '');
     fd.append('discount', numParse(form.discount));
+    fd.append('estimasiOngkir', numParse(form.estimasiOngkir));
     // grandTotal dihitung otomatis di backend (subtotal − discount − DP)
     fd.append('hideTotals', form.hideTotals);
     fd.append('termsTemplateId', form.termsTemplateId || '');
@@ -1181,7 +1201,7 @@ const Quote = () => {
                   <div className="klf-itemfin-cell">
                     <span style={{ color: sub, fontSize: 12 }}>Total HPP</span>
                     <strong style={{ color: text, fontSize: 14 }}>{rupiah(fin.hppTotal)}</strong>
-                    <span style={{ color: sub, fontSize: 11 }}>{rupiah(fin.hppUnit)}/unit</span>
+                    <span style={{ color: sub, fontSize: 11 }}>{rupiah(fin.hppUnit)}/unit{fin.lainUnit ? ` · termasuk lain ${rupiah(fin.lainUnit)}` : ''}</span>
                   </div>
                   <div className="klf-itemfin-cell">
                     <span style={{ color: sub, fontSize: 12 }}>Total Margin</span>
@@ -1208,7 +1228,7 @@ const Quote = () => {
                       <div className="klf-itemfin-cell" style={{ borderLeft: `2px solid ${border}`, paddingLeft: 10 }}>
                         <span style={{ color: sub, fontSize: 12 }}>HPP Real</span>
                         <strong style={{ color: text, fontSize: 14 }}>{rupiah(real.hppTotal)}</strong>
-                        <span style={{ color: sub, fontSize: 11 }}>{rupiah(real.hppUnit)}/unit · selisih {real.hppUnit - fin.hppUnit >= 0 ? '+' : ''}{rupiah(real.hppUnit - fin.hppUnit)}/unit</span>
+                        <span style={{ color: sub, fontSize: 11 }}>{rupiah(real.hppUnit)}/unit · selisih {real.hppUnit - fin.hppKategoriUnit >= 0 ? '+' : ''}{rupiah(real.hppUnit - fin.hppKategoriUnit)}/unit</span>
                       </div>
                       <div className="klf-itemfin-cell">
                         <span style={{ color: sub, fontSize: 12 }}>Margin Real</span>
@@ -1236,7 +1256,7 @@ const Quote = () => {
                   const diff = rc ? rc.real - budget : 0;
                   const rincian = (it.costingRincian || {})[cat] || [];
                   return (
-                    <div key={cat} className="klf-fld"><span style={{ color: sub, fontSize: 12 }}>{cat}</span>
+                    <div key={cat} className="klf-fld"><span style={{ color: sub, fontSize: 12 }}>{labelKategori(cat)}</span>
                       {/* klik → popup sub costing (total langsung atau rincian) */}
                       <button type="button" onClick={() => setRincianSheet({ idx, cat })}
                         style={{ ...inputStyle, padding: '8px 10px', minHeight: 42, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', textAlign: 'left',
@@ -1257,6 +1277,16 @@ const Quote = () => {
                     </div>
                   );
                 })}
+                {/* pengeluaran lain per unit: perkiraan internal (tidak masuk estimasi Projects / laporan keuangan) */}
+                <div className="klf-fld" style={{ gridColumn: '1 / -1' }}>
+                  <span style={{ color: sub, fontSize: 12 }}>Pengeluaran lain / unit <span style={{ fontWeight: 400 }}>— perkiraan (mis. coating PPF, ongkir ke tukang)</span></span>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    <input inputMode="numeric" placeholder="0" style={{ ...inputStyle, flex: '1 1 120px' }} value={it.lainNominal}
+                      onChange={(e) => updateItem(idx, { lainNominal: formatRibuan(e.target.value) })} />
+                    <input placeholder="Keterangan" style={{ ...inputStyle, flex: '2 1 200px' }} value={it.lainKet}
+                      onChange={(e) => updateItem(idx, { lainKet: e.target.value })} />
+                  </div>
+                </div>
               </div>
             )}
             <RincianCostingSheet
@@ -1362,6 +1392,11 @@ const Quote = () => {
           <strong style={{ color: grandTotalCalc < 0 ? '#c0392b' : text, fontSize: 18 }}>{rupiah(grandTotalCalc)}</strong>
         </div>
 
+        <label className="klf-fld" style={{ marginBottom: 10 }}>
+          <span style={{ color: sub }}>🔒 Estimasi biaya ongkir <span style={{ fontSize: 12 }}>(internal — menambah HPP & mengurangi margin, tidak dicetak)</span></span>
+          <input inputMode="numeric" placeholder="0" style={inputStyle} value={form.estimasiOngkir} onChange={(e) => setF({ estimasiOngkir: formatRibuan(e.target.value) })} />
+        </label>
+
         {/* ringkasan margin invoice (internal — tidak muncul di PDF customer) */}
         <div style={{ border: `1px solid ${border}`, borderRadius: 10, padding: '12px 14px', marginBottom: 12, background: dark ? '#20262e' : '#f4f7fb' }}>
           <div style={{ color: sub, fontSize: 12, fontWeight: 600, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -1375,6 +1410,11 @@ const Quote = () => {
             <div className="klf-margin-cell">
               <span style={{ color: sub, fontSize: 12 }}>Total HPP</span>
               <strong style={{ color: text, fontSize: 15 }}>{rupiah(totalHPP)}</strong>
+              {(totalLainEst > 0 || estimasiOngkir > 0) && (
+                <span style={{ color: sub, fontSize: 11 }}>
+                  costing {rupiah(totalHPPKategori)}{totalLainEst > 0 ? ` + lain ${rupiah(totalLainEst)}` : ''}{estimasiOngkir > 0 ? ` + ongkir ${rupiah(estimasiOngkir)}` : ''}
+                </span>
+              )}
             </div>
             <div className="klf-margin-cell">
               <span style={{ color: sub, fontSize: 12 }}>Total Margin{numParse(form.discount) > 0 ? ' (stlh diskon)' : ''}</span>
@@ -1392,14 +1432,18 @@ const Quote = () => {
                 <div className="klf-margin-cell">
                   <span style={{ color: sub, fontSize: 12 }}>Total HPP Real</span>
                   <strong style={{ color: text, fontSize: 15 }}>{rupiah(totalHPPReal)}</strong>
-                  <span style={{ color: totalHPPReal - totalHPP > 0 ? '#c0392b' : '#1e7b34', fontSize: 12 }}>
-                    {totalHPPReal - totalHPP >= 0 ? '+' : ''}{rupiah(totalHPPReal - totalHPP)} vs budget
+                  <span style={{ color: totalHPPReal - totalHPPKategori > 0 ? '#c0392b' : '#1e7b34', fontSize: 12 }}>
+                    {totalHPPReal - totalHPPKategori >= 0 ? '+' : ''}{rupiah(totalHPPReal - totalHPPKategori)} vs budget costing
                   </span>
                 </div>
                 <div className="klf-margin-cell" style={{ cursor: realCost.pengeluaran && realCost.pengeluaran.length ? 'pointer' : 'default' }} onClick={() => setPengeluaranOpen((o) => !o)}>
                   <span style={{ color: sub, fontSize: 12 }}>Pengeluaran Lain ({(realCost.pengeluaran || []).length}) {realCost.pengeluaran && realCost.pengeluaran.length ? (pengeluaranOpen ? '▾' : '▸') : ''}</span>
-                  <strong style={{ color: text, fontSize: 15 }}>{rupiah(totalPengeluaran)}</strong>
-                  <span style={{ color: sub, fontSize: 12 }}>dari Jurnal Pengeluaran Order</span>
+                  <strong style={{ color: text, fontSize: 15 }}>{rupiah(lainReal)}</strong>
+                  <span style={{ color: sub, fontSize: 12 }}>
+                    {lainRealPakaiEst ? 'belum ada yang dicatat — pakai perkiraan quote' : 'dari Jurnal Pengeluaran Order'}
+                    {!lainRealPakaiEst && totalLainEst > 0 ? ` · perkiraan ${rupiah(totalLainEst)}` : ''}
+                  </span>
+                  {estimasiOngkir > 0 && <span style={{ color: sub, fontSize: 11 }}>+ ongkir {rupiah(estimasiOngkir)} (estimasi)</span>}
                 </div>
                 <div className="klf-margin-cell">
                   <span style={{ color: sub, fontSize: 12 }}>Total Margin Real{numParse(form.discount) > 0 ? ' (stlh diskon)' : ''}</span>

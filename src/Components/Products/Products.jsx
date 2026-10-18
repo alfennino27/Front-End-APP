@@ -1039,8 +1039,8 @@ const Products = () => {
                     <tr>
                       {[
                         'No', 'Gambar', 'Judul', 'Deskripsi', 'Display',
-                        'Varian', 'Stainless', 'Besi', 'Kayu', 'Jok',
-                        'Rotan', 'Finishing', 'Marmer', 'Fiber', 'Veneer', 'HPP', 'Jual'
+                        'Varian', 'Besi', 'Kayu', 'Jok',
+                        'Rotan', 'Finishing', 'Marmer & Kaca', 'Fiber', 'Veneer', 'HPP', 'Jual'
                       ].map((col, i) => (
                         <th
                           key={i}
@@ -1155,7 +1155,7 @@ const Products = () => {
 
 
                           {/* Varian - Semua ditampilkan vertikal */}
-                          {['varian', 'stainless', 'besi', 'kayu', 'jok', 'rotan', 'finishing', 'marmer', 'fiber', 'veneer', 'hpp', 'jual'].map((field, i) => (
+                          {['varian', 'besi', 'kayu', 'jok', 'rotan', 'finishing', 'marmer', 'fiber', 'veneer', 'hpp', 'jual'].map((field, i) => (
                             <td key={i} style={{ padding: '10px', borderBottom: '1px solid #eee' }}>
                               {itemVarian.map(v => {
                                 const jualName = `jual-${v.id}`;
@@ -2019,8 +2019,6 @@ const Products = () => {
           {/* Your comment form here */}
           <label className='mt-2'>Varian :</label>
           <input className="form-control" type='text' onChange={useCallback(debounce((e) => setVarian(e.target.value), 300), [])}></input>
-          <label className='mt-2'>Stainless :</label>
-          <NumericFormat className="form-control" thousandSeparator="." decimalSeparator="," onValueChange={(values) => { setStainless(values.value); }}></NumericFormat>
           <label className='mt-2'>Besi :</label>
           <NumericFormat className="form-control" thousandSeparator="." decimalSeparator="," onValueChange={(values) => { setBesi(values.value); }}></NumericFormat>
           <label className='mt-2'>Kayu :</label>
@@ -2031,7 +2029,7 @@ const Products = () => {
           <NumericFormat className="form-control" thousandSeparator="." decimalSeparator="," onValueChange={(values) => { setRotan(values.value); }}></NumericFormat>
           <label className='mt-2'>Finishing :</label>
           <NumericFormat className="form-control" thousandSeparator="." decimalSeparator="," onValueChange={(values) => { setFinishing(values.value); }}></NumericFormat>
-          <label className='mt-2'>Marmer :</label>
+          <label className='mt-2'>Marmer &amp; Kaca :</label>
           <NumericFormat className="form-control" thousandSeparator="." decimalSeparator="," onValueChange={(values) => { setMarmer(values.value); }}></NumericFormat>
           <label className='mt-2'>Fiber :</label>
           <NumericFormat className="form-control" thousandSeparator="." decimalSeparator="," onValueChange={(values) => { setFiber(values.value); }}></NumericFormat>
@@ -2076,17 +2074,6 @@ const Products = () => {
           {/* Your comment form here */}
           <label className='mt-2'>Varian :</label>
           <input className="form-control" type='text' defaultValue={varian} onChange={useCallback(debounce((e) => setVarian(e.target.value), 300), [])}></input>
-
-          <label className='mt-2'>Stainless :</label>
-          <NumericFormat
-            className="form-control"
-            thousandSeparator="."
-            decimalSeparator=","
-            value={stainless}
-            onValueChange={(values) => {
-              setStainless(values.value); // angka murni tanpa titik
-            }}
-          />
 
           <label className='mt-2'>Besi :</label>
           <NumericFormat
@@ -2143,7 +2130,7 @@ const Products = () => {
             }}
           />
 
-          <label className='mt-2'>Marmer :</label>
+          <label className='mt-2'>Marmer &amp; Kaca :</label>
           <NumericFormat
             className="form-control"
             thousandSeparator="."

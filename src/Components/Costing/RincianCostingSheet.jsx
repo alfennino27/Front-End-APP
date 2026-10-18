@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { labelKategori } from '../../Utils/kategori';
 import { getApiBaseUrl } from '../../Config/APIurl';
 
 // ============================================================================
@@ -130,7 +131,7 @@ const RincianCostingSheet = ({ open, category, dark, total, rincian, subtitle, r
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 13, color: C.sub }}>Costing{subtitle ? ` · ${subtitle}` : ''}</div>
-              <div style={{ fontSize: 20, fontWeight: 700 }}>{category}</div>
+              <div style={{ fontSize: 20, fontWeight: 700 }}>{labelKategori(category)}</div>
             </div>
             <div style={{ textAlign: 'right' }}>
               <div style={{ fontSize: 12, color: C.sub }}>Total / unit</div>
@@ -185,7 +186,7 @@ const RincianCostingSheet = ({ open, category, dark, total, rincian, subtitle, r
               <button type="button" onClick={() => tambah()} style={{ ...btn('transparent', '#2563eb'), width: '100%', border: '2px dashed #2563eb' }}>+ Tambah sub costing</button>
 
               {/* template chip (diatur di luar: ⚙️ Template Costing di halaman Quote & Invoice) */}
-              <div style={{ fontSize: 13, color: C.sub, fontWeight: 600, margin: '16px 0 8px' }}>Template {category}</div>
+              <div style={{ fontSize: 13, color: C.sub, fontWeight: 600, margin: '16px 0 8px' }}>Template {labelKategori(category)}</div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                 {!chips.length && <div style={{ fontSize: 12, color: C.sub }}>Belum ada template. Atur lewat tombol ⚙️ Template Costing di halaman Quote &amp; Invoice.</div>}
                 {chips.map((c) => (
@@ -215,7 +216,7 @@ export default RincianCostingSheet;
 // KELOLA TEMPLATE COSTING — di luar popup (tombol ⚙️ di halaman Quote & Invoice).
 // Pilih komponen → daftar rincian (nama + harga default) → tambah/ubah/hapus.
 // ============================================================================
-const CATEGORIES = ['Stainless', 'Besi', 'Kayu', 'Jok', 'Rotan', 'Finishing', 'Marmer', 'Fiber', 'Veneer'];
+const CATEGORIES = ['Besi', 'Kayu', 'Jok', 'Rotan', 'Finishing', 'Marmer', 'Fiber', 'Veneer'];
 
 export const TemplateCostingManager = ({ open, dark, onClose }) => {
   const [tpl, setTpl] = useState({});
@@ -287,7 +288,7 @@ export const TemplateCostingManager = ({ open, dark, onClose }) => {
               return (
                 <button key={c} type="button" onClick={() => setCat(c)}
                   style={{ ...btn(on ? '#1e40af' : C.soft, on ? '#fff' : C.text), minHeight: 38, padding: '6px 12px', fontSize: 14, whiteSpace: 'nowrap', flex: '0 0 auto' }}>
-                  {c}{n ? <span style={{ opacity: 0.75 }}> · {n}</span> : null}
+                  {labelKategori(c)}{n ? <span style={{ opacity: 0.75 }}> · {n}</span> : null}
                 </button>
               );
             })}
@@ -295,7 +296,7 @@ export const TemplateCostingManager = ({ open, dark, onClose }) => {
         </div>
 
         <div style={{ padding: 16, overflowY: 'auto', flex: 1 }}>
-          {!rows.length && <div style={{ fontSize: 13, color: C.sub, marginBottom: 10 }}>Belum ada template untuk {cat}.</div>}
+          {!rows.length && <div style={{ fontSize: 13, color: C.sub, marginBottom: 10 }}>Belum ada template untuk {labelKategori(cat)}.</div>}
           {rows.map((r) => (
             <div key={r.key} style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 8 }}>
               <input style={{ ...inp, flex: 2 }} value={r.nama}
@@ -310,7 +311,7 @@ export const TemplateCostingManager = ({ open, dark, onClose }) => {
           ))}
 
           <div style={{ background: C.soft, borderRadius: 12, padding: 10, marginTop: 8 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: C.sub, marginBottom: 6 }}>+ Tambah rincian {cat}</div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: C.sub, marginBottom: 6 }}>+ Tambah rincian {labelKategori(cat)}</div>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               <input style={{ ...inp, flex: '2 1 160px' }} placeholder="mis. Kain, Busa, Ongkos jahit" value={baru.nama}
                 onChange={(e) => setBaru({ ...baru, nama: e.target.value })} onKeyDown={(e) => { if (e.key === 'Enter') tambah(); }} />

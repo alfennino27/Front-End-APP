@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import { labelKategori } from '../../Utils/kategori';
 import { useNavigate } from 'react-router-dom';
 import { getApiBaseUrl } from '../../Config/APIurl';
 import { useTheme } from '../../ThemeContext';
@@ -20,7 +21,7 @@ import { mintaRefreshNotif } from '../../Utils/notifRefresh';
 // membuka project satu per satu. Sheet tugas memuat to-do list & komentar
 // category yang sama dengan halaman project (Projects.Todo<Cat>, Comments).
 
-const KATEGORI = ['Stainless', 'Besi', 'Kayu', 'Jok', 'Rotan', 'Marmer', 'Kaca', 'Fiber', 'Veneer', 'Finishing', 'Hardware', 'BarangJadi'];
+const KATEGORI = ['Besi', 'Kayu', 'Jok', 'Rotan', 'Marmer', 'Fiber', 'Veneer', 'Finishing', 'Hardware', 'BarangJadi'];
 
 const BUCKETS = [
   { key: 'urgent', label: 'Mendesak', color: '#b91c1c' }, // t.mendesak: telat/kirim minggu ini/Servis/QC/belum order di jendela pantau (default)
@@ -341,7 +342,7 @@ const Todo = () => {
           </select>
           <select style={sInput} value={fKategori} onChange={(e) => setFKategori(e.target.value)}>
             <option value="">Semua kategori</option>
-            {[...KATEGORI, 'Pengiriman'].map((k) => <option key={k} value={k}>{k}</option>)}
+            {[...KATEGORI, 'Pengiriman'].map((k) => <option key={k} value={k}>{labelKategori(k)}</option>)}
           </select>
           <select style={sInput} value={fJenis} onChange={(e) => setFJenis(e.target.value)}>
             <option value="">Semua jenis</option>
@@ -398,7 +399,7 @@ const Todo = () => {
                     )}
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap', marginBottom: 2 }}>
-                        <span style={chip(CAT_COLOR[t.category] || '#6b7280')}>{t.category}</span>
+                        <span style={chip(CAT_COLOR[t.category] || '#6b7280')}>{labelKategori(t.category)}</span>
                         <span style={{ fontSize: 11, color: C.muted }}>{t.sumber === 'manual' ? '✎ ditulis orang' : `⚙ ${t.jenis_label}`}</span>
                         {t.pic && <span style={{ fontSize: 11, color: C.muted }}>· {t.pic}</span>}
                       </div>
@@ -634,7 +635,7 @@ const TaskSheet = ({ t, C, users, userList, user, baseUrl, busy, sInput, sBtn, c
   return (
     <Sheet C={C} onClose={onClose} title={t.judul}>
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', fontSize: 13 }}>
-        <span style={chip(CAT_COLOR[t.category] || '#6b7280')}>{t.category}</span>
+        <span style={chip(CAT_COLOR[t.category] || '#6b7280')}>{labelKategori(t.category)}</span>
         <span style={{ color: C.muted }}>{manual ? '✎ To-do ditulis orang' : `⚙ ${t.jenis_label} (temuan sistem)`}</span>
       </div>
 
@@ -686,7 +687,7 @@ const TaskSheet = ({ t, C, users, userList, user, baseUrl, busy, sInput, sBtn, c
       )}
       {t.jenis === 'qc' && (
         <div style={{ fontSize: 13, marginTop: 6, background: C.soft, borderRadius: 8, padding: '6px 8px' }}>
-          Buka project → centang semua <b>Alur Kerja</b> {t.category}. Semua OK → status otomatis <b>QC Pass</b>; ada yang perlu servis → status <b>Servis</b>.
+          Buka project → centang semua <b>Alur Kerja</b> {labelKategori(t.category)}. Semua OK → status otomatis <b>QC Pass</b>; ada yang perlu servis → status <b>Servis</b>.
         </div>
       )}
       {t.jenis === 'servis' && (
@@ -855,7 +856,7 @@ const AddSheet = ({ C, users, busy, sInput, sBtn, baseUrl, onClose, onSubmit }) 
 
       <Label C={C}>Kategori</Label>
       <select style={{ ...sInput, width: '100%' }} value={category} onChange={(e) => setCategory(e.target.value)}>
-        {KATEGORI.map((k) => <option key={k} value={k}>{k === 'BarangJadi' ? 'Umum / Barang Jadi' : k}</option>)}
+        {KATEGORI.map((k) => <option key={k} value={k}>{k === 'BarangJadi' ? 'Umum / Barang Jadi' : labelKategori(k)}</option>)}
       </select>
 
       <Label C={C}>To-do</Label>

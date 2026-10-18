@@ -158,8 +158,8 @@ const Stock = () => {
                   <tr>
                     {[
                       'No', 'Gambar', 'Nama', 'Invoice', 'Deskripsi',
-                      'Stainless', 'Besi', 'Kayu', 'Jok', 'Rotan', 'Finishing',
-                      'Marmer', 'Fiber', 'Veneer', 'HPP', 'Jual', 'Qty', 'GP', '%'
+                      'Besi', 'Kayu', 'Jok', 'Rotan', 'Finishing',
+                      'Marmer & Kaca', 'Fiber', 'Veneer', 'HPP', 'Jual', 'Qty', 'GP', '%'
                     ].map((title, i) => (
                       <th
                         key={i}
@@ -248,7 +248,6 @@ const Stock = () => {
                             <td style={{ padding: '8px' }}>{item.NamaBarang}</td>
                             <td style={{ padding: '8px' }}>{item.KodeInvoice}</td>
                             <td style={{ padding: '8px', whiteSpace: 'pre-line' }}>{item.Spesifikasi}</td>
-                            <td style={{ padding: '8px' }}>{totalStainlessPrice ? `Rp. ${totalStainlessPrice.toLocaleString('id-ID')}` : ''}</td>
                             <td style={{ padding: '8px' }}>{totalBesiPrice ? `Rp. ${totalBesiPrice.toLocaleString('id-ID')}` : ''}</td>
                             <td style={{ padding: '8px' }}>{totalKayuPrice ? `Rp. ${totalKayuPrice.toLocaleString('id-ID')}` : ''}</td>
                             <td style={{ padding: '8px' }}>{totalJokPrice ? `Rp. ${totalJokPrice.toLocaleString('id-ID')}` : ''}</td>

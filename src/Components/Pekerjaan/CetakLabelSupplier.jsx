@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { labelKategori } from '../../Utils/kategori';
 import { getImageUrl } from '../../Utils/image';
 
 const WANTED_SECTIONS = ['DIMENSI', 'BAHAN', 'MODEL'];
@@ -82,7 +83,7 @@ const CetakLabelSupplier = () => {
         }
       `}</style>
 
-      <h2>Daftar Pesanan — {category}</h2>
+      <h2>Daftar Pesanan — {labelKategori(category)}</h2>
       <p className="subtitle">Supplier: {supplier || 'Semua Supplier'}</p>
 
       <table>

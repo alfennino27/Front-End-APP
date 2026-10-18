@@ -15,8 +15,8 @@ import { isHeic } from '../../Utils/heic';
  * foto (drag&drop / pilih / paste, urutan bisa digeser), info, label, video & 3D, varian + costing.
  * Simpan → POST /products/create-full → kembali ke /products (produk baru langsung terpilih).
  */
-const CATEGORIES = ['stainless', 'besi', 'kayu', 'jok', 'rotan', 'finishing', 'marmer', 'fiber', 'veneer'];
-const CAT_LABEL = { stainless: 'Stainless', besi: 'Besi', kayu: 'Kayu', jok: 'Jok', rotan: 'Rotan', finishing: 'Finishing', marmer: 'Marmer', fiber: 'Fiber', veneer: 'Veneer' };
+const CATEGORIES = ['besi', 'kayu', 'jok', 'rotan', 'finishing', 'marmer', 'fiber', 'veneer'];
+const CAT_LABEL = { besi: 'Besi', kayu: 'Kayu', jok: 'Jok', rotan: 'Rotan', finishing: 'Finishing', marmer: 'Marmer & Kaca', fiber: 'Fiber', veneer: 'Veneer' };
 const emptyVarian = () => ({ key: Math.random().toString(36).slice(2), varian: '', jual: '', open: false, ...CATEGORIES.reduce((a, c) => ({ ...a, [c]: '' }), {}) });
 const num = (x) => Number(String(x ?? '').replace(/\./g, '')) || 0;
 const rp = (n) => `Rp ${Math.round(Number(n) || 0).toLocaleString('id-ID')}`;

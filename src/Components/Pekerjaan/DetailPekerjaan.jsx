@@ -1382,6 +1382,13 @@ const DetailPekerjaan = () => {
     '6D4XVa5BSSOl1ugUlkDlTea2COX2', // Azwad
   ];
 
+  // Yang boleh pasang/lepas buletan biru (<Category>Reminder) di modal Category.
+  const REMINDER_AUTHORIZED_UIDS = [
+    'w4M5JJjgGQeHFbS2nkyoCfUBE532',
+    'fYpdHwXRDLhj5XGxM5FZIAvxp9E2', // Alfen
+    '4WGPaHicKWYr0Ny84IUh8xb9Bo62', // P. Dhe
+  ];
+
   // Harga SPK per kategori hanya tampil untuk user & kategori tertentu
   const SPK_PRICE_AUTHORIZED_UIDS = [
     'fYpdHwXRDLhj5XGxM5FZIAvxp9E2', // Alfen
@@ -2325,7 +2332,7 @@ const DetailPekerjaan = () => {
                       borderRadius: '50%',
                       border: '2px solid #2563EB',
                       backgroundColor: 'white', // background luar tetap putih
-                      cursor: ["4WGPaHicKWYr0Ny84IUh8xb9Bo62", "w4M5JJjgGQeHFbS2nkyoCfUBE532"].includes(user.uid) ? 'pointer' : 'not-allowed',
+                      cursor: REMINDER_AUTHORIZED_UIDS.includes(user.uid) ? 'pointer' : 'not-allowed',
                       position: 'relative',
                     }}
                   >
@@ -2350,9 +2357,7 @@ const DetailPekerjaan = () => {
                       type="checkbox"
                       onClick={(e) => e.stopPropagation()}
                       checked={dataProjectFromDB[0]?.[`${category}Reminder`] === true}
-                      disabled={
-                        !["4WGPaHicKWYr0Ny84IUh8xb9Bo62", "w4M5JJjgGQeHFbS2nkyoCfUBE532"].includes(user.uid)
-                      }
+                      disabled={!REMINDER_AUTHORIZED_UIDS.includes(user.uid)}
                       onChange={(e) =>
                         handleChangeCheckbox(!dataProjectFromDB[0]?.[`${category}Reminder`], `${category}Reminder`)
                       }

@@ -635,6 +635,7 @@ useEffect(() => {
     formData.append('category', category);
     formData.append('isLinked', isLinked);
     formData.append('imageProject', imageProject); // fallback url
+    formData.append('uid', user?.uid || ''); // riwayat deskripsi project
     if (fileToUpload) {
       formData.append('image', fileToUpload);
     }
@@ -670,6 +671,7 @@ useEffect(() => {
     formData.append('category', category);
     formData.append('isLinked', isLinked);
     formData.append('imageProject', imageProject);
+    formData.append('uid', user?.uid || ''); // riwayat deskripsi project
     if (idProject !== undefined) {
       formData.append('idProject', idProject);
       formData.append('namaBarang', selectedProduct);

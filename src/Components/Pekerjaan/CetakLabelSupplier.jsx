@@ -127,7 +127,7 @@ const CetakLabelSupplier = () => {
                           }
                         </td>
                         <td>
-                          <strong>{item.NamaBarang}</strong>
+                          <strong>{item.NamaBarang}</strong>{item.Qty ? <span style={{ fontWeight: 600 }}> — {item.Qty} pcs</span> : null}
                           {item.Buyer && <><br /><span style={{ color: '#555' }}>{item.Buyer}</span></>}
                         </td>
                         <td style={{ whiteSpace: 'pre-wrap' }}>{extractDimensiBahan(item[`Description${category}`])}</td>
@@ -150,7 +150,7 @@ const CetakLabelSupplier = () => {
                   }
                 </td>
                 <td>
-                  <strong>{item.NamaBarang}</strong>
+                  <strong>{item.NamaBarang}</strong>{item.Qty ? <span style={{ fontWeight: 600 }}> — {item.Qty} pcs</span> : null}
                   {item.Buyer && <><br /><span style={{ color: '#555' }}>{item.Buyer}</span></>}
                 </td>
                 <td style={{ whiteSpace: 'pre-wrap' }}>{extractDimensiBahan(item[`Description${category}`])}</td>

@@ -15,6 +15,7 @@ const CalendarPage = lazyPage(() => import('./Pages/CalendarPage'));
 const CetakLabelPage = lazyPage(() => import('./Pages/CetakLabelPage'));
 const CetakLabelQCPage = lazyPage(() => import('./Pages/CetakLabelQCPage'));
 const CetakLabelSupplierPage = lazyPage(() => import('./Pages/CetakLabelSupplierPage'));
+const CetakPiutangPage = lazyPage(() => import('./Pages/CetakPiutangPage'));
 const CetakSPKPage = lazyPage(() => import('./Pages/CetakSPKPage'));
 const CetakGambarKerjaPage = lazyPage(() => import('./Pages/CetakGambarKerjaPage'));
 const TestimoniLamaPage = lazyPage(() => import('./Pages/TestimoniLamaPage'));
@@ -88,6 +89,7 @@ function App() {
         <Route path="/cetakLabel" element={<CetakLabelPage />} />
         <Route path="/cetakLabelQC" element={<CetakLabelQCPage />} />
         <Route path="/cetakLabelSupplier" element={<CetakLabelSupplierPage />} />
+        <Route path="/cetakPiutang" element={<CetakPiutangPage />} />
         <Route path="/cetakSPK" element={<CetakSPKPage />} />
         <Route path="/cetakGambarKerja" element={<CetakGambarKerjaPage />} />
         <Route path="/testimoni-lama" element={<TestimoniLamaPage />} />

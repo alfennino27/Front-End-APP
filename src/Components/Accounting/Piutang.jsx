@@ -9,7 +9,8 @@ import { format } from 'date-fns';
 import { MdFormatListBulletedAdd } from 'react-icons/md';
 import { CiEdit } from 'react-icons/ci';
 import { debounce } from 'lodash';
-import { FaFileInvoice, FaPaste, FaSearch } from 'react-icons/fa';
+import { FaFileInvoice, FaPaste, FaSearch, FaPrint } from 'react-icons/fa';
+import { bukaTab } from '../../Utils/bukaTab';
 import { Image } from 'antd';
 import { getImageUrl } from '../../Utils/image';
 
@@ -476,6 +477,16 @@ const Piutang = () => {
     setFilteredData(dataPiutang.filter((item) => item.nama.toLowerCase().includes(searchTerm.toLowerCase())));
   }, [searchTerm, dataPiutang]);
 
+  // Cetak Detail Piutang: kirim snapshot item & payment ke halaman /cetakPiutang.
+  const handleCetakPiutang = () => {
+    localStorage.setItem('cetakPiutang', JSON.stringify({
+      piutang: selectedPiutang,
+      items: dataPiutangItem.filter((item) => item.idPiutang === selectedPiutang.id),
+      payments: dataPiutangPayment.filter((payment) => payment.idPiutang === selectedPiutang.id),
+    }));
+    bukaTab('/cetakPiutang');
+  };
+
   return (
     <>
       <Container>
@@ -560,6 +571,9 @@ const Piutang = () => {
             <div className="d-flex align-items-center">
               <Modal.Title id="detailModalLabel">Detail Piutang</Modal.Title>
               <CiEdit className="ms-2" size={24} onClick={() => { handleEditData(); setShowDetailDataModal(false) }} />
+              <Button variant="outline-secondary" size="sm" className="ms-3 d-flex align-items-center gap-1" onClick={handleCetakPiutang}>
+                <FaPrint /> Cetak
+              </Button>
             </div>
           </Modal.Header>
           <Modal.Body>

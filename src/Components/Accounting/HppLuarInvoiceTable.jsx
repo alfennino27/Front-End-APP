@@ -79,6 +79,18 @@ const HppLuarInvoiceTable = ({ hpp, styles, onPilihAkun, onPilihBengkel }) => {
                 <td style={{ ...kanan, color: 'green' }}>{rp(-hpp.sudahDijurnal)}</td>
               </tr>
             )}
+            {hpp.estimasiQuote > 0 && (
+              <tr style={tbodyTrEvenStyle}>
+                <td style={thTdStyle}>
+                  Koreksi: estimasi dari Quote
+                  <div className='text-muted' style={{ fontSize: 11 }}>Estimasi ongkir / pengeluaran lain dari quote mengurangi GP invoice, tapi biaya riilnya ada di jurnal — dihitung sekali saja</div>
+                </td>
+                <td style={thTdStyle}>-</td>
+                <td style={kanan}>-</td>
+                <td style={kanan}>{rp(hpp.estimasiQuote)}</td>
+                <td style={{ ...kanan, color: 'green' }}>{rp(-hpp.estimasiQuote)}</td>
+              </tr>
+            )}
             <tr style={{ backgroundColor: '#E7E7E8' }} className='fw-semibold'>
               <td style={thTdStyle} colSpan={4}>Total :</td>
               <td style={kanan}>{rp(hpp.total)}</td>

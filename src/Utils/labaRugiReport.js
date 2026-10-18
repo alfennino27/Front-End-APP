@@ -117,10 +117,15 @@ export const hitungHppLuarInvoice = (invoices, data, bulan) => {
   // Pengeluaran Lain bertanda "sudah dijurnal": tetap mengurangi GP invoice (supaya
   // profit riil invoice terlihat), tapi uangnya sudah ada di jurnal → dikoreksi di sini.
   const sudahDijurnal = (data.dataInvoicePengeluaran || [])
-    .filter((x) => x.sudahDijurnal && idInvoice.has(x.idInvoice))
+    .filter((x) => x.sudahDijurnal && !x.dariQuote && idInvoice.has(x.idInvoice))
     .reduce((s, x) => s + Number(x.nominalPengeluaran || 0), 0);
-  const total = bengkel.reduce((s, b) => s + b.selisih, 0) + lain.reduce((s, l) => s + l.nominal, 0) - sudahDijurnal;
-  return { bengkel, lain, sudahDijurnal, total };
+  // Baris "Dari Quote" (estimasi ongkir / pengeluaran lain dari quote) juga mengurangi GP invoice,
+  // tapi itu PERKIRAAN — biaya riilnya masuk jurnal (ongkir 6119, dll) → dikoreksi balik di sini.
+  const estimasiQuote = (data.dataInvoicePengeluaran || [])
+    .filter((x) => x.dariQuote && idInvoice.has(x.idInvoice))
+    .reduce((s, x) => s + Number(x.nominalPengeluaran || 0), 0);
+  const total = bengkel.reduce((s, b) => s + b.selisih, 0) + lain.reduce((s, l) => s + l.nominal, 0) - sudahDijurnal - estimasiQuote;
+  return { bengkel, lain, sudahDijurnal, estimasiQuote, total };
 };
 
 // --- Pemasukan lain (sejak 2026-10-07) ---
@@ -174,6 +179,9 @@ const sectionHppLuarInvoice = (hpp) => ({
     ...hpp.lain.map((l) => [l.namaAkun, l.kodeAkun, rupiah(l.nominal), '-', rupiah(l.nominal)]),
     ...(hpp.sudahDijurnal
       ? [['Koreksi: Pengeluaran Lain sudah dijurnal', '-', '-', rupiah(hpp.sudahDijurnal), rupiah(-hpp.sudahDijurnal)]]
+      : []),
+    ...(hpp.estimasiQuote
+      ? [['Koreksi: estimasi dari Quote (biaya riil di jurnal)', '-', '-', rupiah(hpp.estimasiQuote), rupiah(-hpp.estimasiQuote)]]
       : []),
   ],
   total: { label: 'Total :', labelSpan: 4, nilai: [rupiah(hpp.total)] },
@@ -423,6 +431,7 @@ const gabungHppLuar = (list) => {
     bengkel,
     lain,
     sudahDijurnal: list.reduce((s, h) => s + h.sudahDijurnal, 0),
+    estimasiQuote: list.reduce((s, h) => s + (h.estimasiQuote || 0), 0),
     total: list.reduce((s, h) => s + h.total, 0),
   };
 };

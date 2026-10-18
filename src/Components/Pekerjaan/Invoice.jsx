@@ -2498,13 +2498,14 @@ const Invoice = () => {
                 }}>
                 <h4 style={{ color: globalTheme == "light" ? "#000000" : "#ffffff", marginTop: "0px", marginBottom: "0px" }}>Jurnal Pengeluaran Order</h4>
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                  {dataPengeluaranFromDB.length > 0 && (() => {
-                    const belum = dataPengeluaranFromDB.filter((x) => !x.sudahDijurnal).map((x) => x.id);
+                  {dataPengeluaranFromDB.some((x) => !x.dariQuote) && (() => {
+                    const manual = dataPengeluaranFromDB.filter((x) => !x.dariQuote);
+                    const belum = manual.filter((x) => !x.sudahDijurnal).map((x) => x.id);
                     return (
                       <button
                         className="btnKomentar button-effect2"
                         title="Pengeluaran yang uangnya sudah dicatat di Jurnal — tidak dihitung dobel di Laba Rugi"
-                        onClick={() => tandaiSudahDijurnal(belum.length ? belum : dataPengeluaranFromDB.map((x) => x.id), belum.length > 0)}
+                        onClick={() => tandaiSudahDijurnal(belum.length ? belum : manual.map((x) => x.id), belum.length > 0)}
                       >
                         {belum.length ? 'Tandai semua sudah dijurnal' : 'Batalkan tanda jurnal'}
                       </button>
@@ -2527,7 +2528,7 @@ const Invoice = () => {
                             <div style={{ fontSize: 13, overflowWrap: 'anywhere' }}><b>{pengeluaran.kategoriPengeluaran}</b>{pengeluaran.keteranganPengeluaran ? ` — ${pengeluaran.keteranganPengeluaran}` : ''}</div>
                             <div style={{ fontSize: 12, opacity: 0.65 }}>{new Date(pengeluaran.tanggalPengeluaran).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
                           </div>
-                          <button type="button"
+                          {pengeluaran.dariQuote ? <span title="Estimasi dari Quote — diubah lewat Quote. Biaya riil tetap dicatat di jurnal; Laba Rugi otomatis mengoreksi supaya tidak dobel." style={{ flexShrink: 0, padding: '2px 10px', borderRadius: 999, fontSize: 12, border: '1px solid #d4a017', background: '#fff8e1', color: '#8a6500', whiteSpace: 'nowrap' }}>Estimasi</span> : <button type="button"
                             onClick={(e) => { e.stopPropagation(); tandaiSudahDijurnal([pengeluaran.id], !pengeluaran.sudahDijurnal); }}
                             style={{
                               flexShrink: 0, minWidth: 70, minHeight: 38, padding: '2px 10px', borderRadius: 999, fontSize: 12.5, cursor: 'pointer',
@@ -2536,7 +2537,7 @@ const Invoice = () => {
                               color: pengeluaran.sudahDijurnal ? '#1f8a4c' : 'inherit',
                             }}>
                             {pengeluaran.sudahDijurnal ? '✓ Dijurnal' : 'Belum jurnal'}
-                          </button>
+                          </button>}
                         </div>
                       ))}
                     </div>
@@ -2562,7 +2563,7 @@ const Invoice = () => {
                           <td className='tableStyle text-center'>{pengeluaran.keteranganPengeluaran}</td>
                           <td className='tableStyle text-center'>Rp. {Number(pengeluaran.nominalPengeluaran).toLocaleString('id-ID')}</td>
                           <td className='tableStyle text-center'>
-                            <button
+                            {pengeluaran.dariQuote ? <span title="Estimasi dari Quote — diubah lewat Quote. Biaya riil tetap dicatat di jurnal; Laba Rugi otomatis mengoreksi supaya tidak dobel." style={{ flexShrink: 0, padding: '2px 10px', borderRadius: 999, fontSize: 12, border: '1px solid #d4a017', background: '#fff8e1', color: '#8a6500', whiteSpace: 'nowrap' }}>Estimasi</span> : <button
                               type="button"
                               onClick={(e) => { e.stopPropagation(); tandaiSudahDijurnal([pengeluaran.id], !pengeluaran.sudahDijurnal); }}
                               title={pengeluaran.sudahDijurnal ? 'Sudah ada di Jurnal — klik untuk batalkan' : 'Klik kalau uangnya sudah dicatat di Jurnal'}
@@ -2574,12 +2575,17 @@ const Invoice = () => {
                               }}
                             >
                               {pengeluaran.sudahDijurnal ? '✓ Sudah' : 'Belum'}
-                            </button>
+                            </button>}
                           </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
+                  )}
+                  {dataPengeluaranFromDB.some((x) => x.dariQuote) && (
+                    <small className='d-block mt-2' style={{ opacity: 0.8 }}>
+                      Baris "Dari Quote" = estimasi dari Quote (ubah lewat Quote). Ikut mengurangi gross profit invoice; kalau biaya riilnya nanti dicatat di sini, sesuaikan/hapus baris estimasinya lewat Quote supaya tidak dobel.
+                    </small>
                   )}
                   {dataPengeluaranFromDB.some((x) => x.sudahDijurnal) && (
                     <small className='d-block mt-2' style={{ opacity: 0.8 }}>

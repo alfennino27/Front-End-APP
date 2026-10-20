@@ -48,6 +48,8 @@ const uidSaya = () => { try { return JSON.parse(localStorage.getItem('user'))?.u
 export default function LeadMasuk({ baseUrl, bulan, dark, text, muted, cardBg, border, onBerubah }) {
   const [tab, setTab] = useState('kandidat');
   const [segmen, setSegmen] = useState('');
+  const [cari, setCari] = useState('');
+  const [q, setQ] = useState(''); // nilai cari setelah jeda ketik
   const [list, setList] = useState([]);
   const [loading, setLoading] = useState(false);
   const [sibuk, setSibuk] = useState(null);
@@ -55,11 +57,13 @@ export default function LeadMasuk({ baseUrl, bulan, dark, text, muted, cardBg, b
 
   const bulanAktif = bulan || new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 7);
 
+  useEffect(() => { const t = setTimeout(() => setQ(cari.trim()), 400); return () => clearTimeout(t); }, [cari]);
+
   const muat = useCallback(() => {
     setLoading(true);
-    fetch(`${baseUrl}/crm/lead-masuk?tab=${tab}&bulan=${bulanAktif}${segmen ? `&segmen=${segmen}` : ''}`)
+    fetch(`${baseUrl}/crm/lead-masuk?tab=${tab}&bulan=${bulanAktif}${segmen ? `&segmen=${segmen}` : ''}${q ? `&q=${encodeURIComponent(q)}` : ''}`)
       .then((r) => r.json()).then((d) => setList(Array.isArray(d) ? d : [])).catch(() => setList([])).finally(() => setLoading(false));
-  }, [baseUrl, tab, bulanAktif, segmen]);
+  }, [baseUrl, tab, bulanAktif, segmen, q]);
   useEffect(() => { muat(); }, [muat]);
 
   const konfirmasi = async (wa, keputusan) => {
@@ -167,7 +171,15 @@ export default function LeadMasuk({ baseUrl, bulan, dark, text, muted, cardBg, b
       <div style={{ fontSize: 12, color: muted, marginBottom: 10 }}>
         Chat dari iklan WhatsApp · {bulanAktif}. AI menilai otomatis; Anda cukup konfirmasi yang <b>Serius</b> — itu yang diajarkan ke Meta.
       </div>
-      <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 6, marginBottom: 6 }}>
+      <div style={{ position: 'relative', marginBottom: 8 }}>
+        <input type="search" value={cari} onChange={(e) => setCari(e.target.value)} placeholder="🔍 Cari nomor WA / nama kontak"
+          style={{ width: '100%', boxSizing: 'border-box', padding: '10px 36px 10px 12px', fontSize: 16, borderRadius: 10, border: `1px solid ${dark ? '#444' : '#ddd'}`, background: cardBg, color: text }} />
+        {cari && <button className="no-active" onClick={() => setCari('')} aria-label="Hapus pencarian"
+          style={{ position: 'absolute', right: 4, top: '50%', transform: 'translateY(-50%)', border: 'none', background: 'none', color: muted, fontSize: 18, width: 32, height: 32, cursor: 'pointer' }}>×</button>}
+      </div>
+      {q && <div style={{ fontSize: 12, color: muted, marginBottom: 8 }}>Hasil cari “{q}” di <b>semua bulan & status</b> — tab di bawah diabaikan selama mencari.</div>}
+
+      <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 6, marginBottom: 6, opacity: q ? 0.45 : 1 }}>
         {TABS.map(([k, l]) => (
           <button key={k} onClick={() => setTab(k)} className="no-active"
             style={{ whiteSpace: 'nowrap', border: 'none', borderRadius: 16, padding: '7px 14px', fontSize: 13, cursor: 'pointer', background: tab === k ? '#013175' : subtle, color: tab === k ? '#fff' : text }}>{l}</button>
@@ -188,7 +200,7 @@ export default function LeadMasuk({ baseUrl, bulan, dark, text, muted, cardBg, b
         </div>
       )}
       {loading ? <div style={{ textAlign: 'center', padding: 40 }}><Spinner /></div> : list.length === 0 ? (
-        <div style={{ textAlign: 'center', color: muted, padding: 40 }}>{tab === 'kandidat' ? 'Tidak ada yang perlu dikonfirmasi 🎉' : tab === 'followup' ? 'Semua lead bagus sudah di-follow up 👍' : 'Kosong.'}</div>
+        <div style={{ textAlign: 'center', color: muted, padding: 40 }}>{q ? 'Tidak ada chat iklan dengan nomor / nama ini.' : tab === 'kandidat' ? 'Tidak ada yang perlu dikonfirmasi 🎉' : tab === 'followup' ? 'Semua lead bagus sudah di-follow up 👍' : 'Kosong.'}</div>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))', gap: 10 }}>
           {list.map((c) => (
@@ -226,6 +238,11 @@ export default function LeadMasuk({ baseUrl, bulan, dark, text, muted, cardBg, b
                 <div style={{ fontSize: 12, background: dark ? '#14281a' : '#EAF6EC', border: '1px solid ' + (dark ? '#2e5a3a' : '#bfe3c6'), borderRadius: 6, padding: '6px 8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
                   <span style={{ color: '#2e7d32', fontWeight: 700 }}>💰 Purchase {rupiahSingkat(c.deal.deal_value)}</span>
                   <span style={{ color: muted, fontSize: 11, textAlign: 'right' }}>{c.deal.sumber === 'invoice' ? 'dari invoice' : 'dari quote'}{c.deal.kode_invoice ? ` · ${c.deal.kode_invoice}` : ''}</span>
+                </div>
+              )}
+              {c.crm_lead !== undefined && (
+                <div style={{ fontSize: 12, fontWeight: 600, color: c.crm_lead ? '#2e7d32' : '#a32d2d' }}>
+                  {c.crm_lead ? `📇 Sudah di CRM · stage ${c.crm_lead.stage}${c.crm_lead.kode_invoice ? ` · ${c.crm_lead.kode_invoice}` : ''}` : '📇 Belum masuk CRM'}
                 </div>
               )}
               <StatusMeta c={c} />

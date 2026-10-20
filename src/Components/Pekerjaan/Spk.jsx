@@ -2993,7 +2993,43 @@ function CostingPopup({ product, onClose, onEdit, onQuote, isMobile, dark }) {
                 </div>
               </div>
 
-              <div style={{ fontSize: 11.5, color: muted, marginTop: 4 }}>
+              {(() => {
+                const cat = product.category;
+                const semua = (data.gambarKategori && data.gambarKategori[cat]) || [];
+                const gambar = semua.filter((u) => !/\.pdf($|\?)/i.test(u));
+                const pdf = semua.filter((u) => /\.pdf($|\?)/i.test(u));
+                if (!cat) return null;
+                return (
+                  <div style={{ marginTop: 12 }}>
+                    <div style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 6 }}>
+                      Gambar kerja {labelKategori(cat)}{semua.length > 0 && <span style={{ color: muted, fontWeight: 400 }}> · {semua.length} file · klik untuk perbesar</span>}
+                    </div>
+                    {semua.length === 0 && (
+                      <div style={{ fontSize: 12, color: muted, background: panel, borderRadius: 8, padding: '8px 10px' }}>Belum ada gambar kerja {labelKategori(cat)} di project ini.</div>
+                    )}
+                    {gambar.length > 0 && (
+                      <Image.PreviewGroup>
+                        <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4 }}>
+                          {gambar.map((u) => (
+                            <div key={u} style={{ flex: '0 0 auto', width: isMobile ? 84 : 96, height: isMobile ? 84 : 96, borderRadius: 8, overflow: 'hidden', border: `1px solid ${garis}`, background: panel }}>
+                              <Image src={getImageUrl(u)} width="100%" height="100%" style={{ objectFit: 'cover' }} />
+                            </div>
+                          ))}
+                        </div>
+                      </Image.PreviewGroup>
+                    )}
+                    {pdf.length > 0 && (
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
+                        {pdf.map((u, i) => (
+                          <a key={u} href={getImageUrl(u)} target="_blank" rel="noreferrer" style={{ fontSize: 12, padding: '6px 10px', borderRadius: 6, border: `1px solid ${garis}`, background: panel }}>📄 PDF {i + 1}</a>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              <div style={{ fontSize: 11.5, color: muted, marginTop: 8 }}>
                 Harga rekomendasi 30%: <b>{rpC(data.hppUnit / 0.7)}</b> · Real = harga SPK kalau sudah ada, selain itu estimasi. View only — ubah lewat Edit SPK atau Quote.
               </div>
               <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>

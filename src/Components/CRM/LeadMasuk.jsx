@@ -38,7 +38,8 @@ const statusEvent = (c, nama) => {
   const ev = (c.capi || []).filter((e) => e.event_name === nama && !e.test);
   if (ev.some((e) => e.ok)) return 'ok';
   if (ev.length) return 'gagal';
-  if (c.ad_clicked_at && Date.now() - new Date(c.ad_clicked_at).getTime() > BATAS_KIRIM_HARI * 86400000) return 'basi';
+  const patokan = c.ad_clicked_at || (c.dari_iklan === false ? c.first_at : null); // non-iklan: chat pertama
+  if (patokan && Date.now() - new Date(patokan).getTime() > BATAS_KIRIM_HARI * 86400000) return 'basi';
   return 'antre';
 };
 
@@ -149,14 +150,15 @@ export default function LeadMasuk({ baseUrl, bulan, dark, text, muted, cardBg, b
   const StatusMeta = ({ c }) => {
     const ql = (c.konfirmasi?.keputusan === 'serius') ? statusEvent(c, 'QualifiedLead') : null;
     // InitiateCheckout = kembaran QualifiedLead untuk optimasi ad set Sales
-    const ic = (c.konfirmasi?.keputusan === 'serius') ? statusEvent(c, 'InitiateCheckout') : null;
+    // Chat non-iklan: InitiateCheckout tidak dikirim (sinyal optimasi khusus klik iklan)
+    const ic = (c.konfirmasi?.keputusan === 'serius' && c.dari_iklan !== false) ? statusEvent(c, 'InitiateCheckout') : null;
     const pu = c.deal ? statusEvent(c, 'Purchase') : null;
     if (!ql && !pu) return null;
-    const teks = { ok: '✓', gagal: '✗ gagal', basi: '– tidak dikirim (klik > 28 hr)', antre: '⏳ antre' };
+    const teks = { ok: '✓', gagal: '✗ gagal', basi: `– tidak dikirim (${c.dari_iklan === false ? 'chat' : 'klik'} > 28 hr)`, antre: '⏳ antre' };
     const warna = { ok: '#1877F2', gagal: '#a32d2d', basi: muted, antre: '#b26a00' };
     return (
       <div style={{ fontSize: 11, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-        <span style={{ color: muted }}>Meta:</span>
+        <span style={{ color: muted }}>Meta{c.dari_iklan === false ? ' (via nomor HP)' : ''}:</span>
         {ql && <span style={{ color: warna[ql] }}>{teks[ql]} Qualified Lead</span>}
         {ic && <span style={{ color: warna[ic] }} title="Kembaran Qualified Lead — target optimasi iklan">{teks[ic]} Initiate Checkout</span>}
         {pu && <span style={{ color: warna[pu] }}>{teks[pu]} Purchase</span>}
@@ -229,7 +231,7 @@ export default function LeadMasuk({ baseUrl, bulan, dark, text, muted, cardBg, b
               {c.ai?.bukti && <div style={{ fontSize: 12, color: text, background: subtle, borderRadius: 6, padding: '6px 8px', fontStyle: 'italic' }}>“{c.ai.bukti}”</div>}
               {c.dari_iklan === false && (
                 <div style={{ fontSize: 12, color: '#b26a00', background: dark ? '#2a2614' : '#FFF8E1', borderRadius: 6, padding: '6px 8px' }}>
-                  ⚠️ Bukan dari klik iklan WA (tanpa data klik, mis. DM/profil IG) — tidak dinilai AI & tidak bisa dikirim ke Meta. Chat pertama {fmtTgl(c.first_at)}.
+                  ⚠️ Bukan dari klik iklan WA (mis. DM/profil IG), chat pertama {fmtTgl(c.first_at)}. Tidak dinilai AI. Kalau ditandai Serius → dikirim ke Meta via nomor HP sebagai Qualified Lead (+ Purchase kalau deal), tanpa Initiate Checkout.
                 </div>
               )}
               <div style={{ fontSize: 11, color: muted, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -251,7 +253,7 @@ export default function LeadMasuk({ baseUrl, bulan, dark, text, muted, cardBg, b
                 </div>
               )}
               <StatusMeta c={c} />
-              {c.dari_iklan !== false && <TombolKonfirmasi c={c} />}
+              <TombolKonfirmasi c={c} />
             </div>
           ))}
         </div>
@@ -283,11 +285,10 @@ export default function LeadMasuk({ baseUrl, bulan, dark, text, muted, cardBg, b
                     </div>
                   ))}
                 </div>
-                {detail.conv.dari_iklan !== false && (
-                  <div style={{ padding: 12, borderTop: border }}>
-                    <TombolKonfirmasi c={detail.conv} besar />
-                  </div>
-                )}
+                <div style={{ padding: 12, borderTop: border }}>
+                  {detail.conv.dari_iklan === false && <div style={{ fontSize: 11, color: '#b26a00', marginBottom: 6 }}>Bukan dari klik iklan — Serius dikirim ke Meta via nomor HP (Qualified Lead saja).</div>}
+                  <TombolKonfirmasi c={detail.conv} besar />
+                </div>
               </>
             )}
           </div>

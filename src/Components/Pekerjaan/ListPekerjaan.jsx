@@ -292,7 +292,9 @@ const ListPekerjaan = () => {
         if (kategoriUmum.includes(searchSupplier)) {
           return p[categoryKey] && p[categoryKey] !== '';
         } else {
-          return p[categoryKey] === searchSupplier;
+          // Category multi pengrajin: nama per pengrajin di Pengrajin<cat>
+          return p[categoryKey] === searchSupplier ||
+            (Array.isArray(p[`Pengrajin${searchSupplierCategory}`]) && p[`Pengrajin${searchSupplierCategory}`].includes(searchSupplier));
         }
       });
     }
@@ -653,7 +655,8 @@ const ListPekerjaan = () => {
       const ditandai = (p) => !!p[`${pdfSupplierCategory}Reminder`] || !!p[statusKey];
       let filtered = pdfSupplierName === ''
         ? masterDataFalse.filter(p => belumBeres(p) && ((p[supplierKey] && p[supplierKey] !== '') || ditandai(p))).sort((a, b) => (a[supplierKey] || '').localeCompare(b[supplierKey] || ''))
-        : masterDataFalse.filter(p => p[supplierKey] === pdfSupplierName && belumBeres(p));
+        : masterDataFalse.filter(p => (p[supplierKey] === pdfSupplierName ||
+            (Array.isArray(p[`Pengrajin${pdfSupplierCategory}`]) && p[`Pengrajin${pdfSupplierCategory}`].includes(pdfSupplierName))) && belumBeres(p));
 
       if (pdfTargetKirimFilter !== 'semua') {
         // Tiap opsi = 1 minggu penuh (Senin–Minggu): thisWeek offset 0, nextWeek +1, weekAfterNext +2.

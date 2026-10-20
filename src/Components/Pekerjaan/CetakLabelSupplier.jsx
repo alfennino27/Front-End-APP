@@ -102,9 +102,13 @@ const CetakLabelSupplier = () => {
             (() => {
               const groups = {};
               items.forEach(item => {
-                const s = item[`Supplier${category}`] || BELUM_ADA_SUPPLIER;
-                if (!groups[s]) groups[s] = [];
-                groups[s].push(item);
+                // Category multi pengrajin (Pengrajin<cat>) → item masuk ke tiap grup pengrajinnya
+                const multi = item[`Pengrajin${category}`];
+                const daftar = Array.isArray(multi) && multi.length ? multi : [item[`Supplier${category}`] || BELUM_ADA_SUPPLIER];
+                daftar.forEach(s => {
+                  if (!groups[s]) groups[s] = [];
+                  groups[s].push(item);
+                });
               });
               let globalNo = 0;
               // Grup "Belum ada Supplier" selalu paling bawah.

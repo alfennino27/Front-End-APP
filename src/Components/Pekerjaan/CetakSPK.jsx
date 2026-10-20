@@ -70,7 +70,10 @@ const CetakSPK = () => {
 
   if (!data) return null;
 
-  const { project, category, spkCode, coverImage, images, printDate } = data;
+  const { project, category, spkCode, coverImage, images, printDate, bagian } = data;
+  // Category multi pengrajin: deadline & keterangan milik bagian yang dicetak
+  const deadlineCetak = data.deadline ?? project[`DeadlineSupplier${category}`];
+  const keteranganCetak = data.keterangan ?? project[`Description${category}`];
 
   const mainImage = coverImage || (images && images[0]);
   const pages = normalizePages(data);
@@ -216,7 +219,7 @@ const CetakSPK = () => {
           <div className="spk-header">
             <div className="spk-header-left">
               <div>Tanggal cetak &nbsp;: {fmt(printDate)}</div>
-              <div>Deadline &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;: {fmt(project[`DeadlineSupplier${category}`])}</div>
+              <div>Deadline &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;: {fmt(deadlineCetak)}</div>
             </div>
             <div className="spk-header-right">
               <table>
@@ -227,7 +230,7 @@ const CetakSPK = () => {
                   </tr>
                   <tr>
                     <td>Nama barang</td>
-                    <td>: {project.NamaBarang}</td>
+                    <td>: {project.NamaBarang}{bagian ? ` — ${bagian}` : ''}</td>
                   </tr>
                   <tr>
                     <td>Kode SPK</td>
@@ -247,8 +250,8 @@ const CetakSPK = () => {
             </div>
             <div className="spk-body-right">
               <h6>Keterangan</h6>
-              <pre style={{ fontSize: `${getKeteranganFontSize(project[`Description${category}`])}px` }}>
-                {project[`Description${category}`] || '-'}
+              <pre style={{ fontSize: `${getKeteranganFontSize(keteranganCetak)}px` }}>
+                {keteranganCetak || '-'}
               </pre>
             </div>
           </div>

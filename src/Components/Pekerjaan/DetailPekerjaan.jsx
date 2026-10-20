@@ -17,6 +17,7 @@ import { getApiBaseUrl } from '../../Config/APIurl';
 import ConsistencyCheck from '../AI/ConsistencyCheck';
 import SPKPrecheckModal from '../AI/SPKPrecheckModal';
 import SPKLayoutModal from './SPKLayoutModal';
+import PengerjaanEditor, { barisBaru } from './PengerjaanEditor';
 import ImageUploadZone from './ImageUploadZone';
 import LinkProductCard from './LinkProductCard';
 import { format } from "date-fns";
@@ -173,6 +174,11 @@ const DetailPekerjaan = () => {
   const [dataUserFromDB, setDataUserFromDB] = useState([]);
   // Item SPK milik project ini (untuk tampilkan harga SPK per kategori)
   const [spkProductList, setSpkProductList] = useState([]);
+  // Category dipecah ke >1 pengrajin (mis. Kayu: Kaki & Top) — draft baris di modal Category
+  const [pengerjaanDraft, setPengerjaanDraft] = useState([]);
+  const [pengerjaanHapus, setPengerjaanHapus] = useState([]);
+  const [showPilihPrint, setShowPilihPrint] = useState(false);
+  const [printPengerjaan, setPrintPengerjaan] = useState(null);
   const [category, setCategory] = useState('');
   const [lastReply, setLastReply] = useState('');
 
@@ -348,10 +354,30 @@ const DetailPekerjaan = () => {
         console.log('anda tidak punya izin');
       } else {
         supplierData();
+        setPengerjaanHapus([]);
+        setPengerjaanDraft(isMultiPengerjaan ? itemPengerjaanCat.map(draftDariItem) : []);
         setShowEditCategoryModal(true);
       }
     }
   }
+
+  // Single → multi: baris pertama = item SPK yang sudah ada (atau isian form), baris kedua kosong.
+  const handleMulaiPecah = () => {
+    const awal = itemPengerjaanCat.length
+      ? itemPengerjaanCat.map(draftDariItem)
+      : [{ ...barisBaru(deadline || ''), supplier: supplier && supplier !== 'Undecided' ? supplier : '', idSPK: selectedSPKId || '', statusPengerjaan: categoryStatus || 'Belum Proses', keterangan: description || '' }];
+    setPengerjaanDraft([...awal, barisBaru(deadline || '')]);
+  };
+
+  const handleHapusBaris = (row) => {
+    if (Number(row.harga) > 0) {
+      alert('Bagian ini sudah ada harga di SPK. Hapus dari halaman SPK.');
+      return;
+    }
+    if (!window.confirm(`Hapus bagian "${row.bagian || 'tanpa nama'}"?`)) return;
+    if (row.idSpkProduct) setPengerjaanHapus(prev => [...prev, row.idSpkProduct]);
+    setPengerjaanDraft(prev => prev.filter(r => r.key !== row.key));
+  };
 
   function handleShowToDoListModal(e) {
     e.stopPropagation();
@@ -576,6 +602,10 @@ const DetailPekerjaan = () => {
   }, [commentId]);
 
   const handleResetCategory = async () => {
+    if (isMultiPengerjaan) {
+      alert('Category ini dikerjakan beberapa pengrajin. Hapus bagian pengerjaannya dulu.');
+      return;
+    }
     setShowEditCategoryModal(false);
     try {
       const response = await fetch(`${baseUrl}/projects/update/category`, {
@@ -599,8 +629,53 @@ const DetailPekerjaan = () => {
     }
   };
 
+  // Simpan baris pengerjaan (multi pengrajin). Return false kalau ada yang gagal.
+  const simpanPengerjaan = async () => {
+    let ok = true;
+    for (const idSpkProduct of pengerjaanHapus) {
+      const res = await fetch(`${baseUrl}/pengerjaan/hapus`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idSpkProduct }),
+      });
+      if (!res.ok) { ok = false; alert((await res.json().catch(() => ({}))).message || 'Gagal hapus bagian'); }
+    }
+    for (const row of pengerjaanDraft) {
+      const res = await fetch(`${baseUrl}/pengerjaan/save`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          idSpkProduct: row.idSpkProduct,
+          idProduct: slug,
+          category,
+          idSPK: row.idSPK,
+          bagian: row.bagian,
+          deadline: row.deadline,
+          statusPengerjaan: row.statusPengerjaan,
+          keterangan: row.keterangan,
+          uid: user?.uid || '',
+        }),
+      });
+      if (!res.ok) { ok = false; alert(`Bagian "${row.bagian}": ${(await res.json().catch(() => ({}))).message || 'gagal disimpan'}`); }
+    }
+    return ok;
+  };
+
   const handleSubmit = async () => {
+    if (pengerjaanDraft.length) {
+      const kurang = pengerjaanDraft.find(r => !r.idSPK || (pengerjaanDraft.length > 1 && !r.bagian.trim()));
+      if (kurang) {
+        alert('Tiap bagian wajib punya nama bagian & SPK Code.');
+        return;
+      }
+    }
     setShowEditCategoryModal(false);
+
+    // Mode multi pengrajin: simpan baris dulu; sisa 1 baris → isian form ikut baris itu
+    const satu = pengerjaanDraft.length === 1 ? pengerjaanDraft[0] : null;
+    if (pengerjaanDraft.length || pengerjaanHapus.length) {
+      try { await simpanPengerjaan(); } catch (err) { console.error('Gagal simpan pengerjaan:', err); }
+    }
 
     // let formattedOrderDate = orderDate;
     // const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
@@ -618,12 +693,12 @@ const DetailPekerjaan = () => {
         body: JSON.stringify({
           slug,
           category,
-          supplier,
+          supplier: satu ? satu.supplier : supplier,
           orderDate: orderDate || null,
-          deadline,
+          deadline: satu ? satu.deadline : deadline,
           description,
-          categoryStatus,
-          selectedSPKId,
+          categoryStatus: satu ? satu.statusPengerjaan : categoryStatus,
+          selectedSPKId: satu ? satu.idSPK : selectedSPKId,
           uid: user?.uid || ''
         }),
       });
@@ -632,11 +707,13 @@ const DetailPekerjaan = () => {
 
       if (!response.ok) {
         console.error('Gagal update supplier:', result.message);
+        if (response.status === 409) alert(result.message);
         return;
       }
 
       console.log('Update supplier berhasil');
       await refreshData(); // refresh data dari server
+      fetchSpkProducts();
     } catch (error) {
       console.error('Terjadi kesalahan:', error);
     }
@@ -662,6 +739,7 @@ const DetailPekerjaan = () => {
         body: JSON.stringify({ slug, category: cat, categoryStatus: newStatus }),
       });
       if (!response.ok) throw new Error('Gagal update status');
+      if (isMultiPengerjaan) fetchSpkProducts();
 
       // Daftar project di kiri (ListPekerjaan) punya state sendiri — tanpa
       // pemberitahuan ini status di kartu baru berubah setelah reload halaman.
@@ -1400,6 +1478,25 @@ const DetailPekerjaan = () => {
   // Nilai biaya kategori. Budget (estimasi) & SPK ditampilkan BERDAMPINGAN —
   // dulu SPK menggantikan budget, jadi tidak kelihatan lagi berapa rencana
   // biayanya vs realisasi ke supplier.
+  // Item SPK category ini yang ter-link ke SPK. ≥2 = dikerjakan beberapa pengrajin.
+  const itemPengerjaanCat = spkProductList
+    .filter((s) => s.category === category && s.idSPK)
+    .sort((a, b) => String(a._id || a.id).localeCompare(String(b._id || b.id)));
+  const isMultiPengerjaan = itemPengerjaanCat.length >= 2;
+  const spkById = (idSPK) => dataSPKFromDB.find((x) => x.id === idSPK);
+  const tglInput = (d) => (d && /^\d{4}-\d{2}-\d{2}/.test(d) ? d.slice(0, 10) : (() => { try { return d ? format(new Date(d), 'yyyy-MM-dd') : ''; } catch { return ''; } })());
+  const draftDariItem = (s) => ({
+    key: s.id || s._id,
+    idSpkProduct: s.id || s._id,
+    bagian: s.bagian || '',
+    supplier: spkById(s.idSPK)?.pengrajin || '',
+    idSPK: s.idSPK,
+    deadline: tglInput(s.deadline),
+    statusPengerjaan: s.statusPengerjaan ?? (dataProjectFromDB[0]?.[`CategoryStatus${category}`] || null),
+    keterangan: s.keterangan || '',
+    harga: Number(s.harga) || 0,
+  });
+
   const spkCategoryTotal = spkProductList
     .filter((s) => s.category === category)
     .reduce((sum, s) => sum + (Number(s.harga) || 0), 0);
@@ -1435,7 +1532,9 @@ const DetailPekerjaan = () => {
     const spkData = {
       project,
       category,
-      spkCode: selectedSPKCode || '-',
+      spkCode: printPengerjaan ? printPengerjaan.spkCode : (selectedSPKCode || '-'),
+      // Multi pengrajin: deadline/keterangan/bagian milik bagian yang dicetak
+      ...(printPengerjaan ? { bagian: printPengerjaan.bagian, deadline: printPengerjaan.deadline, keterangan: printPengerjaan.keterangan } : {}),
       coverImage,
       pages,
       printDate: new Date().toISOString(),
@@ -2108,6 +2207,32 @@ const DetailPekerjaan = () => {
         onProceed={() => { setShowSpkPrecheck(false); handlePrintSPK(); }}
       />
 
+      {/* Category multi pengrajin: pilih bagian yang SPK-nya mau dicetak */}
+      <Modal className={`${globalTheme === 'light' ? 'modalKLFlight' : 'modalKLF'}`} show={showPilihPrint} onHide={() => setShowPilihPrint(false)} centered>
+        <Modal.Header closeButton>
+          <Modal.Title>Cetak SPK bagian mana?</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          {itemPengerjaanCat.map((s) => {
+            const spk = spkById(s.idSPK);
+            return (
+              <Button
+                key={s.id || s._id}
+                variant="outline-primary"
+                style={{ width: '100%', minHeight: 48, marginBottom: 8, textAlign: 'left' }}
+                onClick={() => {
+                  setPrintPengerjaan({ bagian: s.bagian || '', spkCode: spk?.code || '-', deadline: s.deadline || '', keterangan: s.keterangan || '' });
+                  setShowPilihPrint(false);
+                  setShowSpkPrecheck(true);
+                }}
+              >
+                <strong>{s.bagian || 'Tanpa nama bagian'}</strong> — {spk?.pengrajin || '-'} · {spk?.code || '-'}
+              </Button>
+            );
+          })}
+        </Modal.Body>
+      </Modal>
+
       {/* Modal */}
       <Modal className={`${globalTheme === 'light' ? 'modalKLFlight' : 'modalKLF'}`} show={showInformationModal} onHide={handleCloseInformationModal}>
         <Modal.Header closeButton>
@@ -2416,7 +2541,25 @@ const DetailPekerjaan = () => {
               dataProjectFromDB[0]?.[`${category}Pakde`] ? "Acc I" : "Draft"}
           </div>
           {dataProjectFromDB.length > 0 && (
+            isMultiPengerjaan ? (
+              <div className="mb-1" style={{ color: globalTheme == "light" ? "black" : "white" }}>
+                <h6 className="fw-semibold mb-1">Supplier : {itemPengerjaanCat.length} pengrajin</h6>
+                {itemPengerjaanCat.map((s) => {
+                  const spk = spkById(s.idSPK);
+                  return (
+                    <div key={s.id || s._id} style={{ fontSize: 14, lineHeight: 1.4, marginBottom: 4 }}>
+                      • <strong>{s.bagian || '-'}</strong> — {spk?.pengrajin || '-'}
+                      <span style={{ opacity: 0.75 }}> · {spk?.code || '-'}{s.deadline ? ` · ${new Date(s.deadline).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}` : ''}</span>
+                      {s.statusPengerjaan && (
+                        <span style={{ marginLeft: 6, fontSize: 12, padding: '1px 6px', borderRadius: 6, background: s.statusPengerjaan === 'Belum Proses' ? '#dc3545' : s.statusPengerjaan === 'Servis' ? '#fd7e14' : s.statusPengerjaan === 'Proses' ? '#0d6efd' : '#198754', color: 'white' }}>{s.statusPengerjaan}</span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
             <h6 className="fw-semibold" style={{ color: globalTheme == "light" ? "black" : "white" }}>Supplier : {dataProjectFromDB[0][`Supplier${category}`] ? dataProjectFromDB[0][`Supplier${category}`] : '-'}</h6>
+            )
           )}
           {dataProjectFromDB.length > 0 && (
             <small style={{ color: globalTheme == "light" ? "black" : "white" }}>
@@ -2812,7 +2955,7 @@ const DetailPekerjaan = () => {
               <button
                 title={category === 'GambarKerja' ? 'Cetak Gambar Kerja' : 'Buat SPK'}
                 // Gambar Kerja: tanpa cek AI, langsung pilih cover & layout.
-                onClick={(e) => { e.stopPropagation(); if (category === 'GambarKerja') handlePrintSPK(); else setShowSpkPrecheck(true); }}
+                onClick={(e) => { e.stopPropagation(); if (category === 'GambarKerja') handlePrintSPK(); else if (isMultiPengerjaan) setShowPilihPrint(true); else { setPrintPengerjaan(null); setShowSpkPrecheck(true); } }}
                 className="no-active"
                 style={{
                   background: globalTheme === 'light' ? '#fff' : '#333',
@@ -2866,6 +3009,7 @@ const DetailPekerjaan = () => {
         </Modal.Header>
         <Modal.Body>
           {/* Your comment form here */}
+          {!pengerjaanDraft.length && (<>
           <label className='mt-2'>Supplier :</label><MdAssignment className="mt-2" style={{ float: "right", width: "25px", height: "auto" }} onClick={handleShowSupplierModal} /><br />
           {/* <input className="form-control" type='text' value={supplier} onChange={(e) => setSupplier(e.target.value)}></input> */}
 
@@ -2881,14 +3025,18 @@ const DetailPekerjaan = () => {
             })}
             <option value="Undecided">Undecided</option>
           </select>
+          </>)}
 
           <label className='mt-2'>Order Date :</label><br />
           <input className="form-control" type='date' value={orderDate} onChange={(e) => setOrderDate(e.target.value)}></input>
+          {!pengerjaanDraft.length && (<>
           <label className='mt-2'>Deadline :</label><br />
           <input className="form-control" type='date' value={deadline} onChange={(e) => setDeadline(e.target.value)}></input>
-          <label className='mt-2'>Description :</label><br />
+          </>)}
+          <label className='mt-2'>{pengerjaanDraft.length ? 'Deskripsi umum :' : 'Description :'}</label><br />
           <textarea className="form-control" type='text' rows="5" value={description} onChange={(e) => setDescription(e.target.value)}></textarea>
 
+          {!pengerjaanDraft.length && (<>
           <label className='mt-2'>Status :</label><br />
           <select className="form-control" value={categoryStatus || ""} onChange={(e) => setCategoryStatus(e.target.value || null)}>
             <option value="">— Tidak ada status —</option>
@@ -2962,6 +3110,32 @@ const DetailPekerjaan = () => {
               </button>
             </Popconfirm>
           </div>
+          </>)}
+
+          {/* Pengerjaan: category dikerjakan >1 pengrajin (mis. Kayu: Kaki & Top Table) */}
+          <div className="mt-3">
+            {pengerjaanDraft.length > 0 && (<>
+              <label style={{ fontWeight: 600 }}>Pengerjaan ({pengerjaanDraft.length} pengrajin) :</label>
+              <small className="d-block mb-2" style={{ color: '#888' }}>Status category = status bagian yang paling lambat.</small>
+              <PengerjaanEditor
+                rows={pengerjaanDraft}
+                setRows={setPengerjaanDraft}
+                onHapus={handleHapusBaris}
+                suppliers={dataSupplierFromDB.filter((s) => s.category == category)}
+                spkList={dataSPKFromDB}
+                onSpkCreated={fetchSPK}
+                orderDate={orderDate}
+                globalTheme={globalTheme}
+              />
+            </>)}
+            <Button
+              variant="outline-primary"
+              style={{ width: '100%', minHeight: 44 }}
+              onClick={() => (pengerjaanDraft.length ? setPengerjaanDraft((prev) => [...prev, barisBaru(deadline || '')]) : handleMulaiPecah())}
+            >
+              + Tambah pengrajin {pengerjaanDraft.length ? '' : '(pecah pekerjaan)'}
+            </Button>
+          </div>
 
 
           {/* <label className='mt-2'>Link Product :</label><br />
@@ -2969,6 +3143,7 @@ const DetailPekerjaan = () => {
         </Modal.Body>
         <Modal.Footer style={{ justifyContent: 'space-between' }}>
           <Popconfirm
+            disabled={isMultiPengerjaan}
             title={`Reset kategori ${category}?`}
             description="Semua data kategori ini (supplier, status, deskripsi, deadline) akan dihapus permanen."
             onConfirm={handleResetCategory}

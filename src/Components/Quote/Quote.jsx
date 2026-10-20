@@ -47,7 +47,7 @@ const SearchableSelect = ({ options, value, onChange, placeholder, ui }) => {
 
 // Kategori costing = kategori estimasi sistem (mirror backend). Saat quote jadi
 // invoice, costing → estimasi<Category> (biaya sementara / budget).
-const CATEGORIES = ['Besi', 'Kayu', 'Jok', 'Rotan', 'Finishing', 'Marmer', 'Fiber', 'Veneer'];
+const CATEGORIES = ['Besi', 'Kayu', 'Jok', 'Rotan', 'Finishing', 'Marmer', 'Kaca', 'Fiber', 'Veneer'];
 
 const ONGKIR_OPTIONS = [
   { value: 'none', label: 'Tanpa catatan ongkir' },

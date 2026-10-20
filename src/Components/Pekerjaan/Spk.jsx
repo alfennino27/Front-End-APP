@@ -199,7 +199,7 @@ const Spk = () => {
 
   const [suppliers, setSuppliers] = useState([]);
 
-  const kategoriSupplier = ['Besi', 'Kayu', 'Jok', 'Rotan', 'Marmer', 'Fiber', 'Veneer', 'Finishing', 'Hardware', 'Barang Jadi'];
+  const kategoriSupplier = ['Besi', 'Kayu', 'Jok', 'Rotan', 'Marmer', 'Kaca', 'Fiber', 'Veneer', 'Finishing', 'Hardware', 'Barang Jadi'];
 
   // Get semua Supplier sekali saat load halaman
   useEffect(() => {
@@ -1863,7 +1863,8 @@ useEffect(() => {
               { value: 'Kayu', label: 'Kayu' },
               { value: 'Jok', label: 'Jok' },
               { value: 'Rotan', label: 'Rotan' },
-              { value: 'Marmer', label: 'Marmer & Kaca' },
+              { value: 'Marmer', label: 'Marmer' },
+              { value: 'Kaca', label: 'Kaca' },
               { value: 'Fiber', label: 'Fiber' },
               { value: 'Veneer', label: 'Veneer' },
               { value: 'Finishing', label: 'Finishing' },
@@ -2681,7 +2682,7 @@ useEffect(() => {
           </ul>
 
           <div className="d-flex justify-content-between align-items-center" onClick={() => handleSearchSupplier('Marmer', 'Marmer')}>
-            <p style={{ cursor: 'pointer' }} className="fw-semibold">Supplier Marmer &amp; Kaca :</p>
+            <p style={{ cursor: 'pointer' }} className="fw-semibold">Supplier Marmer :</p>
           </div>
           <ul>
             {dataSupplierFromDB.map((supplier, index) => {
@@ -2689,6 +2690,22 @@ useEffect(() => {
                 return (
                   <div className="d-flex justify-content-between align-items-center">
                     <li style={{ cursor: 'pointer' }} key={index} onClick={() => handleSearchSupplier(supplier.supplierName, 'Marmer')}>{supplier.supplierName}</li>
+                  </div>
+                )
+              }
+
+            })}
+          </ul>
+
+          <div className="d-flex justify-content-between align-items-center" onClick={() => handleSearchSupplier('Kaca', 'Kaca')}>
+            <p style={{ cursor: 'pointer' }} className="fw-semibold">Supplier Kaca :</p>
+          </div>
+          <ul>
+            {dataSupplierFromDB.map((supplier, index) => {
+              if (supplier.category == 'Kaca') {
+                return (
+                  <div className="d-flex justify-content-between align-items-center">
+                    <li style={{ cursor: 'pointer' }} key={index} onClick={() => handleSearchSupplier(supplier.supplierName, 'Kaca')}>{supplier.supplierName}</li>
                   </div>
                 )
               }

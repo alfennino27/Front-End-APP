@@ -1040,7 +1040,7 @@ const Products = () => {
                       {[
                         'No', 'Gambar', 'Judul', 'Deskripsi', 'Display',
                         'Varian', 'Besi', 'Kayu', 'Jok',
-                        'Rotan', 'Finishing', 'Marmer & Kaca', 'Fiber', 'Veneer', 'HPP', 'Jual'
+                        'Rotan', 'Finishing', 'Marmer', 'Fiber', 'Veneer', 'HPP', 'Jual'
                       ].map((col, i) => (
                         <th
                           key={i}
@@ -2029,7 +2029,7 @@ const Products = () => {
           <NumericFormat className="form-control" thousandSeparator="." decimalSeparator="," onValueChange={(values) => { setRotan(values.value); }}></NumericFormat>
           <label className='mt-2'>Finishing :</label>
           <NumericFormat className="form-control" thousandSeparator="." decimalSeparator="," onValueChange={(values) => { setFinishing(values.value); }}></NumericFormat>
-          <label className='mt-2'>Marmer &amp; Kaca :</label>
+          <label className='mt-2'>Marmer :</label>
           <NumericFormat className="form-control" thousandSeparator="." decimalSeparator="," onValueChange={(values) => { setMarmer(values.value); }}></NumericFormat>
           <label className='mt-2'>Fiber :</label>
           <NumericFormat className="form-control" thousandSeparator="." decimalSeparator="," onValueChange={(values) => { setFiber(values.value); }}></NumericFormat>
@@ -2130,7 +2130,7 @@ const Products = () => {
             }}
           />
 
-          <label className='mt-2'>Marmer &amp; Kaca :</label>
+          <label className='mt-2'>Marmer :</label>
           <NumericFormat
             className="form-control"
             thousandSeparator="."

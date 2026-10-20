@@ -159,7 +159,7 @@ const Stock = () => {
                     {[
                       'No', 'Gambar', 'Nama', 'Invoice', 'Deskripsi',
                       'Besi', 'Kayu', 'Jok', 'Rotan', 'Finishing',
-                      'Marmer & Kaca', 'Fiber', 'Veneer', 'HPP', 'Jual', 'Qty', 'GP', '%'
+                      'Marmer', 'Fiber', 'Veneer', 'HPP', 'Jual', 'Qty', 'GP', '%'
                     ].map((title, i) => (
                       <th
                         key={i}

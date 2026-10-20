@@ -21,7 +21,7 @@ import { mintaRefreshNotif } from '../../Utils/notifRefresh';
 // membuka project satu per satu. Sheet tugas memuat to-do list & komentar
 // category yang sama dengan halaman project (Projects.Todo<Cat>, Comments).
 
-const KATEGORI = ['Besi', 'Kayu', 'Jok', 'Rotan', 'Marmer', 'Fiber', 'Veneer', 'Finishing', 'Hardware', 'BarangJadi'];
+const KATEGORI = ['Besi', 'Kayu', 'Jok', 'Rotan', 'Marmer', 'Kaca', 'Fiber', 'Veneer', 'Finishing', 'Hardware', 'BarangJadi'];
 
 const BUCKETS = [
   { key: 'urgent', label: 'Mendesak', color: '#b91c1c' }, // t.mendesak: telat/kirim minggu ini/Servis/QC/belum order di jendela pantau (default)

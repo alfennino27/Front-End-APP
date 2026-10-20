@@ -284,7 +284,7 @@ const ListPekerjaan = () => {
       const categoryKey = `Supplier${searchSupplierCategory}`;
       const kategoriUmum = [
         'Besi', 'Kayu', 'Jok', 'Rotan',
-        'Marmer', 'Fiber', 'Veneer',
+        'Marmer', 'Kaca', 'Fiber', 'Veneer',
         'Finishing', 'Hardware', 'BarangJadi'
       ];
 
@@ -1327,7 +1327,7 @@ const ListPekerjaan = () => {
           </ul>
 
           <div className="d-flex justify-content-between align-items-center">
-            <p className="fw-semibold" style={{ cursor: 'pointer' }} onClick={() => handleSearchSupplier('Marmer', 'Marmer')}>Supplier Marmer &amp; Kaca :</p>
+            <p className="fw-semibold" style={{ cursor: 'pointer' }} onClick={() => handleSearchSupplier('Marmer', 'Marmer')}>Supplier Marmer :</p>
           </div>
           <ul>
             {dataSupplierFromDB.map((supplier, index) => {
@@ -1335,6 +1335,22 @@ const ListPekerjaan = () => {
                 return (
                   <div className="d-flex justify-content-between align-items-center">
                     <li style={{ cursor: 'pointer' }} key={index} onClick={() => handleSearchSupplier(supplier.supplierName, 'Marmer')}>{supplier.supplierName}</li>
+                  </div>
+                )
+              }
+
+            })}
+          </ul>
+
+          <div className="d-flex justify-content-between align-items-center">
+            <p className="fw-semibold" style={{ cursor: 'pointer' }} onClick={() => handleSearchSupplier('Kaca', 'Kaca')}>Supplier Kaca :</p>
+          </div>
+          <ul>
+            {dataSupplierFromDB.map((supplier, index) => {
+              if (supplier.category == 'Kaca') {
+                return (
+                  <div className="d-flex justify-content-between align-items-center">
+                    <li style={{ cursor: 'pointer' }} key={index} onClick={() => handleSearchSupplier(supplier.supplierName, 'Kaca')}>{supplier.supplierName}</li>
                   </div>
                 )
               }
@@ -1463,7 +1479,7 @@ const ListPekerjaan = () => {
               <Form.Group className="mb-2">
                 <Form.Label>Category</Form.Label>
                 <Form.Select value={pdfSupplierCategory} onChange={(e) => { setPdfSupplierCategory(e.target.value); setPdfSupplierName(''); }}>
-                  {['Besi','Kayu','Jok','Rotan','Marmer','Fiber','Veneer','Finishing','Hardware'].map(c => (
+                  {['Besi','Kayu','Jok','Rotan','Marmer','Kaca','Fiber','Veneer','Finishing','Hardware'].map(c => (
                     <option key={c} value={c}>{labelKategori(c)}</option>
                   ))}
                 </Form.Select>

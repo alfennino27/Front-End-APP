@@ -3,7 +3,7 @@
 // Kalau formula di sini berubah, ubah juga di crmSync.js supaya CRM konsisten.
 
 export const HPP_CATEGORIES = [
-  'Besi', 'Kayu', 'Jok', 'Rotan', 'Finishing', 'Marmer', 'Fiber', 'Veneer',
+  'Besi', 'Kayu', 'Jok', 'Rotan', 'Finishing', 'Marmer', 'Kaca', 'Fiber', 'Veneer',
 ];
 
 /**

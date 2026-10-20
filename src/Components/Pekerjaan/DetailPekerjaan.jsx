@@ -1475,7 +1475,7 @@ const DetailPekerjaan = () => {
     'fYpdHwXRDLhj5XGxM5FZIAvxp9E2', // Alfen
     '4WGPaHicKWYr0Ny84IUh8xb9Bo62', // P. Dhe
   ];
-  const SPK_PRICE_CATEGORIES = ['Kayu', 'Besi', 'Marmer'];
+  const SPK_PRICE_CATEGORIES = ['Kayu', 'Besi', 'Marmer', 'Kaca'];
 
   // Nilai biaya kategori. Budget (estimasi) & SPK ditampilkan BERDAMPINGAN —
   // dulu SPK menggantikan budget, jadi tidak kelihatan lagi berapa rencana
@@ -2338,7 +2338,7 @@ const DetailPekerjaan = () => {
 
 
 
-          {["Besi", "Kayu", "Jok", "Rotan", "Marmer", "Fiber", "Veneer", "Finishing", "Hardware", "BarangJadi", "GambarKerja", "Pengiriman", "Testimoni"]
+          {["Besi", "Kayu", "Jok", "Rotan", "Marmer", "Kaca", "Fiber", "Veneer", "Finishing", "Hardware", "BarangJadi", "GambarKerja", "Pengiriman", "Testimoni"]
             // Kategori "Kain" sudah DIHAPUS (kain sekarang masuk Jok). Tetap ditampilkan
             // di paling bawah HANYA untuk item lama yang terlanjur punya data Kain,
             // supaya riwayatnya tidak hilang. Item baru tidak akan pernah memunculkannya.
@@ -2877,6 +2877,17 @@ const DetailPekerjaan = () => {
                 {renderAlurItem('alurMarmer1', 'Cek Dimensi')}
                 {renderAlurItem('alurMarmer2', 'Cek Kontruksi')}
                 {renderAlurItem('alurMarmer3', 'Cek Kerapian')}
+              </div>
+            </>
+          )}
+
+          {category === "Kaca" && (
+            <>
+              <h6 className='mt-4' style={{ color: globalTheme == "light" ? "black" : "white" }}>Alur Kerja</h6>
+              <div className='no-active'>
+                {renderAlurItem('alurKaca1', 'Cek Dimensi')}
+                {renderAlurItem('alurKaca2', 'Cek Kontruksi')}
+                {renderAlurItem('alurKaca3', 'Cek Kerapian')}
               </div>
             </>
           )}
@@ -3464,11 +3475,27 @@ const DetailPekerjaan = () => {
           </ul>
 
           <div className="d-flex justify-content-between align-items-center">
-            <p>Supplier Marmer &amp; Kaca :</p><MdAddCircleOutline style={{ width: "25px", height: "auto", marginTop: "-15px" }} onClick={() => handleAddSupplierModal('Marmer')} />
+            <p>Supplier Marmer :</p><MdAddCircleOutline style={{ width: "25px", height: "auto", marginTop: "-15px" }} onClick={() => handleAddSupplierModal('Marmer')} />
           </div>
           <ul>
             {dataSupplierFromDB.map((supplier, index) => {
               if (supplier.category == 'Marmer') {
+                return (
+                  <div className="d-flex justify-content-between align-items-center">
+                    <li key={index}>{supplier.supplierName}</li><HiOutlineMinusCircle style={{ width: "20px", height: "auto" }} onClick={() => handleDeleteSupplierClick(supplier.id)} />
+                  </div>
+                )
+              }
+
+            })}
+          </ul>
+
+          <div className="d-flex justify-content-between align-items-center">
+            <p>Supplier Kaca :</p><MdAddCircleOutline style={{ width: "25px", height: "auto", marginTop: "-15px" }} onClick={() => handleAddSupplierModal('Kaca')} />
+          </div>
+          <ul>
+            {dataSupplierFromDB.map((supplier, index) => {
+              if (supplier.category == 'Kaca') {
                 return (
                   <div className="d-flex justify-content-between align-items-center">
                     <li key={index}>{supplier.supplierName}</li><HiOutlineMinusCircle style={{ width: "20px", height: "auto" }} onClick={() => handleDeleteSupplierClick(supplier.id)} />

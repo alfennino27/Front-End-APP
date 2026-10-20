@@ -6,7 +6,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { getApiBaseUrl } from '../../Config/APIurl';
 import { useTheme } from '../../ThemeContext';
 
-const KATEGORI = ['Besi', 'Kayu', 'Jok', 'Rotan', 'Finishing', 'Marmer', 'Fiber', 'Veneer'];
+const KATEGORI = ['Besi', 'Kayu', 'Jok', 'Rotan', 'Finishing', 'Marmer', 'Kaca', 'Fiber', 'Veneer'];
 const STATUS_BERES = ['Selesai', 'QC Pass'];
 
 const ORDER_LABELS = {

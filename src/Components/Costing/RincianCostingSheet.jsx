@@ -216,7 +216,7 @@ export default RincianCostingSheet;
 // KELOLA TEMPLATE COSTING — di luar popup (tombol ⚙️ di halaman Quote & Invoice).
 // Pilih komponen → daftar rincian (nama + harga default) → tambah/ubah/hapus.
 // ============================================================================
-const CATEGORIES = ['Besi', 'Kayu', 'Jok', 'Rotan', 'Finishing', 'Marmer', 'Fiber', 'Veneer'];
+const CATEGORIES = ['Besi', 'Kayu', 'Jok', 'Rotan', 'Finishing', 'Marmer', 'Kaca', 'Fiber', 'Veneer'];
 
 export const TemplateCostingManager = ({ open, dark, onClose }) => {
   const [tpl, setTpl] = useState({});

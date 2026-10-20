@@ -1021,6 +1021,7 @@ const Invoice = () => {
   const [totalRotan, setTotalRotan] = useState(0);
   const [totalFinishing, setTotalFinishing] = useState(0);
   const [totalMarmer, setTotalMarmer] = useState(0);
+  const [totalKaca, setTotalKaca] = useState(0);
   const [totalFiber, setTotalFiber] = useState(0);
   const [totalVeneer, setTotalVeneer] = useState(0);
   const [editingEstimasi, setEditingEstimasi] = useState(null); // { product, category } → popup sub costing
@@ -1090,6 +1091,10 @@ const Invoice = () => {
 
   useEffect(() => {
     setTotalMarmer(dataProductFromDB.reduce((sum, p) => sum + getEffectiveTotal(p, 'Marmer') * p.Qty, 0));
+  }, [dataProductFromDB, dataSPKproductFromDB, spkTenagaIds]);
+
+  useEffect(() => {
+    setTotalKaca(dataProductFromDB.reduce((sum, p) => sum + getEffectiveTotal(p, 'Kaca') * p.Qty, 0));
   }, [dataProductFromDB, dataSPKproductFromDB, spkTenagaIds]);
 
   useEffect(() => {
@@ -1875,7 +1880,7 @@ const Invoice = () => {
                     const tgl = (d) => (d ? new Date(d).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '-');
                     const rincian = [
                       ['Besi', totalBesi], ['Kayu', totalKayu], ['Jok', totalJok], ['Rotan', totalRotan],
-                      ['Finishing', totalFinishing], ['Marmer & Kaca', totalMarmer], ['Fiber', totalFiber], ['Veneer', totalVeneer],
+                      ['Finishing', totalFinishing], ['Marmer', totalMarmer], ['Kaca', totalKaca], ['Fiber', totalFiber], ['Veneer', totalVeneer],
                       ['Pengeluaran lain', pengeluaranLain], ['Admin', adminInvoice], ['Discount', discountInvoice],
                       ['Ongkir cust', ongkirCustInvoice], ['Ongkir & packing', ongkirPackingInvoice],
                     ];
@@ -1967,7 +1972,7 @@ const Invoice = () => {
                           <td><small style={{ marginRight: '10px' }}>Total Penjualan</small></td>
                           <td><small>: Rp. {(Number(totalPenjualan) + Number(ongkirCustInvoice) - Number(discountInvoice)).toLocaleString('id-ID')}</small></td>
                           <td><small style={{ marginRight: '50px' }}></small></td>
-                          <td><small style={{ marginRight: '10px' }}>Total Marmer &amp; Kaca</small></td>
+                          <td><small style={{ marginRight: '10px' }}>Total Marmer</small></td>
                           <td><small>: Rp. {Number(totalMarmer).toLocaleString('id-ID')}</small></td>
                           <td><small style={{ marginRight: '50px' }}></small></td>
                           <td><small style={{ marginRight: '10px' }}>Kekurangan</small></td>
@@ -1989,8 +1994,8 @@ const Invoice = () => {
                           <td><small style={{ marginRight: '10px' }}>Total Veneer</small></td>
                           <td><small>: Rp. {Number(totalVeneer).toLocaleString('id-ID')}</small></td>
                           <td></td>
-                          <td><small style={{ marginRight: '10px' }}></small></td>
-                          <td><small></small></td>
+                          <td><small style={{ marginRight: '10px' }}>Total Kaca</small></td>
+                          <td><small>: Rp. {Number(totalKaca).toLocaleString('id-ID')}</small></td>
                         </tr>
                       </tbody>
                     </table>
@@ -2317,7 +2322,7 @@ const Invoice = () => {
                     <div>
                       {dataProductFromDB.length === 0 && <div style={{ textAlign: 'center', opacity: 0.6, padding: 16 }}>Belum ada produk.</div>}
                       {dataProductFromDB.map((product, index) => {
-                        const categories = ["Besi", "Kayu", "Jok", "Rotan", "Finishing", "Marmer", "Fiber", "Veneer"];
+                        const categories = ["Besi", "Kayu", "Jok", "Rotan", "Finishing", "Marmer", "Kaca", "Fiber", "Veneer"];
                         const sel = categories.map((cat) => {
                           const spk = dataSPKproductFromDB
                             .filter(item => item.idProduct === product.id && item.category === cat)
@@ -2378,7 +2383,8 @@ const Invoice = () => {
                         <th className='tableStyle text-center' style={{ position: 'sticky', top: 0, backgroundColor: globalTheme === 'light' ? '#f8f9fa' : '#2a2a2a' }}>Jok</th>
                         <th className='tableStyle text-center' style={{ position: 'sticky', top: 0, backgroundColor: globalTheme === 'light' ? '#f8f9fa' : '#2a2a2a' }}>Rotan</th>
                         <th className='tableStyle text-center' style={{ position: 'sticky', top: 0, backgroundColor: globalTheme === 'light' ? '#f8f9fa' : '#2a2a2a' }}>Finishing</th>
-                        <th className='tableStyle text-center' style={{ position: 'sticky', top: 0, backgroundColor: globalTheme === 'light' ? '#f8f9fa' : '#2a2a2a' }}>Marmer &amp; Kaca</th>
+                        <th className='tableStyle text-center' style={{ position: 'sticky', top: 0, backgroundColor: globalTheme === 'light' ? '#f8f9fa' : '#2a2a2a' }}>Marmer</th>
+                        <th className='tableStyle text-center' style={{ position: 'sticky', top: 0, backgroundColor: globalTheme === 'light' ? '#f8f9fa' : '#2a2a2a' }}>Kaca</th>
                         <th className='tableStyle text-center' style={{ position: 'sticky', top: 0, backgroundColor: globalTheme === 'light' ? '#f8f9fa' : '#2a2a2a' }}>Fiber</th>
                         <th className='tableStyle text-center' style={{ position: 'sticky', top: 0, backgroundColor: globalTheme === 'light' ? '#f8f9fa' : '#2a2a2a' }}>Veneer</th>
                         <th className='tableStyle text-center' style={{ position: 'sticky', top: 0, backgroundColor: globalTheme === 'light' ? '#f8f9fa' : '#2a2a2a' }}>HPP</th>
@@ -2390,7 +2396,7 @@ const Invoice = () => {
                     </thead>
                     <tbody>
                       {dataProductFromDB.map((product, index) => {
-                        const categories = ["Besi", "Kayu", "Jok", "Rotan", "Finishing", "Marmer", "Fiber", "Veneer"];
+                        const categories = ["Besi", "Kayu", "Jok", "Rotan", "Finishing", "Marmer", "Kaca", "Fiber", "Veneer"];
 
                         const spkTotals = {};
                         categories.forEach(cat => {

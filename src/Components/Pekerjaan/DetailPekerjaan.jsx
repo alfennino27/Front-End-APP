@@ -18,6 +18,7 @@ import ConsistencyCheck from '../AI/ConsistencyCheck';
 import SPKPrecheckModal from '../AI/SPKPrecheckModal';
 import SPKLayoutModal from './SPKLayoutModal';
 import PengerjaanEditor, { barisBaru } from './PengerjaanEditor';
+import { TabPengerjaan, RingkasanBagian, DetailBagian } from './PengerjaanTab';
 import ImageUploadZone from './ImageUploadZone';
 import LinkProductCard from './LinkProductCard';
 import { format } from "date-fns";
@@ -179,6 +180,8 @@ const DetailPekerjaan = () => {
   const [pengerjaanHapus, setPengerjaanHapus] = useState([]);
   const [showPilihPrint, setShowPilihPrint] = useState(false);
   const [printPengerjaan, setPrintPengerjaan] = useState(null);
+  // Tab kartu category multi pengrajin: 'umum' atau id item SPK bagian
+  const [tabPengerjaan, setTabPengerjaan] = useState('umum');
   const [category, setCategory] = useState('');
   const [lastReply, setLastReply] = useState('');
 
@@ -1211,6 +1214,8 @@ const DetailPekerjaan = () => {
     fetchSpkProducts();
   }, [slug]);
 
+  useEffect(() => { setTabPengerjaan('umum'); }, [category, slug]);
+
 
   const commentsData = async () => {
     try {
@@ -1486,6 +1491,8 @@ const DetailPekerjaan = () => {
     .filter((s) => s.category === category && (s.idSPK || s.bagian))
     .sort((a, b) => String(a._id || a.id).localeCompare(String(b._id || b.id)));
   const isMultiPengerjaan = itemPengerjaanCat.length >= 2;
+  const bagianAktif = isMultiPengerjaan ? itemPengerjaanCat.find((s) => (s.id || s._id) === tabPengerjaan) || null : null;
+  const dataPrintBagian = (s) => ({ bagian: s.bagian || '', spkCode: spkById(s.idSPK)?.code || '-', deadline: s.deadline || '', keterangan: s.keterangan || '', gambar: Array.isArray(s.gambar) ? s.gambar : [] });
   const spkById = (idSPK) => dataSPKFromDB.find((x) => x.id === idSPK);
   const tglInput = (d) => (d && /^\d{4}-\d{2}-\d{2}/.test(d) ? d.slice(0, 10) : (() => { try { return d ? format(new Date(d), 'yyyy-MM-dd') : ''; } catch { return ''; } })());
   const draftDariItem = (s) => ({
@@ -1518,7 +1525,9 @@ const DetailPekerjaan = () => {
       const val = project[`image${category}${i}`];
       if (val && !val.includes('.pdf')) imgs.push(val);
     }
-    setSpkImages(imgs);
+    // Cetak SPK satu bagian: pakai gambar kerja bagian itu kalau ada
+    const gambarBagian = (printPengerjaan?.gambar || []).filter((g) => !g.toLowerCase().includes('.pdf'));
+    setSpkImages(gambarBagian.length ? gambarBagian : imgs);
     setShowSPKImagePicker(true);
   };
 
@@ -2224,7 +2233,7 @@ const DetailPekerjaan = () => {
                 variant="outline-primary"
                 style={{ width: '100%', minHeight: 48, marginBottom: 8, textAlign: 'left' }}
                 onClick={() => {
-                  setPrintPengerjaan({ bagian: s.bagian || '', spkCode: spk?.code || '-', deadline: s.deadline || '', keterangan: s.keterangan || '' });
+                  setPrintPengerjaan(dataPrintBagian(s));
                   setShowPilihPrint(false);
                   setShowSpkPrecheck(true);
                 }}
@@ -2545,21 +2554,7 @@ const DetailPekerjaan = () => {
           </div>
           {dataProjectFromDB.length > 0 && (
             isMultiPengerjaan ? (
-              <div className="mb-1" style={{ color: globalTheme == "light" ? "black" : "white" }}>
-                <h6 className="fw-semibold mb-1">Supplier : {itemPengerjaanCat.length} pengrajin</h6>
-                {itemPengerjaanCat.map((s) => {
-                  const spk = spkById(s.idSPK);
-                  return (
-                    <div key={s.id || s._id} style={{ fontSize: 14, lineHeight: 1.4, marginBottom: 4 }}>
-                      • <strong>{s.bagian || '-'}</strong> — {spk?.pengrajin || s.pengrajin || '-'}
-                      <span style={{ opacity: 0.75 }}> · {spk?.code || 'SPK belum ada'}{s.deadline ? ` · ${new Date(s.deadline).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}` : ''}</span>
-                      {s.statusPengerjaan && (
-                        <span style={{ marginLeft: 6, fontSize: 12, padding: '1px 6px', borderRadius: 6, background: s.statusPengerjaan === 'Belum Proses' ? '#dc3545' : s.statusPengerjaan === 'Servis' ? '#fd7e14' : s.statusPengerjaan === 'Proses' ? '#0d6efd' : '#198754', color: 'white' }}>{s.statusPengerjaan}</span>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
+              <h6 className="fw-semibold" style={{ color: globalTheme == "light" ? "black" : "white" }}>Supplier : {itemPengerjaanCat.length} pengrajin</h6>
             ) : (
             <h6 className="fw-semibold" style={{ color: globalTheme == "light" ? "black" : "white" }}>Supplier : {dataProjectFromDB[0][`Supplier${category}`] ? dataProjectFromDB[0][`Supplier${category}`] : '-'}</h6>
             )
@@ -2574,7 +2569,28 @@ const DetailPekerjaan = () => {
               <MdAccessTime /> Deadline :  {dataProjectFromDB[0][`DeadlineSupplier${category}`] ? new Date(dataProjectFromDB[0][`DeadlineSupplier${category}`]).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : '-'}</small>
           )}
 
-          <h6 className='mt-4' style={{ color: globalTheme == "light" ? "black" : "white" }}>Gambar Spesifik</h6>
+          {/* Category multi pengrajin: tab Umum + tab per bagian (gambar kerja & deskripsi sendiri) */}
+          {isMultiPengerjaan && (
+            <TabPengerjaan items={itemPengerjaanCat} aktif={bagianAktif ? tabPengerjaan : 'umum'} onPilih={setTabPengerjaan} globalTheme={globalTheme} />
+          )}
+
+          {bagianAktif ? (
+            <DetailBagian
+              item={bagianAktif}
+              spk={spkById(bagianAktif.idSPK)}
+              globalTheme={globalTheme}
+              canEdit={!["rYN2eFpFqVU5jSYRrwyioAi33xD3", "qd2gyCyknDVZYUfA6IkiQv3jGTI3"].includes(user.uid)}
+              showDeskripsi={!!(dataProjectFromDB[0]?.[`${category}Pakde`] ||
+                dataProjectFromDB[0]?.Status === "Completed" ||
+                ["w4M5JJjgGQeHFbS2nkyoCfUBE532", "4WGPaHicKWYr0Ny84IUh8xb9Bo62", "fYpdHwXRDLhj5XGxM5FZIAvxp9E2"].includes(user.uid))}
+              onChanged={fetchSpkProducts}
+            />
+          ) : (<>
+          {isMultiPengerjaan && (
+            <RingkasanBagian items={itemPengerjaanCat} spkById={spkById} onPilih={setTabPengerjaan} globalTheme={globalTheme} />
+          )}
+
+          <h6 className='mt-4' style={{ color: globalTheme == "light" ? "black" : "white" }}>{isMultiPengerjaan ? 'Gambar Spesifik (umum)' : 'Gambar Spesifik'}</h6>
           <div style={{ display: category == "" ? "none" : "block" }} className="me-3 no-active" onClick={(e) => { e.stopPropagation(); if (user.uid === "rYN2eFpFqVU5jSYRrwyioAi33xD3" || user.uid === "qd2gyCyknDVZYUfA6IkiQv3jGTI3") { console.log('anda tidak punya izin'); } else { setShowImageCategoryEdit(true); refreshImageEditInput(); } }}>
 
 
@@ -2798,6 +2814,7 @@ const DetailPekerjaan = () => {
 
             </div>
           ) : ''}
+          </>)}
 
           <h6 className='mt-4' style={{ color: globalTheme == "light" ? "black" : "white" }}>Konfirmasi</h6>
 
@@ -2969,7 +2986,7 @@ const DetailPekerjaan = () => {
               <button
                 title={category === 'GambarKerja' ? 'Cetak Gambar Kerja' : 'Buat SPK'}
                 // Gambar Kerja: tanpa cek AI, langsung pilih cover & layout.
-                onClick={(e) => { e.stopPropagation(); if (category === 'GambarKerja') handlePrintSPK(); else if (isMultiPengerjaan) setShowPilihPrint(true); else { setPrintPengerjaan(null); setShowSpkPrecheck(true); } }}
+                onClick={(e) => { e.stopPropagation(); if (category === 'GambarKerja') handlePrintSPK(); else if (bagianAktif) { setPrintPengerjaan(dataPrintBagian(bagianAktif)); setShowSpkPrecheck(true); } else if (isMultiPengerjaan) setShowPilihPrint(true); else { setPrintPengerjaan(null); setShowSpkPrecheck(true); } }}
                 className="no-active"
                 style={{
                   background: globalTheme === 'light' ? '#fff' : '#333',

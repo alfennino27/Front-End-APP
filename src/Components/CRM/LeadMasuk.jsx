@@ -177,7 +177,7 @@ export default function LeadMasuk({ baseUrl, bulan, dark, text, muted, cardBg, b
         {cari && <button className="no-active" onClick={() => setCari('')} aria-label="Hapus pencarian"
           style={{ position: 'absolute', right: 4, top: '50%', transform: 'translateY(-50%)', border: 'none', background: 'none', color: muted, fontSize: 18, width: 32, height: 32, cursor: 'pointer' }}>×</button>}
       </div>
-      {q && <div style={{ fontSize: 12, color: muted, marginBottom: 8 }}>Hasil cari “{q}” di <b>semua bulan & status</b> — tab di bawah diabaikan selama mencari.</div>}
+      {q && <div style={{ fontSize: 12, color: muted, marginBottom: 8 }}>Hasil cari “{q}” di <b>semua chat WA</b> (bulan & status apa pun, termasuk yang bukan dari iklan) — tab di bawah diabaikan selama mencari.</div>}
 
       <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 6, marginBottom: 6, opacity: q ? 0.45 : 1 }}>
         {TABS.map(([k, l]) => (
@@ -200,7 +200,7 @@ export default function LeadMasuk({ baseUrl, bulan, dark, text, muted, cardBg, b
         </div>
       )}
       {loading ? <div style={{ textAlign: 'center', padding: 40 }}><Spinner /></div> : list.length === 0 ? (
-        <div style={{ textAlign: 'center', color: muted, padding: 40 }}>{q ? 'Tidak ada chat iklan dengan nomor / nama ini.' : tab === 'kandidat' ? 'Tidak ada yang perlu dikonfirmasi 🎉' : tab === 'followup' ? 'Semua lead bagus sudah di-follow up 👍' : 'Kosong.'}</div>
+        <div style={{ textAlign: 'center', color: muted, padding: 40 }}>{q ? 'Tidak ada chat WA dengan nomor / nama ini.' : tab === 'kandidat' ? 'Tidak ada yang perlu dikonfirmasi 🎉' : tab === 'followup' ? 'Semua lead bagus sudah di-follow up 👍' : 'Kosong.'}</div>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))', gap: 10 }}>
           {list.map((c) => (
@@ -227,9 +227,14 @@ export default function LeadMasuk({ baseUrl, bulan, dark, text, muted, cardBg, b
                 </div>
               )}
               {c.ai?.bukti && <div style={{ fontSize: 12, color: text, background: subtle, borderRadius: 6, padding: '6px 8px', fontStyle: 'italic' }}>“{c.ai.bukti}”</div>}
+              {c.dari_iklan === false && (
+                <div style={{ fontSize: 12, color: '#b26a00', background: dark ? '#2a2614' : '#FFF8E1', borderRadius: 6, padding: '6px 8px' }}>
+                  ⚠️ Bukan dari klik iklan WA (tanpa data klik, mis. DM/profil IG) — tidak dinilai AI & tidak bisa dikirim ke Meta. Chat pertama {fmtTgl(c.first_at)}.
+                </div>
+              )}
               <div style={{ fontSize: 11, color: muted, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                <span>📢 {c.adset_name || c.ad_headline || 'iklan'}</span>
-                <span>🕒 klik {fmtTgl(c.ad_clicked_at)}</span>
+                {c.dari_iklan !== false && <span>📢 {c.adset_name || c.ad_headline || 'iklan'}</span>}
+                {c.dari_iklan !== false && <span>🕒 klik {fmtTgl(c.ad_clicked_at)}</span>}
                 <span>💬 {c.jml_masuk}</span>
                 {c.kontak_lama && <span style={{ color: '#b26a00' }}>↩ kontak lama</span>}
                 {!c.deal && c.quotation && <span style={{ color: '#7F77DD' }}>🧾 quotation</span>}
@@ -246,7 +251,7 @@ export default function LeadMasuk({ baseUrl, bulan, dark, text, muted, cardBg, b
                 </div>
               )}
               <StatusMeta c={c} />
-              <TombolKonfirmasi c={c} />
+              {c.dari_iklan !== false && <TombolKonfirmasi c={c} />}
             </div>
           ))}
         </div>
@@ -278,9 +283,11 @@ export default function LeadMasuk({ baseUrl, bulan, dark, text, muted, cardBg, b
                     </div>
                   ))}
                 </div>
-                <div style={{ padding: 12, borderTop: border }}>
-                  <TombolKonfirmasi c={detail.conv} besar />
-                </div>
+                {detail.conv.dari_iklan !== false && (
+                  <div style={{ padding: 12, borderTop: border }}>
+                    <TombolKonfirmasi c={detail.conv} besar />
+                  </div>
+                )}
               </>
             )}
           </div>

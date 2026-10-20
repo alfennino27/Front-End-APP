@@ -649,6 +649,7 @@ const DetailPekerjaan = () => {
           idProduct: slug,
           category,
           idSPK: row.idSPK,
+          supplier: row.supplier,
           bagian: row.bagian,
           deadline: row.deadline,
           statusPengerjaan: row.statusPengerjaan,
@@ -663,9 +664,10 @@ const DetailPekerjaan = () => {
 
   const handleSubmit = async () => {
     if (pengerjaanDraft.length) {
-      const kurang = pengerjaanDraft.find(r => !r.idSPK || (pengerjaanDraft.length > 1 && !r.bagian.trim()));
+      // SPK boleh menyusul — yang wajib nama bagian (atau SPK kalau tinggal 1 baris)
+      const kurang = pengerjaanDraft.find(r => !r.bagian.trim() && (pengerjaanDraft.length > 1 || !r.idSPK));
       if (kurang) {
-        alert('Tiap bagian wajib punya nama bagian & SPK Code.');
+        alert('Tiap bagian wajib diberi nama bagian.');
         return;
       }
     }
@@ -1478,9 +1480,10 @@ const DetailPekerjaan = () => {
   // Nilai biaya kategori. Budget (estimasi) & SPK ditampilkan BERDAMPINGAN —
   // dulu SPK menggantikan budget, jadi tidak kelihatan lagi berapa rencana
   // biayanya vs realisasi ke supplier.
-  // Item SPK category ini yang ter-link ke SPK. ≥2 = dikerjakan beberapa pengrajin.
+  // Item SPK category ini yang ter-link ke SPK, atau bagian yang SPK-nya belum
+  // dibuat (idSPK kosong, bagian terisi). ≥2 = dikerjakan beberapa pengrajin.
   const itemPengerjaanCat = spkProductList
-    .filter((s) => s.category === category && s.idSPK)
+    .filter((s) => s.category === category && (s.idSPK || s.bagian))
     .sort((a, b) => String(a._id || a.id).localeCompare(String(b._id || b.id)));
   const isMultiPengerjaan = itemPengerjaanCat.length >= 2;
   const spkById = (idSPK) => dataSPKFromDB.find((x) => x.id === idSPK);
@@ -1489,8 +1492,8 @@ const DetailPekerjaan = () => {
     key: s.id || s._id,
     idSpkProduct: s.id || s._id,
     bagian: s.bagian || '',
-    supplier: spkById(s.idSPK)?.pengrajin || '',
-    idSPK: s.idSPK,
+    supplier: spkById(s.idSPK)?.pengrajin || s.pengrajin || '',
+    idSPK: s.idSPK || '',
     deadline: tglInput(s.deadline),
     statusPengerjaan: s.statusPengerjaan ?? (dataProjectFromDB[0]?.[`CategoryStatus${category}`] || null),
     keterangan: s.keterangan || '',
@@ -2226,7 +2229,7 @@ const DetailPekerjaan = () => {
                   setShowSpkPrecheck(true);
                 }}
               >
-                <strong>{s.bagian || 'Tanpa nama bagian'}</strong> — {spk?.pengrajin || '-'} · {spk?.code || '-'}
+                <strong>{s.bagian || 'Tanpa nama bagian'}</strong> — {spk?.pengrajin || s.pengrajin || '-'} · {spk?.code || 'SPK belum ada'}
               </Button>
             );
           })}
@@ -2548,8 +2551,8 @@ const DetailPekerjaan = () => {
                   const spk = spkById(s.idSPK);
                   return (
                     <div key={s.id || s._id} style={{ fontSize: 14, lineHeight: 1.4, marginBottom: 4 }}>
-                      • <strong>{s.bagian || '-'}</strong> — {spk?.pengrajin || '-'}
-                      <span style={{ opacity: 0.75 }}> · {spk?.code || '-'}{s.deadline ? ` · ${new Date(s.deadline).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}` : ''}</span>
+                      • <strong>{s.bagian || '-'}</strong> — {spk?.pengrajin || s.pengrajin || '-'}
+                      <span style={{ opacity: 0.75 }}> · {spk?.code || 'SPK belum ada'}{s.deadline ? ` · ${new Date(s.deadline).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}` : ''}</span>
                       {s.statusPengerjaan && (
                         <span style={{ marginLeft: 6, fontSize: 12, padding: '1px 6px', borderRadius: 6, background: s.statusPengerjaan === 'Belum Proses' ? '#dc3545' : s.statusPengerjaan === 'Servis' ? '#fd7e14' : s.statusPengerjaan === 'Proses' ? '#0d6efd' : '#198754', color: 'white' }}>{s.statusPengerjaan}</span>
                       )}

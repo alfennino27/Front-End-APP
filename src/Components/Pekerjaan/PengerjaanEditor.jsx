@@ -101,7 +101,7 @@ export default function PengerjaanEditor({ rows, setRows, onHapus, suppliers, sp
               )}
             </select>
 
-            <label className="mt-2">SPK Code :</label>
+            <label className="mt-2">SPK Code <small style={{ color: '#888' }}>(boleh dikosongkan dulu)</small> :</label>
             <Select
               showSearch
               placeholder="Pilih SPK"

@@ -5,6 +5,7 @@ import React, { useEffect, useState } from 'react';
 import { Spinner } from 'react-bootstrap';
 
 const fmtRp = (n) => (n == null ? '-' : 'Rp ' + Math.round(n).toLocaleString('id-ID'));
+const fmtMenit = (m) => (m == null ? '-' : m < 60 ? `${m} mnt` : m < 1440 ? `${(m / 60).toFixed(1).replace('.', ',').replace(',0', '')} jam` : `${Math.round(m / 1440)} hari`);
 const fmtRb = (n) => (n == null ? '-' : n >= 1e6 ? (n / 1e6).toFixed(1).replace('.', ',') + ' jt' : Math.round(n / 1000) + ' rb');
 
 const NAMA_TAHAP = {
@@ -57,6 +58,8 @@ export default function RingkasanIklan({ baseUrl, bulan, dark, text, muted, card
   const tahapBerhenti = (data.tahap || []).filter((t) => !['diskusi_lanjut', 'quotation', 'deal'].includes(t.nama));
   const terbesar = tahapBerhenti.sort((a, b) => b.jumlah - a.jumlah)[0];
   const subtle = dark ? '#252535' : '#f6f7fb';
+  const bl = r.balas || {};
+  const warnaBalas = bl.median_jam_kerja == null ? muted : bl.median_jam_kerja <= bl.target_menit ? hijau : bl.median_jam_kerja <= 30 ? '#b26a00' : merah;
 
   const Angka = ({ label, nilai, warna, sub }) => (
     <div style={{ flex: '1 1 120px', minWidth: 110 }}>
@@ -105,7 +108,7 @@ export default function RingkasanIklan({ baseUrl, bulan, dark, text, muted, card
     </tr></thead>
   );
 
-  const TABS = [['campaign', 'Campaign'], ['tahap', 'Tahap berhenti'], ['iklan', 'Per iklan'], ['pasar', 'Produk · Kota · Segmen'], ['gagal', 'Alasan gagal & jam']];
+  const TABS = [['campaign', 'Campaign'], ['tahap', 'Tahap berhenti'], ['iklan', 'Per iklan'], ['pasar', 'Produk · Kota · Segmen'], ['gagal', 'Alasan gagal & jam'], ['balas', 'Kecepatan balas']];
 
   return (
     <div style={{ background: cardBg, border, borderRadius: 12, padding: 16, marginBottom: 20 }}>
@@ -121,6 +124,8 @@ export default function RingkasanIklan({ baseUrl, bulan, dark, text, muted, card
         <Angka label="QL 🏢 B2B · 🏠 B2C" nilai={`${r.ql_b2b ?? 0} · ${r.ql_b2c ?? 0}`} warna={biru}
           sub={`porsi B2B ${r.pct_ql_b2b ?? 0}%${r.ql_segmen_belum ? ` · ${r.ql_segmen_belum} belum tahu` : ''}`} />
         <Angka label="Deal dari iklan" nilai={r.deal} sub={r.revenue ? fmtRb(r.revenue) : null} />
+        <Angka label="Balas pertama (jam kerja)" nilai={fmtMenit(bl.median_jam_kerja)} warna={warnaBalas}
+          sub={`median · target ≤${bl.target_menit ?? 5} mnt${bl.pct_tepat_target_jam_kerja != null ? ` · ${bl.pct_tepat_target_jam_kerja}% tepat` : ''}`} />
         <Angka label="GP − Spend" nilai={fmtRb(r.gp_minus_spend)} warna={r.gp_minus_spend >= 0 ? hijau : merah} sub={`spend ${fmtRb(r.spend)}`} />
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12 }}>
@@ -170,7 +175,6 @@ export default function RingkasanIklan({ baseUrl, bulan, dark, text, muted, card
                 <span>Rata-rata pesan customer: <b>{r.rata_pesan_cust}</b></span>
                 <span>Berhenti ≤3 pesan: <b>{r.pct_berhenti_3_pesan}%</b></span>
                 <span>Kontak lama: <b>{r.kontak_lama}</b></span>
-                <span>Waktu balas pertama (median): <b>{r.median_balas_menit == null ? '-' : `${r.median_balas_menit} menit`}</b></span>
               </div>
             </>
           )}
@@ -202,6 +206,35 @@ export default function RingkasanIklan({ baseUrl, bulan, dark, text, muted, card
               <div><div style={{ fontWeight: 600, fontSize: 12, color: text, marginBottom: 6 }}>Hari lead serius masuk</div><Bar items={data.detail.hari_serius} total={r.serius} warna={hijau} /></div>
               <div><div style={{ fontWeight: 600, fontSize: 12, color: text, marginBottom: 6 }}>Jam lead serius masuk (WIB)</div><Bar items={data.detail.jam_serius} total={r.serius} warna={hijau} nama={(j) => `${j}.00`} /></div>
             </div>
+          )}
+          {bagian === 'balas' && (
+            <>
+              <div style={{ fontSize: 12, color: muted, marginBottom: 10 }}>
+                Waktu dari chat iklan masuk sampai balasan pertama kita. Lead high-ticket yang serius biasanya sedang membandingkan beberapa vendor, jadi yang membalas cepat dan tepat lebih berpeluang dipilih. Patokan: ≤{bl.target_menit ?? 5} menit di jam kerja ({String(bl.jam_kerja?.[0] ?? 8).padStart(2, '0')}.00–{String(bl.jam_kerja?.[1] ?? 21).padStart(2, '0')}.00 WIB).
+              </div>
+              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 14 }}>
+                <Angka label="Median jam kerja" nilai={fmtMenit(bl.median_jam_kerja)} warna={warnaBalas} sub={`${bl.chat_jam_kerja ?? 0} chat`} />
+                <Angka label="Median di luar jam kerja" nilai={fmtMenit(bl.median_luar_jam)} sub="malam / dini hari" />
+                <Angka label="Median semua" nilai={fmtMenit(bl.median)} sub={`${bl.tercatat ?? 0} chat tercatat`} />
+                <Angka label="Dibalas > 1 jam" nilai={bl.pct_lebih_1_jam == null ? '-' : `${bl.pct_lebih_1_jam}%`} warna={bl.pct_lebih_1_jam > 30 ? merah : text} sub={bl.belum_dibalas ? `${bl.belum_dibalas} belum dibalas` : null} />
+              </div>
+              <div style={{ fontWeight: 600, fontSize: 12, color: text, marginBottom: 6 }}>Sebaran waktu balas</div>
+              <Bar items={(bl.kelompok || []).map((k) => ({ nama: k.label, jumlah: k.jumlah }))} total={bl.tercatat} warna={biru} />
+              <div style={{ fontWeight: 600, fontSize: 12, color: text, margin: '14px 0 6px' }}>% jadi Lead Serius per kecepatan balas</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {(bl.kelompok || []).map((k) => (
+                  <div key={k.kunci} style={{ fontSize: 12 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', color: text }}>
+                      <span>{k.label}</span><span style={{ color: muted }}>{k.serius} dari {k.jumlah} · {k.pct_serius == null ? '-' : `${k.pct_serius}%`}</span>
+                    </div>
+                    <div style={{ height: 6, background: subtle, borderRadius: 3 }}>
+                      <div style={{ width: `${k.pct_serius || 0}%`, height: 6, background: hijau, borderRadius: 3 }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div style={{ fontSize: 11, color: muted, marginTop: 8 }}>Jumlah per kelompok masih kecil di awal bulan. Baca polanya setelah ±50 chat.</div>
+            </>
           )}
         </div>
       )}

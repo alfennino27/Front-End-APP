@@ -129,6 +129,15 @@ export default function RingkasanIklan({ baseUrl, bulan, dark, text, muted, card
         <Angka label="GP − Spend" nilai={fmtRb(r.gp_minus_spend)} warna={r.gp_minus_spend >= 0 ? hijau : merah} sub={`spend ${fmtRb(r.spend)}`} />
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12 }}>
+        {/* Rem kas budget iklan: kas+bank < opex 2 bulan → budget Meta balik ke lantai (owner turunkan manual) */}
+        {data.kas && (data.kas.aman ? (
+          <div style={{ color: muted }}>🏦 Kas {fmtRb(data.kas.total)} — aman (batas {fmtRb(data.kas.batas)}){data.kas.jurnal_terakhir ? ` · jurnal s/d ${data.kas.jurnal_terakhir}` : ''}</div>
+        ) : (
+          <div style={{ color: '#fff', background: merah, borderRadius: 8, padding: '8px 10px', lineHeight: 1.4 }}>
+            🚨 <b>Kas {fmtRb(data.kas.total)}</b> di bawah batas {fmtRb(data.kas.batas)} (opex 2 bulan). Turunkan budget iklan Meta ke <b>{fmtRb(data.kas.budget_lantai)}/hari</b> sampai kas pulih.
+            <div style={{ fontSize: 11, opacity: 0.85 }}>Saldo dari jurnal s/d {data.kas.jurnal_terakhir || '-'} — kalau mutasi bank belum dijurnal, cek saldo bank asli dulu.</div>
+          </div>
+        ))}
         {terbesar && r.chat > 0 && (
           <div style={{ color: text }}>⚠️ {Math.round((100 * terbesar.jumlah) / r.dinilai)}% chat berhenti di tahap <b>{(NAMA_TAHAP[terbesar.nama] || terbesar.nama).toLowerCase()}</b></div>
         )}

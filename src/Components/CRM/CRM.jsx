@@ -689,9 +689,10 @@ export default function CRM() {
                           <span>ROAS: <b>{roas==='-'?'-':roas+'x'}</b></span>
                         </div>
                         {monthDaily.length>0&&<div style={{overflowX:'auto'}}><table style={{borderCollapse:'collapse',fontSize:11,color:text,width:'100%'}}>
-                          <thead><tr style={{color:muted,textAlign:'right'}}>{['Tanggal','Spend','Chat','CPL','CPM','Impresi','Freq','CTR'].map((h,i)=><th key={h} style={{padding:'3px 6px',fontWeight:600,textAlign:i?'right':'left'}}>{h}</th>)}</tr></thead>
+                          <thead><tr style={{color:muted,textAlign:'right'}}>{['Tanggal','Spend','Chat','QL','Biaya/QL','CPL','CPM','Impresi','Freq','CTR'].map((h,i)=><th key={h} style={{padding:'3px 6px',fontWeight:600,textAlign:i?'right':'left'}}>{h}</th>)}</tr></thead>
                           <tbody>{monthDaily.map((day,di)=><tr key={di} style={{textAlign:'right',borderTop:'1px solid '+(dark?'#1e2540':'#e8edff')}}>
                             <td style={{padding:'3px 6px',textAlign:'left',color:'#378ADD'}}>{day.date}</td><td style={{padding:'3px 6px'}}>{day.spend?fmtRp(day.spend):'-'}</td><td style={{padding:'3px 6px'}}>{day.results||'-'}</td>
+                            {(()=>{const ql=q?.serius_harian?.[day.date]||0;return <><td style={{padding:'3px 6px',fontWeight:700}}>{ql||'-'}</td><td style={{padding:'3px 6px',color:muted}}>{ql&&day.spend?fmtRp(Math.round(day.spend/ql)):'-'}</td></>;})()}
                             <td style={{padding:'3px 6px'}}>{day.cpl?fmtRp(day.cpl):'-'}</td><td style={{padding:'3px 6px'}}>{day.cpm?fmtRp(day.cpm):'-'}</td><td style={{padding:'3px 6px'}}>{day.impressions?Number(day.impressions).toLocaleString('id-ID'):'-'}</td>
                             <td style={{padding:'3px 6px'}}>{day.frequency||'-'}</td><td style={{padding:'3px 6px'}}>{day.ctr?day.ctr.toFixed(2)+'%':'-'}</td></tr>)}</tbody>
                         </table></div>}

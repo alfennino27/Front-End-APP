@@ -1,21 +1,24 @@
 import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Image } from 'antd';
+import { Image, Mentions } from 'antd';
 import { IoRefresh, IoArrowBack } from 'react-icons/io5';
 import { getApiBaseUrl } from '../../Config/APIurl';
 import { useTheme } from '../../ThemeContext';
 import { getImageUrl } from '../../Utils/image';
 import { labelKategori } from '../../Utils/kategori';
 import useIsMobile from '../../Utils/useIsMobile';
-import { Sheet, Label, PREVIEW, gambarCategory, TodoKomentar } from '../Todo/categoryThread';
+import { Sheet, Label, PREVIEW, TeksMention, Lampiran } from '../Todo/categoryThread';
+import ImageUploadZone from '../Pekerjaan/ImageUploadZone';
+import { mintaRefreshNotif } from '../../Utils/notifRefresh';
 
 // ============================================================================
 // PAPAN ORDER (percobaan) — semua progress order dalam satu layar
 // ============================================================================
 // customer (urut target kirim terdekat) → semua item order customer itu
 // (urut masuk PO) → kartu kecil per category yang memang ada prosesnya.
-// Ketuk kartu = sheet: supplier, tanggal order & deadline, status, to-do, komentar
-// (komponen sama dengan /todo & halaman project). Di halaman customer, AI membaca
+// Ketuk item = satu sheet berisi SEMUA category berdampingan: status, supplier,
+// tanggal order & deadline, foto (slider), komentar terbaru (paling ditonjolkan),
+// to-do. Di halaman customer, AI membaca
 // chat WhatsApp customer (Dualhook) dan merangkum poin penting semua ordernya.
 // Data: GET /papan-order, ringkasan chat: /papan-order/wa-ringkasan (lihat
 // KLF-Server-main/utils/papanOrder.js & utils/ringkasanWaCustomer.js).
@@ -315,8 +318,6 @@ const HalamanCustomer = ({ cust, ui, onBack, refresh }) => {
   const [sheet, setSheet] = useState(null); // { itemId, cat }
   const [ringkasan, setRingkasan] = useState(null);
 
-  const item = sheet ? cust.items.find((i) => i.id === sheet.itemId) : null;
-  const catInfo = item && sheet.cat !== 'BarangJadi' ? item.categories.find((c) => c.category === sheet.cat) : null;
   const poin = ringkasan?.poin || [];
 
   // Kolom tabel = category yang dipakai minimal satu item, urutan alur produksi.
@@ -375,14 +376,15 @@ const HalamanCustomer = ({ cust, ui, onBack, refresh }) => {
         </div>
       )}
 
-      {item && (
-        <SheetCategory
-          item={item}
-          cat={sheet.cat}
-          info={catInfo}
-          poin={poin.filter((p) => p.item_id === item.id && (sheet.cat === 'BarangJadi' ? !p.category : (p.category === sheet.cat || !p.category)))}
+      {sheet && (
+        <SheetItem
+          cust={cust}
+          itemId={sheet.itemId}
+          fokus={sheet.cat}
+          poin={poin}
           ui={ui}
           refresh={refresh}
+          onPindah={(itemId) => setSheet({ itemId, cat: null })}
           onClose={() => setSheet(null)}
         />
       )}
@@ -397,7 +399,7 @@ const Legenda = ({ C }) => (
         <span style={{ width: 10, height: 10, borderRadius: 3, background: col }} />{s}
       </span>
     ))}
-    <span>· 💬 komentar · ☑ to-do · <b style={{ color: '#dc2626' }}>merah</b> = deadline supplier lewat</span>
+    <span>· 💬 komentar · ☑ to-do · <b style={{ color: '#dc2626' }}>merah</b> = deadline supplier lewat · <b>ketuk item untuk lihat semua progress-nya</b></span>
   </div>
 );
 
@@ -407,7 +409,8 @@ const MiniCard = ({ c, ui, onClick, umum, jumlahPoin }) => {
   const col = umum ? '#64748b' : (STATUS_COLOR[c.status] || '#94a3b8');
   const todoSisa = c.todo.total - c.todo.done;
   return (
-    <div role="button" tabIndex={0} onClick={onClick} onKeyDown={(e) => e.key === 'Enter' && onClick()}
+    <div role="button" tabIndex={0} onClick={(e) => { e.stopPropagation(); onClick(); }}
+      onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); onClick(); } }}
       style={{
         background: c.telat ? (ui.dark ? 'rgba(220,38,38,0.12)' : '#fef2f2') : C.card,
         border: `1px solid ${c.telat ? '#fca5a5' : C.border}`, borderTop: `4px solid ${col}`,
@@ -465,7 +468,8 @@ const InfoItem = ({ it, no, ui }) => {
 const KartuItem = ({ it, no, ui, poin, onPilih }) => {
   const { C } = ui;
   return (
-    <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: 10 }}>
+    <div role="button" tabIndex={0} onClick={() => onPilih(null)} onKeyDown={(e) => e.key === 'Enter' && onPilih(null)}
+      style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: 10, cursor: 'pointer' }}>
       <InfoItem it={it} no={no} ui={ui} />
       <div style={{ display: 'grid', gap: 6, gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', marginTop: 8 }}>
         {it.categories.map((c) => (
@@ -494,7 +498,7 @@ const TabelItem = ({ cust, kolom, ui, poin, onPilih }) => {
         </thead>
         <tbody>
           {cust.items.map((it, idx) => (
-            <tr key={it.id}>
+            <tr key={it.id} onClick={() => onPilih(it.id, null)} style={{ cursor: 'pointer' }}>
               <td style={{ padding: 6, borderTop: `1px solid ${C.border}`, position: 'sticky', left: 0, background: C.card, zIndex: 1, verticalAlign: 'top' }}>
                 <InfoItem it={it} no={idx + 1} ui={ui} />
               </td>
@@ -736,98 +740,311 @@ const SheetTodoPoin = ({ p, cust, ui, onClose }) => {
 };
 
 // ============================================================================
-// Sheet satu category: info + status cepat + poin chat terkait + to-do + komentar
+// Sheet satu ITEM: semua category berproses tampil berdampingan dalam satu layar.
+// Yang paling ditonjolkan = komentar terbaru (update paling akurat dari lapangan).
 // ============================================================================
-const SheetCategory = ({ item, cat, info, poin, ui, refresh, onClose }) => {
-  const { C, baseUrl, sBtn, sInput, chip, users, userList, user, dark, busy, post, navigate } = ui;
+const SheetItem = ({ cust, itemId, fokus, poin, ui, refresh, onPindah, onClose }) => {
+  const { C, baseUrl, sBtn, chip, kirimBadge, isMobile, navigate, busy, post } = ui;
+  const idx = cust.items.findIndex((i) => i.id === itemId);
+  const item = cust.items[idx];
   const [proj, setProj] = useState(null);
-  const umum = cat === 'BarangJadi';
+  const [showUmum, setShowUmum] = useState(false);
+  const [semuaPoin, setSemuaPoin] = useState(false);
 
   const loadProj = useCallback(async () => {
     try {
-      const r = await fetch(`${baseUrl}/projects/detail`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ slug: item.id }) });
+      const r = await fetch(`${baseUrl}/projects/detail`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ slug: itemId }) });
       if (r.ok) setProj(await r.json());
     } catch { /* abaikan — sheet tetap bisa dipakai */ }
-  }, [baseUrl, item.id]);
-  useEffect(() => { setProj(null); loadProj(); }, [loadProj, cat]);
+  }, [baseUrl, itemId]);
+  useEffect(() => { setProj(null); setShowUmum(false); setSemuaPoin(false); loadProj(); }, [loadProj]);
 
-  const gambar = useMemo(() => gambarCategory(proj, cat, item.image), [proj, cat, item.image]);
-  const ubahTodo = async (body) => { if (await post('/projects/todo/item', { projectId: item.id, category: cat, ...body }, { refresh: false })) { await loadProj(); refresh(); } };
-  const ubahStatus = async (s) => {
-    if (busy || s === info?.status) return;
-    if (await post('/projects/update/category-status', { slug: item.id, category: cat, categoryStatus: s })) loadProj();
+  // Kartu yang diketuk di tabel → gulir ke panel category itu.
+  useEffect(() => {
+    if (!fokus || !item) return;
+    const el = document.getElementById(`panel-${item.id}-${fokus}`);
+    if (el) setTimeout(() => el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' }), 150);
+  }, [fokus, item]);
+
+  if (!item) return null;
+  const kirim = kirimBadge(item.sisa_hari);
+  const umumAda = showUmum || item.umum.komentar > 0 || item.umum.todo.total > 0;
+  const panels = [...item.categories.map((c) => ({ cat: c.category, info: c })), ...(umumAda ? [{ cat: 'BarangJadi', info: null }] : [])];
+  const poinItem = poin.filter((p) => p.item_id === item.id);
+  const ubahTodo = (cat) => async (body) => {
+    if (await post('/projects/todo/item', { projectId: item.id, category: cat, ...body }, { refresh: false })) { await loadProj(); refresh(); }
   };
-  const deskripsi = proj ? (umum ? proj.Spesifikasi : proj[`Description${cat}`]) : null;
-  const col = info ? (STATUS_COLOR[info.status] || '#94a3b8') : '#64748b';
-  const baris = (label, isi, warna) => (
-    <div style={{ display: 'flex', gap: 8, fontSize: 14, padding: '4px 0', borderBottom: `1px solid ${C.border}` }}>
-      <div style={{ width: 110, flex: 'none', color: C.muted }}>{label}</div>
-      <div style={{ flex: 1, minWidth: 0, color: warna || C.text, fontWeight: warna ? 700 : 400, wordBreak: 'break-word' }}>{isi}</div>
-    </div>
-  );
+  const navBtn = (aktif) => ({ ...sBtn(C.soft, C.text), padding: '6px 12px', opacity: aktif ? 1 : 0.35 });
 
   return (
-    <Sheet C={C} onClose={onClose} title={`${namaCat(cat)} · ${item.nama}`} maxWidth={720}>
-      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-        {info && <span style={chip(col)}>{info.status}</span>}
-        <span style={{ fontSize: 12, color: C.muted }}>{item.kode_invoice} · qty {item.qty ?? '-'}</span>
+    <Sheet C={C} onClose={onClose} maxWidth={1400}
+      title={`${idx + 1}/${cust.items.length} · ${item.nama}${item.qty != null ? ` × ${item.qty}` : ''}`}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        {item.image && (
+          <Image src={getImageUrl(item.image)} width={44} height={44} preview={PREVIEW} style={{ borderRadius: 8, objectFit: 'cover' }} />
+        )}
+        <div style={{ flex: 1, minWidth: 160, fontSize: 12, color: C.muted }}>
+          {item.kode_invoice} · <span style={{ color: kirim.color, fontWeight: 700 }}>{kirim.text}</span>
+          {item.target_kirim ? ` (${tgl(item.target_kirim)})` : ''} · {item.progress.beres}/{item.progress.total} beres
+        </div>
+        <button type="button" disabled={idx <= 0} style={navBtn(idx > 0)} onClick={() => onPindah(cust.items[idx - 1].id)} aria-label="Item sebelumnya">‹</button>
+        <button type="button" disabled={idx >= cust.items.length - 1} style={navBtn(idx < cust.items.length - 1)} onClick={() => onPindah(cust.items[idx + 1].id)} aria-label="Item berikutnya">›</button>
+        <button type="button" style={{ ...sBtn('#2563eb'), padding: '6px 12px' }} onClick={() => navigate(`/project/${item.id}`)}>Project</button>
       </div>
 
-      {gambar.length > 0 && (
-        <div style={{ display: 'flex', gap: 6, overflowX: 'auto', marginTop: 10, paddingBottom: 2 }}>
-          <Image.PreviewGroup preview={PREVIEW}>
-            {gambar.map((u, i) => (
-              <div key={u} style={{ flex: '0 0 auto' }}>
-                <Image src={getImageUrl(u)} width={i === 0 ? 96 : 72} height={i === 0 ? 96 : 72} style={{ borderRadius: 10, objectFit: 'cover' }} />
-              </div>
-            ))}
-          </Image.PreviewGroup>
+      {poinItem.length > 0 && (
+        <div style={{ marginTop: 8 }}>
+          {(semuaPoin ? poinItem : poinItem.slice(0, 2)).map((p, i) => (
+            <div key={i} style={{ fontSize: 13, display: 'flex', gap: 6, alignItems: 'baseline', padding: '3px 0' }}>
+              <span style={chip((JENIS_POIN[p.jenis] || JENIS_POIN.lainnya).color)}>{(JENIS_POIN[p.jenis] || JENIS_POIN.lainnya).label}</span>
+              <span style={{ flex: 1, minWidth: 0 }}>{p.category ? <b>{namaCat(p.category)}: </b> : null}{p.teks}</span>
+            </div>
+          ))}
+          {poinItem.length > 2 && (
+            <button type="button" onClick={() => setSemuaPoin((v) => !v)} style={{ border: 'none', background: 'none', color: '#7c3aed', fontSize: 12, fontWeight: 600, padding: 0, cursor: 'pointer' }}>
+              {semuaPoin ? 'Ringkas' : `✨ ${poinItem.length - 2} poin chat lagi`}
+            </button>
+          )}
         </div>
       )}
 
-      {info && (
-        <div style={{ marginTop: 10 }}>
-          {baris('Supplier', info.supplier || 'Belum ada')}
-          {baris('Tanggal order', info.order_date ? tgl(info.order_date) : '—')}
-          {baris('Deadline', info.deadline ? `${tgl(info.deadline)}${info.telat ? ` · telat ${-info.sisa_hari} hari` : info.sisa_hari != null && !info.beres ? ` · H-${info.sisa_hari}` : ''}` : '—', info.telat ? '#dc2626' : null)}
-          {baris('Target kirim', item.target_kirim ? tgl(item.target_kirim) : '—')}
+      {item.categories.length === 0 && <div style={{ fontSize: 13, color: C.muted, marginTop: 10 }}>Belum ada category berproses (belum dianalisa PM).</div>}
 
-          <Label C={C}>Status category</Label>
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            {[...new Set([...STATUS_CEPAT, info.status])].map((s) => {
-              const on = s === info.status;
-              const warna = STATUS_COLOR[s] || '#64748b';
-              return (
-                <button type="button" key={s} disabled={busy || !STATUS_CEPAT.includes(s)} onClick={() => ubahStatus(s)}
-                  style={{ borderRadius: 999, padding: '8px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer', minHeight: 40, border: `2px solid ${warna}`, background: on ? warna : C.card, color: on ? '#fff' : C.text }}>
-                  {s}
-                </button>
-              );
-            })}
-          </div>
-          <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>QC Pass / Servis lewat Alur Kerja di halaman project. Supplier & tanggal diubah di project (tombol di bawah).</div>
-        </div>
-      )}
-
-      <Label C={C}>{umum ? 'Deskripsi produk' : `Deskripsi ${namaCat(cat)}`}</Label>
-      <div style={{ fontSize: 14, whiteSpace: 'pre-line', wordBreak: 'break-word', background: C.soft, borderRadius: 8, padding: '6px 8px', color: deskripsi ? C.text : C.muted }}>
-        {proj ? (deskripsi || 'Belum ada deskripsi.') : 'Memuat…'}
+      <div style={{
+        display: 'grid', gap: 10, marginTop: 10, alignItems: 'start',
+        gridTemplateColumns: isMobile ? '1fr' : `repeat(${Math.min(Math.max(panels.length, 1), 5)}, minmax(230px, 1fr))`,
+        overflowX: isMobile ? 'visible' : 'auto', paddingBottom: 4,
+      }}>
+        {panels.map(({ cat, info }) => (
+          <PanelCategory key={`${item.id}-${cat}`} item={item} cat={cat} info={info} proj={proj} fokus={fokus === cat}
+            ubahTodo={ubahTodo(cat)} ui={ui} refresh={refresh} busy={busy} />
+        ))}
       </div>
-
-      {poin.length > 0 && (
-        <>
-          <Label C={C}>✨ Dari chat WA customer</Label>
-          {poin.map((p, i) => <KartuPoin key={i} p={p} ui={ui} ringkas onTodo={() => ubahTodo({ op: 'add', text: `[Chat WA${p.tanggal ? ` ${tgl(p.tanggal)}` : ''}] ${p.teks}` })} />)}
-        </>
+      {!umumAda && (
+        <button type="button" onClick={() => setShowUmum(true)} style={{ ...sBtn(C.soft, C.text), marginTop: 10, width: isMobile ? '100%' : 'auto' }}>＋ Komentar / to-do Umum</button>
       )}
-
-      <div style={{ marginTop: 12 }}>
-        <button type="button" style={{ ...sBtn('#2563eb'), width: '100%' }} onClick={() => navigate(umum ? `/project/${item.id}` : `/project/${item.id}/${cat}`)}>Buka di halaman project</button>
-      </div>
-
-      <TodoKomentar projectId={item.id} cat={cat} proj={proj} ubahTodo={ubahTodo} busy={busy} C={C}
-        users={users} userList={userList} user={user} baseUrl={baseUrl} dark={dark} sInput={sInput} sBtn={sBtn} onKomentar={refresh} />
     </Sheet>
+  );
+};
+
+// Satu category dalam sheet item: status, supplier & tanggal, foto (slider), komentar terbaru, to-do.
+const PanelCategory = ({ item, cat, info, proj, fokus, ubahTodo, ui, refresh, busy }) => {
+  const { C, baseUrl, users, userList, user, dark, post, sBtn } = ui;
+  const umum = cat === 'BarangJadi';
+  const col = info ? (STATUS_COLOR[info.status] || '#94a3b8') : '#64748b';
+
+  const [comments, setComments] = useState(null);
+  const [replies, setReplies] = useState([]);
+  const [komen, setKomen] = useState('');
+  const [files, setFiles] = useState([]);
+  const [showFiles, setShowFiles] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [bukaTodo, setBukaTodo] = useState(false);
+  const [todoText, setTodoText] = useState('');
+  const [preview, setPreview] = useState(false);
+
+  const loadComments = useCallback(async () => {
+    const opt = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ slug: item.id, category: cat }) };
+    try {
+      const [c, r] = await Promise.all([fetch(`${baseUrl}/comments/list`, opt), fetch(`${baseUrl}/replies/list`, opt)]);
+      setComments(c.ok ? await c.json() : []);
+      setReplies(r.ok ? await r.json() : []);
+    } catch { setComments([]); }
+  }, [baseUrl, item.id, cat]);
+  useEffect(() => { setComments(null); loadComments(); }, [loadComments]);
+
+  // Thread komentar, urut aktivitas TERBARU di atas (komentar atau balasan terakhirnya).
+  const detik = (d) => d?.date?.value?._seconds || (d?.date ? new Date(d.date).getTime() / 1000 : 0) || 0;
+  const threads = useMemo(() => (comments || []).map((c) => {
+    const rs = replies.filter((r) => r.commentId === c.id).sort((a, b) => detik(a) - detik(b));
+    return { c, rs, last: Math.max(detik(c), ...rs.map(detik)) };
+  }).sort((a, b) => b.last - a.last), [comments, replies]);
+
+  const foto = useMemo(() => {
+    if (!proj) return [];
+    const rx = new RegExp(`^image${cat}\\d+$`);
+    return Object.keys(proj).filter((k) => rx.test(k) && proj[k]).sort((a, b) => Number(a.replace(/\D/g, '')) - Number(b.replace(/\D/g, '')))
+      .map((k) => proj[k]).filter((u) => typeof u === 'string' && !/\.pdf/i.test(u));
+  }, [proj, cat]);
+
+  const todos = proj && Array.isArray(proj[`Todo${cat}`]) ? proj[`Todo${cat}`] : [];
+  const todoBelum = todos.map((t, i) => ({ ...t, _i: i })).filter((t) => !t.done);
+  const todoTampil = bukaTodo ? todos.map((t, i) => ({ ...t, _i: i })) : todoBelum.slice(0, 3);
+
+  const ubahStatus = async (s) => {
+    if (busy || !info || s === info.status) return;
+    await post('/projects/update/category-status', { slug: item.id, category: cat, categoryStatus: s });
+  };
+
+  const kirimKomentar = async () => {
+    if (sending || (!komen.trim() && !files.length)) return;
+    setSending(true);
+    try {
+      const fd = new FormData();
+      fd.append('user', user?.uid || '');
+      fd.append('idProduct', item.id);
+      fd.append('category', cat);
+      fd.append('text', komen.trim());
+      files.forEach((f) => f && fd.append('images', f));
+      const r = await fetch(`${baseUrl}/comments/create`, { method: 'POST', body: fd });
+      if (!r.ok) throw new Error('Gagal mengirim komentar');
+      mintaRefreshNotif();
+      setKomen(''); setFiles([]); setShowFiles(false);
+      await loadComments();
+      refresh();
+    } catch (err) {
+      alert(`${err.message} — coba lagi (foto masih tersimpan).`);
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const namaDari = (uid) => userList.find((u) => u.uid === uid)?.name || 'Unknown';
+  const waktu = (d) => {
+    const s = detik(d);
+    if (!s) return '';
+    const dt = new Date(s * 1000);
+    const hari = Math.floor((Date.now() - dt.getTime()) / 86400000);
+    const jam = `${pad2(dt.getHours())}.${pad2(dt.getMinutes())}`;
+    return hari === 0 ? `hari ini ${jam}` : hari === 1 ? `kemarin ${jam}` : `${dt.getDate()} ${BULAN[dt.getMonth()]} ${jam}`;
+  };
+  const green = '#16a34a';
+
+  return (
+    <div id={`panel-${item.id}-${cat}`} style={{
+      background: C.card, border: `1px solid ${fokus ? '#2563eb' : C.border}`, borderTop: `5px solid ${col}`, borderRadius: 12,
+      padding: 10, minWidth: 0, boxShadow: fokus ? '0 0 0 2px rgba(37,99,235,0.25)' : 'none',
+    }}>
+      {/* Header: category + status */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <b style={{ fontSize: 15, flex: 1, minWidth: 0 }}>{namaCat(cat)}</b>
+        {info && (
+          <select value={info.status} disabled={busy} onChange={(e) => ubahStatus(e.target.value)} aria-label={`Status ${cat}`}
+            style={{ background: col, color: '#fff', border: 'none', borderRadius: 999, padding: '4px 8px', fontSize: 13, fontWeight: 700, cursor: 'pointer', maxWidth: 130 }}>
+            {[...new Set([...STATUS_CEPAT, info.status])].map((s) => <option key={s} value={s} disabled={!STATUS_CEPAT.includes(s)}>{s}</option>)}
+          </select>
+        )}
+      </div>
+
+      {/* Supplier, tanggal, foto */}
+      {info && (
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 6 }}>
+          <div style={{ flex: 1, minWidth: 0, fontSize: 13, lineHeight: 1.4 }}>
+            <div style={{ fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: info.supplier ? C.text : C.muted }}>{info.supplier || 'Supplier belum ada'}</div>
+            <div style={{ color: info.telat ? '#dc2626' : C.muted, fontWeight: info.telat ? 700 : 400 }}>
+              {info.order_date ? tgl(info.order_date) : '—'} → {info.deadline ? tgl(info.deadline) : '—'}
+              {info.telat ? ` · telat ${-info.sisa_hari} hr` : info.sisa_hari != null && !info.beres ? ` · H-${info.sisa_hari}` : ''}
+            </div>
+          </div>
+          {foto.length > 0 && (
+            <div role="button" tabIndex={0} onClick={() => setPreview(true)} onKeyDown={(e) => e.key === 'Enter' && setPreview(true)}
+              style={{ position: 'relative', width: 52, height: 52, flex: '0 0 52px', cursor: 'pointer' }} title="Lihat gambar">
+              <img src={getImageUrl(foto[0])} alt="" style={{ width: 52, height: 52, borderRadius: 8, objectFit: 'cover', border: `1px solid ${C.border}`, background: '#fff' }} />
+              {foto.length > 1 && (
+                <span style={{ position: 'absolute', right: 2, bottom: 2, background: 'rgba(0,0,0,0.7)', color: '#fff', borderRadius: 6, fontSize: 11, fontWeight: 700, padding: '0 5px' }}>+{foto.length - 1}</span>
+              )}
+            </div>
+          )}
+          {foto.length > 0 && (
+            // Di luar tombol thumbnail: klik di dalam preview tidak boleh membukanya lagi.
+            <Image.PreviewGroup items={foto.map((u) => getImageUrl(u))} preview={{ ...PREVIEW, visible: preview, onVisibleChange: setPreview }} />
+          )}
+        </div>
+      )}
+
+      {/* Komentar — paling ditonjolkan: 2 terbaru terlihat, sisanya gulir */}
+      <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, margin: '8px 0 4px', textTransform: 'uppercase', letterSpacing: 0.3 }}>
+        Update terbaru {comments ? `· ${comments.length} komentar` : ''}
+      </div>
+      {!comments && <div style={{ fontSize: 13, color: C.muted }}>Memuat…</div>}
+      {comments && threads.length === 0 && <div style={{ fontSize: 13, color: C.muted }}>Belum ada komentar.</div>}
+      {threads.length > 0 && (
+        <div style={{ maxHeight: 250, overflowY: 'auto', overscrollBehavior: 'contain', display: 'grid', gap: 6, paddingRight: 2 }}>
+          {threads.map(({ c, rs }, i) => (
+            <div key={c.id || c._id} style={{
+              background: i < 2 ? (dark ? 'rgba(37,99,235,0.14)' : '#eff6ff') : C.soft,
+              border: `1px solid ${i < 2 ? (dark ? '#1e3a8a' : '#bfdbfe') : 'transparent'}`, borderRadius: 10, padding: '6px 8px',
+            }}>
+              <div style={{ display: 'flex', gap: 6, alignItems: 'baseline' }}>
+                <b style={{ fontSize: 13 }}>{namaDari(c.user)}</b>
+                <span style={{ fontSize: 11, color: C.muted }}>{waktu(c)}</span>
+              </div>
+              {c.text && <div style={{ fontSize: 14, lineHeight: 1.4, whiteSpace: 'pre-line', wordBreak: 'break-word' }}><TeksMention text={c.text} names={users} /></div>}
+              <Lampiran doc={c} baseUrl={baseUrl} size={48} />
+              {rs.map((r) => (
+                <div key={r.id || r._id} style={{ borderLeft: `3px solid ${C.border}`, padding: '1px 7px', marginTop: 4 }}>
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'baseline' }}>
+                    <b style={{ fontSize: 12 }}>↳ {namaDari(r.user)}</b>
+                    <span style={{ fontSize: 11, color: C.muted }}>{waktu(r)}</span>
+                  </div>
+                  {r.text && <div style={{ fontSize: 13, whiteSpace: 'pre-line', wordBreak: 'break-word' }}><TeksMention text={r.text} names={users} /></div>}
+                  <Lampiran doc={r} baseUrl={baseUrl} size={48} />
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Tulis komentar (tag @, lampiran foto/video/PDF) */}
+      <div style={{ marginTop: 6 }}>
+        <Mentions
+          autoSize={{ minRows: 1, maxRows: 5 }}
+          value={komen}
+          onChange={setKomen}
+          placeholder="Tulis update… @ untuk tag"
+          options={users.map((n) => ({ value: n, label: n }))}
+          getPopupContainer={(node) => node.parentElement || document.body}
+          style={{ width: '100%', fontSize: 16 }}
+        />
+        {showFiles && (
+          <div style={{ marginTop: 6 }}>
+            <ImageUploadZone images={files} onChange={setFiles} max={10} theme={dark ? 'dark' : 'light'} allowVideo allowPdf />
+          </div>
+        )}
+        {(komen.trim() || files.length > 0 || showFiles) ? (
+          <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+            <button type="button" style={{ ...sBtn(C.soft, C.text), padding: '8px 10px' }} onClick={() => setShowFiles((v) => !v)}>📎 {files.length || ''}</button>
+            <button type="button" disabled={sending || (!komen.trim() && !files.length)} style={{ ...sBtn('#2563eb'), flex: 1, padding: '8px 10px', opacity: komen.trim() || files.length ? 1 : 0.5 }} onClick={kirimKomentar}>
+              {sending ? 'Mengirim…' : 'Kirim'}
+            </button>
+          </div>
+        ) : (
+          <button type="button" onClick={() => setShowFiles(true)} style={{ border: 'none', background: 'none', color: C.muted, fontSize: 12, padding: '4px 0 0', cursor: 'pointer' }}>📎 lampirkan foto/video/PDF</button>
+        )}
+      </div>
+
+      {/* To-do ringkas: yang belum selesai saja, buka untuk semua + tambah */}
+      <div style={{ borderTop: `1px solid ${C.border}`, marginTop: 8, paddingTop: 6 }}>
+        <div role="button" tabIndex={0} onClick={() => setBukaTodo((v) => !v)} onKeyDown={(e) => e.key === 'Enter' && setBukaTodo((v) => !v)}
+          style={{ display: 'flex', alignItems: 'center', fontSize: 12, fontWeight: 700, color: C.muted, cursor: 'pointer', minHeight: 28 }}>
+          <span style={{ flex: 1 }}>☑ TO-DO {todos.length ? `${todos.length - todoBelum.length}/${todos.length}` : ''}</span>
+          <span>{bukaTodo ? 'tutup ▴' : todos.length ? 'semua / tambah ▾' : 'tambah ▾'}</span>
+        </div>
+        {todoTampil.map((t) => (
+          <div key={t.id || t._i} role="button" tabIndex={0}
+            onClick={() => !busy && ubahTodo({ op: 'update', id: t.id || undefined, index: t._i, patch: { done: !t.done } })}
+            onKeyDown={(e) => e.key === 'Enter' && !busy && ubahTodo({ op: 'update', id: t.id || undefined, index: t._i, patch: { done: !t.done } })}
+            style={{ display: 'flex', gap: 8, alignItems: 'flex-start', padding: '4px 0', cursor: 'pointer', fontSize: 13 }}>
+            <span style={{
+              width: 18, height: 18, flex: '0 0 18px', marginTop: 1, borderRadius: 4, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              border: `2px solid ${t.done ? green : C.muted}`, background: t.done ? green : 'transparent', color: '#fff', fontSize: 12, fontWeight: 700,
+            }}>{t.done ? '✓' : ''}</span>
+            <span style={{ flex: 1, minWidth: 0, wordBreak: 'break-word', color: t.done ? green : C.text }}>{t.text}</span>
+          </div>
+        ))}
+        {!bukaTodo && todoBelum.length > 3 && <div style={{ fontSize: 12, color: C.muted }}>+{todoBelum.length - 3} lagi</div>}
+        {bukaTodo && (
+          <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+            <input style={{ ...ui.sInput, flex: 1, minWidth: 0, minHeight: 36, padding: '6px 8px' }} placeholder="Tambah to-do…" value={todoText}
+              onChange={(e) => setTodoText(e.target.value)}
+              onKeyDown={async (e) => { if (e.key === 'Enter' && todoText.trim()) { await ubahTodo({ op: 'add', text: todoText.trim() }); setTodoText(''); } }} />
+            <button type="button" disabled={busy || !todoText.trim()} style={{ ...sBtn('#2563eb'), padding: '6px 10px', minHeight: 36, opacity: todoText.trim() ? 1 : 0.5 }}
+              onClick={async () => { await ubahTodo({ op: 'add', text: todoText.trim() }); setTodoText(''); }}>＋</button>
+          </div>
+        )}
+      </div>
+    </div>
   );
 };
 

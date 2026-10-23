@@ -81,7 +81,7 @@ const fileUrl = (baseUrl, u) => (/^https?:\/\//.test(u) ? u : `${baseUrl}${u}`);
 export const slotFiles = (doc, prefix) => Array.from({ length: 10 }, (_, i) => doc?.[`${prefix}${i + 1}`]).filter(Boolean);
 
 // Teks komentar dengan @nama disorot (nama terpanjang dulu: "@P. Dhe" jangan keburu "@P").
-const TeksMention = ({ text, names }) => {
+export const TeksMention = ({ text, names }) => {
   const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const list = [...names].sort((a, b) => b.length - a.length).map((n) => `@${esc(n)}`);
   if (!list.length || !text) return <span>{text}</span>;
@@ -89,7 +89,7 @@ const TeksMention = ({ text, names }) => {
   return <span>{parts.map((p, i) => (list.length && p.startsWith('@') && names.includes(p.slice(1)) ? <b key={i} style={{ color: '#2563eb' }}>{p}</b> : p))}</span>;
 };
 
-const Lampiran = ({ doc, baseUrl }) => {
+export const Lampiran = ({ doc, baseUrl, size = 72 }) => {
   const img = slotFiles(doc, 'image');
   const vid = slotFiles(doc, 'video');
   if (!img.length && !vid.length) return null;
@@ -97,16 +97,16 @@ const Lampiran = ({ doc, baseUrl }) => {
     <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
       <Image.PreviewGroup preview={PREVIEW}>
         {img.filter((u) => !/\.pdf/i.test(u)).map((u) => (
-          <Image key={u} src={getImageUrl(u)} width={72} height={72} style={{ borderRadius: 8, objectFit: 'cover' }} />
+          <Image key={u} src={getImageUrl(u)} width={size} height={size} style={{ borderRadius: 8, objectFit: 'cover' }} />
         ))}
       </Image.PreviewGroup>
       {img.filter((u) => /\.pdf/i.test(u)).map((u) => (
         <a key={u} href={fileUrl(baseUrl, u)} target="_blank" rel="noopener noreferrer"
-          style={{ width: 72, height: 72, borderRadius: 8, background: '#fee2e2', color: '#b91c1c', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, textDecoration: 'none' }}>
+          style={{ width: size, height: size, borderRadius: 8, background: '#fee2e2', color: '#b91c1c', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, textDecoration: 'none' }}>
           PDF
         </a>
       ))}
-      {vid.map((u) => <video key={u} src={`${baseUrl}/video/${u.split('/').pop()}`} controls style={{ height: 120, maxWidth: '100%', borderRadius: 8 }} />)}
+      {vid.map((u) => <video key={u} src={`${baseUrl}/video/${u.split('/').pop()}`} controls style={{ height: size > 60 ? 120 : 90, maxWidth: '100%', borderRadius: 8 }} />)}
     </div>
   );
 };

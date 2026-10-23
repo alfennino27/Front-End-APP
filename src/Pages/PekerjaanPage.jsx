@@ -1,7 +1,6 @@
 import NavigationBar from '../Components/Navbar/NavigationBar';
 import Pekerjaan from '../Components/Pekerjaan/Pekerjaan';
 import AIChatBubble from '../Components/AI/AIChatBubble';
-import DailyBrief from '../Components/AI/DailyBrief';
 import { Helmet } from 'react-helmet-async';
 
 const PekerjaanPage = () => {
@@ -12,7 +11,6 @@ const PekerjaanPage = () => {
       </Helmet>
       <NavigationBar />
       <Pekerjaan />
-      <DailyBrief />
       <AIChatBubble />
     </>
   );

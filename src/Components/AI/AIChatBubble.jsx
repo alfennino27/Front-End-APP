@@ -13,6 +13,9 @@ import { BsChatDotsFill, BsXLg, BsSend, BsArrowsAngleExpand, BsArrowsAngleContra
 const aiKey = import.meta.env.VITE_KLF_AI_KEY || '';
 const authHeaders = (extra = {}) => ({ ...(aiKey ? { 'X-KLF-Key': aiKey } : {}), ...extra });
 const getUid = () => { try { return JSON.parse(localStorage.getItem('user'))?.uid || null; } catch { return null; } };
+// Bubble hanya untuk user ber-akses menu "KLF AI" (aturan sama dengan server: aiPermissions.checkAccess).
+const punyaAksesAI = (list) => Array.isArray(list) && list.some((a) => a.uid === getUid() && a.menu === 'KLF AI' && (a.value === true || a.value === 'true'));
+const aksesDariCache = () => { try { return punyaAksesAI(JSON.parse(localStorage.getItem('userAccessCache') || '[]')); } catch { return false; } };
 
 let MID = 0;
 const nid = () => `m${++MID}`;
@@ -37,6 +40,10 @@ const AIChatBubble = ({ seedContext = '', greeting = '', onActivity = null } = {
   const [waFile, setWaFile] = useState(null); // file export chat WA yang dilampirkan
   const [paymentImageFile, setPaymentImageFile] = useState(null); // bukti transfer
   const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
+  const [aksesAI, setAksesAI] = useState(aksesDariCache);
+  useEffect(() => {
+    fetch(`${baseUrl}/useraccess/get`).then((r) => r.json()).then((d) => { if (Array.isArray(d)) setAksesAI(punyaAksesAI(d)); }).catch(() => {});
+  }, [baseUrl]);
 
   useEffect(() => {
     if (open && messages.length === 0) {
@@ -467,6 +474,8 @@ const AIChatBubble = ({ seedContext = '', greeting = '', onActivity = null } = {
     code: (p) => <code style={{ background: isLight ? '#eee' : '#333', padding: '1px 4px', borderRadius: 3 }} {...p} />,
     a: (p) => <a style={{ color: accent, textDecoration: 'underline' }} target="_blank" rel="noopener noreferrer" {...p} />,
   };
+
+  if (!aksesAI) return null;
 
   return (
     <>

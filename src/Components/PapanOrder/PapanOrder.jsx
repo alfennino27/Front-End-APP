@@ -440,7 +440,7 @@ const MiniCard = ({ c, ui, onClick, umum, jumlahPoin }) => {
   );
 };
 
-const hitungPoin = (poin, itemId, cat) => poin.filter((p) => p.item_id === itemId && (cat === 'BarangJadi' ? !p.category : p.category === cat)).length;
+const hitungPoin = (poin, itemId, cat) => poin.filter((p) => !p.clear && p.item_id === itemId && (cat === 'BarangJadi' ? !p.category : p.category === cat)).length;
 
 const InfoItem = ({ it, no, ui }) => {
   const { C, kirimBadge } = ui;
@@ -567,14 +567,30 @@ const PanelChat = ({ cust, ui, ringkasan, setRingkasan }) => {
 
   const poin = useMemo(() => {
     const list = [...(ringkasan?.poin || [])];
-    list.sort((a, b) => (b.penting - a.penting) || (URUT_JENIS.indexOf(a.jenis) - URUT_JENIS.indexOf(b.jenis)) || String(b.tanggal || '').localeCompare(String(a.tanggal || '')));
+    list.sort((a, b) => (!!a.clear - !!b.clear) || (b.penting - a.penting) || (URUT_JENIS.indexOf(a.jenis) - URUT_JENIS.indexOf(b.jenis)) || String(b.tanggal || '').localeCompare(String(a.tanggal || '')));
     return list;
   }, [ringkasan]);
   const perJenis = useMemo(() => {
     const c = {};
-    poin.forEach((p) => { c[p.jenis] = (c[p.jenis] || 0) + 1; });
+    poin.forEach((p) => { if (!p.clear) c[p.jenis] = (c[p.jenis] || 0) + 1; });
     return c;
   }, [poin]);
+  const jumlahClear = poin.filter((p) => p.clear).length;
+
+  // Centang poin sudah clear / batalkan — tersimpan di server, tetap ada walau AI membaca ulang.
+  const ubahClear = async (p, clear) => {
+    try {
+      const r = await fetch(`${baseUrl}/papan-order/wa-ringkasan/clear`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: cust.key, poin_key: p.key, clear, by: ui.user?.uid || '' }),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.message || 'Gagal menyimpan');
+      setRingkasan(d);
+    } catch (err) {
+      alert(err.message);
+    }
+  };
   const tampil = poin.filter((p) => !fJenis || p.jenis === fJenis);
   const terlihat = semua ? tampil : tampil.slice(0, 8);
 
@@ -610,7 +626,7 @@ const PanelChat = ({ cust, ui, ringkasan, setRingkasan }) => {
             <div style={{ display: 'flex', gap: 5, overflowX: 'auto', margin: '10px 0 6px', paddingBottom: 2 }}>
               <button type="button" onClick={() => setFJenis('')}
                 style={{ flex: '0 0 auto', borderRadius: 999, padding: '4px 10px', fontSize: 12, fontWeight: 600, cursor: 'pointer', border: `1px solid ${!fJenis ? '#2563eb' : C.border}`, background: !fJenis ? '#2563eb' : C.card, color: !fJenis ? '#fff' : C.text }}>
-                Semua {poin.length}
+                Semua {poin.length - jumlahClear}{jumlahClear ? ` · ✓ ${jumlahClear} clear` : ''}
               </button>
               {URUT_JENIS.filter((j) => perJenis[j]).map((j) => (
                 <button type="button" key={j} onClick={() => setFJenis(j)}
@@ -622,7 +638,7 @@ const PanelChat = ({ cust, ui, ringkasan, setRingkasan }) => {
           )}
 
           {terlihat.map((p, i) => (
-            <KartuPoin key={i} p={p} ui={ui} onTodo={() => setTodoPoin(p)} onChat={() => setChatSheet(p.kutipan || '')} />
+            <KartuPoin key={p.key || i} p={p} ui={ui} onTodo={() => setTodoPoin(p)} onChat={() => setChatSheet(p.kutipan || '')} onClear={(v) => ubahClear(p, v)} />
           ))}
           {tampil.length > terlihat.length && (
             <button type="button" style={{ ...sBtn(C.soft, C.text), width: '100%', marginTop: 4 }} onClick={() => setSemua(true)}>Lihat semua {tampil.length} poin</button>
@@ -638,11 +654,17 @@ const PanelChat = ({ cust, ui, ringkasan, setRingkasan }) => {
   );
 };
 
-const KartuPoin = ({ p, ui, onTodo, onChat, ringkas }) => {
-  const { C, chip } = ui;
+const KartuPoin = ({ p, ui, onTodo, onChat, onClear, ringkas }) => {
+  const { C, chip, dark } = ui;
   const j = JENIS_POIN[p.jenis] || JENIS_POIN.lainnya;
+  const green = '#16a34a';
+  const sBtnKecil = { border: `1px solid ${C.border}`, background: C.card, color: C.text, borderRadius: 8, padding: '5px 10px', fontSize: 12, fontWeight: 600, cursor: 'pointer', minHeight: 32 };
   return (
-    <div style={{ borderLeft: `4px solid ${j.color}`, background: C.soft, borderRadius: 8, padding: '8px 10px', marginTop: 6 }}>
+    <div style={{
+      borderLeft: `4px solid ${p.clear ? green : j.color}`, borderRadius: 8, padding: '8px 10px', marginTop: 6,
+      background: p.clear ? (dark ? 'rgba(22,163,74,0.12)' : '#f0fdf4') : C.soft,
+      border: p.clear ? `1px solid ${dark ? 'rgba(22,163,74,0.4)' : '#bbf7d0'}` : '1px solid transparent',
+    }}>
       <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', alignItems: 'center', marginBottom: 2 }}>
         <span style={chip(j.color)}>{j.label}</span>
         {p.penting && <span style={chip('#b91c1c')}>Penting</span>}
@@ -656,9 +678,16 @@ const KartuPoin = ({ p, ui, onTodo, onChat, ringkas }) => {
           “{p.kutipan}” {!p.kutipan_terverifikasi && <span style={{ fontStyle: 'normal', color: '#d97706' }}>(kutipan tidak persis — cek chat)</span>}
         </div>
       )}
-      <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
-        <button type="button" onClick={onTodo} style={{ border: `1px solid ${C.border}`, background: C.card, color: C.text, borderRadius: 8, padding: '5px 10px', fontSize: 12, fontWeight: 600, cursor: 'pointer', minHeight: 32 }}>＋ To-do</button>
-        {onChat && <button type="button" onClick={onChat} style={{ border: `1px solid ${C.border}`, background: C.card, color: C.text, borderRadius: 8, padding: '5px 10px', fontSize: 12, fontWeight: 600, cursor: 'pointer', minHeight: 32 }}>Lihat di chat</button>}
+      <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+        {onClear && (p.clear ? (
+          <button type="button" onClick={() => onClear(false)} title="Batalkan clear"
+            style={{ ...sBtnKecil, background: green, color: '#fff', border: `1px solid ${green}` }}>✓ Clear</button>
+        ) : (
+          <button type="button" onClick={() => onClear(true)} style={{ ...sBtnKecil, color: green, border: `1px solid ${green}` }}>✓ Tandai clear</button>
+        ))}
+        {!p.clear && <button type="button" onClick={onTodo} style={sBtnKecil}>＋ To-do</button>}
+        {onChat && <button type="button" onClick={onChat} style={sBtnKecil}>Lihat di chat</button>}
+        {p.clear && <span style={{ fontSize: 11, color: green }}>oleh {p.clear.oleh || '—'} · {waktuWIB(p.clear.at)}</span>}
       </div>
     </div>
   );
@@ -770,7 +799,7 @@ const SheetItem = ({ cust, itemId, fokus, poin, ui, refresh, onPindah, onClose }
   const kirim = kirimBadge(item.sisa_hari);
   const umumAda = showUmum || item.umum.komentar > 0 || item.umum.todo.total > 0;
   const panels = [...item.categories.map((c) => ({ cat: c.category, info: c })), ...(umumAda ? [{ cat: 'BarangJadi', info: null }] : [])];
-  const poinItem = poin.filter((p) => p.item_id === item.id);
+  const poinItem = poin.filter((p) => p.item_id === item.id).sort((a, b) => !!a.clear - !!b.clear);
   const ubahTodo = (cat) => async (body) => {
     if (await post('/projects/todo/item', { projectId: item.id, category: cat, ...body }, { refresh: false })) { await loadProj(); refresh(); }
   };
@@ -795,8 +824,8 @@ const SheetItem = ({ cust, itemId, fokus, poin, ui, refresh, onPindah, onClose }
       {poinItem.length > 0 && (
         <div style={{ marginTop: 8 }}>
           {(semuaPoin ? poinItem : poinItem.slice(0, 2)).map((p, i) => (
-            <div key={i} style={{ fontSize: 13, display: 'flex', gap: 6, alignItems: 'baseline', padding: '3px 0' }}>
-              <span style={chip((JENIS_POIN[p.jenis] || JENIS_POIN.lainnya).color)}>{(JENIS_POIN[p.jenis] || JENIS_POIN.lainnya).label}</span>
+            <div key={i} style={{ fontSize: 13, display: 'flex', gap: 6, alignItems: 'baseline', padding: '3px 6px', borderRadius: 6, background: p.clear ? (ui.dark ? 'rgba(22,163,74,0.12)' : '#f0fdf4') : 'transparent' }}>
+              <span style={chip(p.clear ? '#16a34a' : (JENIS_POIN[p.jenis] || JENIS_POIN.lainnya).color)}>{p.clear ? '✓ Clear' : (JENIS_POIN[p.jenis] || JENIS_POIN.lainnya).label}</span>
               <span style={{ flex: 1, minWidth: 0 }}>{p.category ? <b>{namaCat(p.category)}: </b> : null}{p.teks}</span>
             </div>
           ))}

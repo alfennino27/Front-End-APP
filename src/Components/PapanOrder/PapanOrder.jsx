@@ -882,12 +882,15 @@ const PanelCategory = ({ item, cat, info, proj, fokus, ubahTodo, ui, refresh, bu
   }, [baseUrl, item.id, cat]);
   useEffect(() => { setComments(null); loadComments(); }, [loadComments]);
 
-  // Thread komentar, urut aktivitas TERBARU di atas (komentar atau balasan terakhirnya).
+  // Thread komentar urut tanggal (lama → terbaru, seperti chat); aktivitas = komentar atau balasan terakhirnya.
   const detik = (d) => d?.date?.value?._seconds || (d?.date ? new Date(d.date).getTime() / 1000 : 0) || 0;
   const threads = useMemo(() => (comments || []).map((c) => {
     const rs = replies.filter((r) => r.commentId === c.id).sort((a, b) => detik(a) - detik(b));
     return { c, rs, last: Math.max(detik(c), ...rs.map(detik)) };
-  }).sort((a, b) => b.last - a.last), [comments, replies]);
+  }).sort((a, b) => a.last - b.last), [comments, replies]);
+  // Gulir ke bawah → 2 komentar terbaru langsung terlihat, riwayat di atasnya.
+  const kotakKomen = useRef(null);
+  useEffect(() => { if (kotakKomen.current) kotakKomen.current.scrollTop = kotakKomen.current.scrollHeight; }, [threads]);
 
   const foto = useMemo(() => {
     if (!proj) return [];
@@ -988,11 +991,11 @@ const PanelCategory = ({ item, cat, info, proj, fokus, ubahTodo, ui, refresh, bu
       {!comments && <div style={{ fontSize: 13, color: C.muted }}>Memuat…</div>}
       {comments && threads.length === 0 && <div style={{ fontSize: 13, color: C.muted }}>Belum ada komentar.</div>}
       {threads.length > 0 && (
-        <div style={{ maxHeight: 250, overflowY: 'auto', overscrollBehavior: 'contain', display: 'grid', gap: 6, paddingRight: 2 }}>
+        <div ref={kotakKomen} style={{ maxHeight: 250, overflowY: 'auto', overscrollBehavior: 'contain', display: 'grid', gap: 6, paddingRight: 2 }}>
           {threads.map(({ c, rs }, i) => (
             <div key={c.id || c._id} style={{
-              background: i < 2 ? (dark ? 'rgba(37,99,235,0.14)' : '#eff6ff') : C.soft,
-              border: `1px solid ${i < 2 ? (dark ? '#1e3a8a' : '#bfdbfe') : 'transparent'}`, borderRadius: 10, padding: '6px 8px',
+              background: i >= threads.length - 2 ? (dark ? 'rgba(37,99,235,0.14)' : '#eff6ff') : C.soft,
+              border: `1px solid ${i >= threads.length - 2 ? (dark ? '#1e3a8a' : '#bfdbfe') : 'transparent'}`, borderRadius: 10, padding: '6px 8px',
             }}>
               <div style={{ display: 'flex', gap: 6, alignItems: 'baseline' }}>
                 <b style={{ fontSize: 13 }}>{namaDari(c.user)}</b>

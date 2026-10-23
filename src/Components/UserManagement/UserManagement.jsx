@@ -34,6 +34,7 @@ const GROUPS = [
       { key: 'Quote', label: 'Quote' },
       { key: 'Invoice', label: 'Invoice' },
       { key: 'Projects', label: 'Projects' },
+      { key: 'Papan Order', label: 'Papan Order', desc: 'Progress semua order per customer + ringkasan chat WA (beta)' },
       { key: 'SPK', label: 'SPK' },
       { key: 'Category', label: 'Category', desc: 'Analisa proses per project (PM)' },
       { key: 'Todo', label: 'To-Do & QC' },

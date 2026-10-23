@@ -495,6 +495,7 @@ const NavigationBar = () => {
         menuItem('Invoice', '/invoice', 'Invoice', <FaFileInvoiceDollar />),
         menuItem('Quote', '/quote', 'Quote', <span role="img" aria-label="quote">🧾</span>),
         menuItem('Projects', '/project', 'Projects', <MdDashboard />),
+        menuItem('Papan Order', '/papan-order', 'Papan Order', <span role="img" aria-label="papan order">📋</span>),
         menuItem('Pengiriman', '/pengiriman', 'Pengiriman', <span role="img" aria-label="pengiriman">🚚</span>),
         menuItem('SPK', '/spk', 'SPK', <FaRegFileAlt />),
         menuItem('Category', '/category', 'Category', <SiWikibooks />),

@@ -61,6 +61,7 @@ const DesainProdukPage = lazyPage(() => import('./Pages/DesainProdukPage'));
 const HasilProduksiPage = lazyPage(() => import('./Pages/HasilProduksiPage'));
 const CategoryPage = lazyPage(() => import('./Pages/CategoryPage'));
 const TodoPage = lazyPage(() => import('./Pages/TodoPage'));
+const PapanOrderPage = lazyPage(() => import('./Pages/PapanOrderPage'));
 
 const PageLoading = () => (
   <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
@@ -139,6 +140,7 @@ function App() {
         <Route path="/register" element={<Register />} />
         <Route path="/category" element={<CategoryPage />} />
         <Route path="/todo" element={<TodoPage />} />
+        <Route path="/papan-order" element={<PapanOrderPage />} />
       </Routes>
       </Suspense>
     </Router>

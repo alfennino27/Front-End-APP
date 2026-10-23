@@ -5,6 +5,7 @@ import { getApiBaseUrl } from '../Config/APIurl';
 export const DEFAULT_HOMEPAGE = '/project';
 export const HOMEPAGE_OPTIONS = [
   { path: '/project', label: 'Projects', menu: 'Projects' },
+  { path: '/papan-order', label: 'Papan Order', menu: 'Papan Order' },
   { path: '/dashboard', label: 'Dashboard', menu: 'Dashboard' },
   { path: '/invoice', label: 'Invoice', menu: 'Invoice' },
   { path: '/quote', label: 'Quote', menu: 'Quote' },

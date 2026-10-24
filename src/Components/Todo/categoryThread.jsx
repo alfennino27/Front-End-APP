@@ -242,7 +242,8 @@ export const TodoKomentar = ({ projectId, cat, proj, ubahTodo, busy, C, users, u
           onChange={setKomen}
           placeholder="Tulis komentar… ketik @ untuk tag orang"
           options={users.map((n) => ({ value: n, label: n }))}
-          getPopupContainer={(node) => node.parentElement || document.body}
+          // Daftar nama di body: wadah .ant-mentions sendiri overflow:hidden → daftar terpotong / tak terlihat.
+          getPopupContainer={() => document.body}
           style={{ width: '100%', fontSize: 16 }}
         />
         {showFiles && (

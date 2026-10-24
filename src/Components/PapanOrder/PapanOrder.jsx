@@ -1027,7 +1027,8 @@ const PanelCategory = ({ item, cat, info, proj, fokus, ubahTodo, ui, refresh, bu
           onChange={setKomen}
           placeholder="Tulis update… @ untuk tag"
           options={users.map((n) => ({ value: n, label: n }))}
-          getPopupContainer={(node) => node.parentElement || document.body}
+          // Daftar nama di body: wadah .ant-mentions sendiri overflow:hidden → daftar terpotong / tak terlihat.
+          getPopupContainer={() => document.body}
           style={{ width: '100%', fontSize: 16 }}
         />
         {showFiles && (

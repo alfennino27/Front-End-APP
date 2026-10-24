@@ -841,8 +841,9 @@ const SheetItem = ({ cust, itemId, fokus, poin, ui, refresh, onPindah, onClose }
 
       <div style={{
         display: 'grid', gap: 10, marginTop: 10, alignItems: 'start',
-        gridTemplateColumns: isMobile ? '1fr' : `repeat(${Math.min(Math.max(panels.length, 1), 5)}, minmax(230px, 1fr))`,
-        overflowX: isMobile ? 'visible' : 'auto', paddingBottom: 4,
+        // Tanpa overflow di sini: overflow memotong daftar nama saat tag @ di kolom komentar.
+        gridTemplateColumns: isMobile ? '1fr' : `repeat(${Math.min(Math.max(panels.length, 1), 5)}, minmax(0, 1fr))`,
+        paddingBottom: 4,
       }}>
         {panels.map(({ cat, info }) => (
           <PanelCategory key={`${item.id}-${cat}`} item={item} cat={cat} info={info} proj={proj} fokus={fokus === cat}

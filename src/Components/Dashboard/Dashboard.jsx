@@ -161,7 +161,7 @@ const Dashboard = () => {
           {mobile ? (
             <>
               {(data?.kekurangan_invoice?.detail || []).map((r) => (
-                <KartuBaris key={r.id} judul={r.customer || '-'} keterangan={r.kodeInvoice} utama={rupiah(r.kekurangan)}
+                <KartuBaris key={r.id} judul={r.customer || '-'} keterangan={<Link to={`/invoice/${r.id}`} onClick={() => setModal(null)}>{r.kodeInvoice}</Link>} utama={rupiah(r.kekurangan)}
                   kolom={[['Tagihan', rupiah(r.tagihan)], ['Dibayar', rupiah(r.dibayar)]]} />
               ))}
               {!data?.kekurangan_invoice?.detail?.length && <div className="text-center">Tidak ada kekurangan.</div>}
@@ -174,7 +174,7 @@ const Dashboard = () => {
             <tbody>
               {(data?.kekurangan_invoice?.detail || []).map((r) => (
                 <tr key={r.id}>
-                  <td>{r.kodeInvoice}</td>
+                  <td><Link to={`/invoice/${r.id}`} onClick={() => setModal(null)}>{r.kodeInvoice}</Link></td>
                   <td>{r.customer}</td>
                   <td className="text-end">{rupiah(r.tagihan)}</td>
                   <td className="text-end">{rupiah(r.dibayar)}</td>

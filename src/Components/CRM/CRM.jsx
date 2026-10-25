@@ -455,8 +455,12 @@ export default function CRM() {
   const activeLeads = filteredLeads.filter(l=>l.stage!=='lost');
   const lostLeads = filteredLeads.filter(l=>l.stage==='lost');
   const dealLeads = filteredLeads.filter(l=>l.stage==='deal');
-  const totalRevenue = dealLeads.reduce((s,l)=>s+(l.deal_value||0),0);
-  const totalGP = dealLeads.reduce((s,l)=>s+(l.gross_profit||0),0);
+  // Revenue/GP hanya dari deal yang SUDAH ber-invoice (Invoice = sumber kebenaran,
+  // sama dgn Invoice Summary). Deal di pipeline tanpa invoice tidak dihitung, tapi diberi peringatan.
+  const dealInvLeads = dealLeads.filter(l=>l.invoice_id);
+  const dealTanpaInvoice = dealLeads.filter(l=>!l.invoice_id);
+  const totalRevenue = dealInvLeads.reduce((s,l)=>s+(l.deal_value||0),0);
+  const totalGP = dealInvLeads.reduce((s,l)=>s+(l.gross_profit||0),0);
   const convRate = filteredLeads.length>0 ? ((dealLeads.length/filteredLeads.length)*100).toFixed(1) : 0;
 
   // Periods available — dari daily_data campaign + tanggal lead (kedua tanggal)
@@ -482,11 +486,11 @@ export default function CRM() {
   const totalSpend = filteredCampaigns.reduce((s,c)=>s+((getCampaignMonthData(c,filterBulan)?.spend)||0),0);
 
   // Total revenue/GP (by tanggal_deal — tanggal invoice dibuat)
-  const revenueTotal = dealLeads.reduce((s,l)=>s+(l.deal_value||0),0);
-  const gpTotal = dealLeads.reduce((s,l)=>s+(l.gross_profit||0),0);
+  const revenueTotal = dealInvLeads.reduce((s,l)=>s+(l.deal_value||0),0);
+  const gpTotal = dealInvLeads.reduce((s,l)=>s+(l.gross_profit||0),0);
 
   // Deal "from Ads" by tanggal_masuk — untuk atribusi efektivitas campaign
-  const adsDealLeads = filteredLeadsMasuk.filter(l => l.stage==='deal' && l.campaign_id && !l.is_repeat_order);
+  const adsDealLeads = filteredLeadsMasuk.filter(l => l.stage==='deal' && l.invoice_id && l.campaign_id && !l.is_repeat_order);
   const revenueFromAds = adsDealLeads.reduce((s,l)=>s+(l.deal_value||0),0);
   const gpFromAds = adsDealLeads.reduce((s,l)=>s+(l.gross_profit||0),0);
 
@@ -641,7 +645,7 @@ export default function CRM() {
                   const md = getCampaignMonthData(camp, filterBulan) || {};
                   const q = kualitasAdset[camp.id];
                   const cl=filteredLeadsMasuk.filter(l=>l.campaign_id===camp.id);
-                  const cd=cl.filter(l=>l.stage==='deal'&&!l.is_repeat_order); // exclude repeat dari ROAS
+                  const cd=cl.filter(l=>l.stage==='deal'&&l.invoice_id&&!l.is_repeat_order); // exclude repeat dari ROAS
                   const rev=cd.reduce((s,l)=>s+(l.deal_value||0),0), roas=md.spend>0?(rev/md.spend).toFixed(1):'-';
                   const sc={active:'#639922',paused:'#EF9F27',stopped:'#a32d2d'};
                   const hasMeta = camp.source==='meta_ads' || camp.source==='meta_api';
@@ -807,6 +811,14 @@ export default function CRM() {
             }}>⬇ Export JSON</Button>
           </div>}
 
+          {dealTanpaInvoice.length>0 && <div style={{background:dark?'#3a2a10':'#fff8e6',border:'1px solid #EF9F27',borderRadius:10,padding:'10px 14px',marginBottom:12,fontSize:13,color:text}}>
+            <div style={{fontWeight:700,marginBottom:4}}>⚠️ {dealTanpaInvoice.length} deal belum ada invoice — tidak dihitung di Revenue/GP</div>
+            {dealTanpaInvoice.map(l=>(
+              <div key={l.id} onClick={()=>setDetailLead(l)} style={{cursor:'pointer',color:muted}}>• {l.kode_invoice||l.nama} — {fmtRp(l.deal_value)} (GP {fmtRp(l.gross_profit)})</div>
+            ))}
+            <div style={{fontSize:12,color:muted,marginTop:4}}>Buat invoicenya (convert dari Quote), atau pindahkan lead ke stage yang benar kalau belum deal.</div>
+          </div>}
+
           {/* Summary Cards Row 2 — Total vs From Ads (Revenue & Gross Profit) */}
           <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))',gap:12,marginBottom:12}}>
             {[
@@ -854,8 +866,8 @@ export default function CRM() {
                   </thead>
                   <tbody>
                     {filteredCampaigns.map(camp=>{
-                      const cnew=filteredLeadsMasuk.filter(l=>l.campaign_id===camp.id&&l.stage==='deal'&&!l.is_repeat_order);
-                      const crepeat=filteredLeadsMasuk.filter(l=>l.campaign_id===camp.id&&l.stage==='deal'&&l.is_repeat_order);
+                      const cnew=filteredLeadsMasuk.filter(l=>l.campaign_id===camp.id&&l.stage==='deal'&&l.invoice_id&&!l.is_repeat_order);
+                      const crepeat=filteredLeadsMasuk.filter(l=>l.campaign_id===camp.id&&l.stage==='deal'&&l.invoice_id&&l.is_repeat_order);
                       const revNew=cnew.reduce((s,l)=>s+(l.deal_value||0),0);
                       const revRepeat=crepeat.reduce((s,l)=>s+(l.deal_value||0),0);
                       const clvTotal=revNew+revRepeat;

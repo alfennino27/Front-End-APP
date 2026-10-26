@@ -290,7 +290,10 @@ const ListPekerjaan = () => {
 
       data = data.filter(p => {
         if (kategoriUmum.includes(searchSupplier)) {
-          return p[categoryKey] && p[categoryKey] !== '';
+          // Supplier sudah ditentukan, ATAU category sudah ditandai (buletan biru / status terisi)
+          return (p[categoryKey] && p[categoryKey] !== '') ||
+            !!p[`${searchSupplierCategory}Reminder`] ||
+            !!p[`CategoryStatus${searchSupplierCategory}`];
         } else {
           // Category multi pengrajin: nama per pengrajin di Pengrajin<cat>
           return p[categoryKey] === searchSupplier ||

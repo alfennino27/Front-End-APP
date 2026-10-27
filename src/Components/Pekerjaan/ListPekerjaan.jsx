@@ -446,6 +446,13 @@ const ListPekerjaan = () => {
     return new Set((items || []).map(i => i.id));
   }, [deliveryView, deliveryData]);
 
+  // Deadline untuk urutan 'deadline': kalau filter category aktif (mis. Jok) pakai
+  // deadline SPK category itu (DeadlineSupplier<cat>), selain itu target kirim.
+  const waktuDeadline = (p) => {
+    const v = (searchSupplierCategory && p[`DeadlineSupplier${searchSupplierCategory}`]) || p.TargetKirim;
+    return v ? new Date(v).getTime() : NaN;
+  };
+
   // Daftar yang benar-benar tampil: filteredData + filter target kirim + filter
   // bulan + urutan. Dipakai juga untuk hitungan di panel filter mobile.
   const displayedData = React.useMemo(() => {
@@ -460,11 +467,19 @@ const ListPekerjaan = () => {
         return yearMonth === selectedMonth;
       })
       .sort((a, b) => {
+        // 'deadline' = deadline terdekat dulu; tanggal kosong/invalid di bawah
+        if (sortOrder === 'deadline') {
+          const ta = waktuDeadline(a), tb = waktuDeadline(b);
+          if (isNaN(ta) && isNaN(tb)) return 0;
+          if (isNaN(ta)) return 1;
+          if (isNaN(tb)) return -1;
+          return ta - tb;
+        }
         const secA = a.submitDate?.value?._seconds || 0;
         const secB = b.submitDate?.value?._seconds || 0;
         return sortOrder === 'newest' ? secB - secA : secA - secB;
       });
-  }, [filteredData, deliveryProjectIds, selectedMonth, sortOrder]);
+  }, [filteredData, deliveryProjectIds, selectedMonth, sortOrder, searchSupplierCategory]);
 
   const [dataAllSPKproductFromDB, setDataAllSPKproductFromDB] = useState([]);
   const [dataAllSPKFromDB, setDataAllSPKFromDB] = useState([]);
@@ -798,7 +813,7 @@ const ListPekerjaan = () => {
     });
   }
   if (sortOrder !== 'oldest') {
-    activeFilters.push({ key: 'sort', label: 'Urut: Terbaru', onRemove: () => setSortOrder('oldest') });
+    activeFilters.push({ key: 'sort', label: sortOrder === 'deadline' ? 'Urut: Deadline' : 'Urut: Terbaru', onRemove: () => setSortOrder('oldest') });
   }
 
   // Opsi target kirim (dipakai popover desktop & panel filter mobile)
@@ -845,6 +860,7 @@ const ListPekerjaan = () => {
           <Space direction="vertical">
             <Radio value="oldest">Terlama</Radio>
             <Radio value="newest">Terbaru</Radio>
+            <Radio value="deadline">Deadline Terdekat</Radio>
           </Space>
         </Radio.Group>
       </div>
@@ -1132,7 +1148,7 @@ const ListPekerjaan = () => {
 
                 <div style={{ ...sectionTitle, marginTop: 18 }}>URUTKAN</div>
                 <div style={{ display: 'flex', gap: 8 }}>
-                  {[['oldest', 'Terlama'], ['newest', 'Terbaru']].map(([v, l]) => (
+                  {[['oldest', 'Terlama'], ['newest', 'Terbaru'], ['deadline', 'Deadline']].map(([v, l]) => (
                     <div key={v} style={{ ...rowStyle(sortOrder === v), flex: 1, justifyContent: 'center', marginBottom: 0 }}
                       onClick={() => setSortOrder(v)}>{l}</div>
                   ))}
@@ -1741,7 +1757,9 @@ const ListPekerjaan = () => {
                   {searchSupplier && BOLEH_LIHAT_STATUS_SPK.includes(user.uid) && renderStatus(project.id)}
 
                   <span style={{ marginLeft: 'auto', color: globalTheme == "light" ? "black" : "#ffffff", fontWeight: 500, whiteSpace: 'nowrap' }}>
-                    Target Kirim : {formatDeadline(project.TargetKirim)}
+                    {sortOrder === 'deadline' && searchSupplierCategory && project[`DeadlineSupplier${searchSupplierCategory}`]
+                      ? <>Deadline SPK : {formatDeadline(project[`DeadlineSupplier${searchSupplierCategory}`])}</>
+                      : <>Target Kirim : {formatDeadline(project.TargetKirim)}</>}
                   </span>
                 </div>
                 </div>

@@ -695,6 +695,7 @@ const ListPekerjaan = () => {
         category: pdfSupplierCategory,
         supplier: pdfSupplierName,
         basis: pdfFilterBasis,
+        periode: pdfTargetKirimFilter,
       }));
       bukaTab('/cetakLabelSupplier');
       return;

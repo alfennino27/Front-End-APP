@@ -39,11 +39,46 @@ const fmtDeadline = (d) => {
   return date.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
 };
 
+// Senin 00:00 minggu ini (minggu = Senin–Minggu, sama dgn filter periode di ListPekerjaan)
+const awalMingguIni = () => {
+  const now = new Date();
+  const day = now.getDay();
+  const start = new Date(now);
+  start.setDate(now.getDate() + (day === 0 ? -6 : 1 - day));
+  start.setHours(0, 0, 0, 0);
+  return start;
+};
+
+const waktu = (v) => {
+  if (!v) return NaN;
+  return new Date(v).getTime();
+};
+
+// Kelompok minggu untuk periode "Semua": offset minggu dari minggu ini;
+// -1 = lewat deadline, null = tanpa tanggal.
+const offsetMinggu = (v, senin) => {
+  const t = waktu(v);
+  if (isNaN(t)) return null;
+  if (t < senin.getTime()) return -1;
+  return Math.floor((t - senin.getTime()) / (7 * 24 * 3600 * 1000));
+};
+
+const labelMinggu = (off, senin) => {
+  if (off === null) return 'Tanpa Deadline';
+  if (off === -1) return 'Lewat Deadline';
+  const minggu = new Date(senin);
+  minggu.setDate(senin.getDate() + off * 7 + 6);
+  const sd = minggu.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+  const nama = off === 0 ? 'Minggu Ini' : off === 1 ? 'Minggu Depan' : `${off} Minggu Lagi`;
+  return `${nama} (max ${sd})`;
+};
+
 const CetakLabelSupplier = () => {
   const [items, setItems] = useState([]);
   const [category, setCategory] = useState('');
   const [supplier, setSupplier] = useState('');
   const [basis, setBasis] = useState('supplier');
+  const [periode, setPeriode] = useState('semua');
 
   useEffect(() => {
     const stored = localStorage.getItem('cetakLabelSupplier') ?? sessionStorage.getItem('cetakLabelSupplier');
@@ -54,12 +89,66 @@ const CetakLabelSupplier = () => {
       setSupplier(data.supplier || '');
       // Data lama tanpa basis → tetap tampil deadline supplier seperti sebelumnya.
       setBasis(data.basis || 'supplier');
+      setPeriode(data.periode || 'semua');
     }
   }, []);
 
   // Kolom tanggal ikut filter: customer = Target Kirim project, supplier = deadline SPK per category.
   const tanggalItem = (item) => basis === 'customer' ? item.TargetKirim : item[`DeadlineSupplier${category}`];
   const judulTanggal = basis === 'customer' ? 'Deadline Kirim' : 'Deadline Supplier';
+
+  // Selalu urut tanggal terdekat dulu; tanpa tanggal di paling bawah.
+  const urutTanggal = (arr) => [...arr].sort((a, b) => {
+    const ta = waktu(tanggalItem(a)), tb = waktu(tanggalItem(b));
+    if (isNaN(ta) && isNaN(tb)) return 0;
+    if (isNaN(ta)) return 1;
+    if (isNaN(tb)) return -1;
+    return ta - tb;
+  });
+
+  const senin = awalMingguIni();
+  const kelompokMinggu = periode === 'semua';
+
+  // Baris item + (periode Semua) header minggu tiap kali minggunya berganti.
+  // `mulaiNo` supaya nomor tetap berlanjut antar grup supplier.
+  const renderBaris = (daftar, mulaiNo = 0) => {
+    const rows = [];
+    let mingguSebelum;
+    urutTanggal(daftar).forEach((item, i) => {
+      if (kelompokMinggu) {
+        const off = offsetMinggu(tanggalItem(item), senin);
+        if (off !== mingguSebelum) {
+          mingguSebelum = off;
+          rows.push(
+            <tr key={`minggu-${off}-${i}`}>
+              <td colSpan={5} style={{ background: off === -1 ? '#f8d7da' : '#fff3cd', fontWeight: 'bold', padding: '4px 8px' }}>
+                {labelMinggu(off, senin)}
+              </td>
+            </tr>
+          );
+        }
+      }
+      const no = mulaiNo + i + 1;
+      rows.push(
+        <tr key={`${item.id || 'x'}-${no}`}>
+          <td className="no">{no}</td>
+          <td className="gambar">
+            {item.image1
+              ? <img src={getImageUrl(item.image1)} alt={item.NamaBarang} />
+              : <span style={{ color: '#aaa', fontSize: '10px' }}>No Image</span>
+            }
+          </td>
+          <td>
+            <strong>{item.NamaBarang}</strong>{item.Qty ? <span style={{ fontWeight: 600 }}> — {item.Qty} pcs</span> : null}
+            {item.Buyer && <><br /><span style={{ color: '#555' }}>{item.Buyer}</span></>}
+          </td>
+          <td style={{ whiteSpace: 'pre-wrap' }}>{extractDimensiBahan(item[`Description${category}`])}</td>
+          <td className="deadline">{fmtDeadline(tanggalItem(item))}</td>
+        </tr>
+      );
+    });
+    return rows;
+  };
 
   useEffect(() => {
     if (items.length > 0) window.print();
@@ -80,6 +169,7 @@ const CetakLabelSupplier = () => {
         td.deadline { width: 100px; }
         @media print {
           @page { size: A4 landscape; margin: 15mm; }
+          td { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         }
       `}</style>
 
@@ -120,48 +210,13 @@ const CetakLabelSupplier = () => {
                       {supplierName} ({groupItems.length} item)
                     </td>
                   </tr>
-                  {groupItems.map((item) => {
-                    globalNo += 1;
-                    return (
-                      <tr key={item.id || globalNo}>
-                        <td className="no">{globalNo}</td>
-                        <td className="gambar">
-                          {item.image1
-                            ? <img src={getImageUrl(item.image1)} alt={item.NamaBarang} />
-                            : <span style={{ color: '#aaa', fontSize: '10px' }}>No Image</span>
-                          }
-                        </td>
-                        <td>
-                          <strong>{item.NamaBarang}</strong>{item.Qty ? <span style={{ fontWeight: 600 }}> — {item.Qty} pcs</span> : null}
-                          {item.Buyer && <><br /><span style={{ color: '#555' }}>{item.Buyer}</span></>}
-                        </td>
-                        <td style={{ whiteSpace: 'pre-wrap' }}>{extractDimensiBahan(item[`Description${category}`])}</td>
-                        <td className="deadline">{fmtDeadline(tanggalItem(item))}</td>
-                      </tr>
-                    );
-                  })}
+                  {(() => { const r = renderBaris(groupItems, globalNo); globalNo += groupItems.length; return r; })()}
                 </React.Fragment>
               ));
             })()
           ) : (
             // Mode satu supplier
-            items.map((item, index) => (
-              <tr key={index}>
-                <td className="no">{index + 1}</td>
-                <td className="gambar">
-                  {item.image1
-                    ? <img src={getImageUrl(item.image1)} alt={item.NamaBarang} />
-                    : <span style={{ color: '#aaa', fontSize: '10px' }}>No Image</span>
-                  }
-                </td>
-                <td>
-                  <strong>{item.NamaBarang}</strong>{item.Qty ? <span style={{ fontWeight: 600 }}> — {item.Qty} pcs</span> : null}
-                  {item.Buyer && <><br /><span style={{ color: '#555' }}>{item.Buyer}</span></>}
-                </td>
-                <td style={{ whiteSpace: 'pre-wrap' }}>{extractDimensiBahan(item[`Description${category}`])}</td>
-                <td className="deadline">{fmtDeadline(tanggalItem(item))}</td>
-              </tr>
-            ))
+            renderBaris(items)
           )}
           {items.length === 0 && (
             <tr><td colSpan={5} style={{ textAlign: 'center', color: '#aaa' }}>Tidak ada data</td></tr>

@@ -468,11 +468,21 @@ useEffect(() => {
   }, [pengrajin]);
 
 
+  // Urutkan item SPK by deadline terdekat dulu; tanpa deadline di paling bawah
+  const urutDeadline = (arr) => (Array.isArray(arr) ? [...arr] : []).sort((a, b) => {
+    const ta = a?.deadline ? new Date(a.deadline).getTime() : NaN;
+    const tb = b?.deadline ? new Date(b.deadline).getTime() : NaN;
+    if (isNaN(ta) && isNaN(tb)) return 0;
+    if (isNaN(ta)) return 1;
+    if (isNaN(tb)) return -1;
+    return ta - tb;
+  });
+
   const fetchDataProduct = async () => {
     try {
       const res = await fetch(`${baseUrl}/spkproduct/get?idSPK=${slug}`);
       const data = await res.json();
-      setDataSPKproductFromDB(data);
+      setDataSPKproductFromDB(urutDeadline(data));
     } catch (err) {
       console.error('Error fetching SPK:', err);
     }
@@ -543,7 +553,7 @@ useEffect(() => {
 
       const data = await response.json();
       console.log('productData', data);
-      setDataProductRekap(data);
+      setDataProductRekap(urutDeadline(data));
     } catch (error) {
       console.error('Error:', error);
     }

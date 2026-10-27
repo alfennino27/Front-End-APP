@@ -40,6 +40,7 @@ import { motion, AnimatePresence } from "framer-motion";
 // ── Item bel notifikasi: thumbnail produk (gambar utama = Projects.image1) ──
 const clamp = (n) => ({ display: '-webkit-box', WebkitLineClamp: n, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word', whiteSpace: 'normal' });
 const notifItemStyle = (theme) => ({
+  textDecoration: 'none',
   display: 'flex', alignItems: 'flex-start', gap: 12,
   padding: '10px 12px', minHeight: 64, cursor: 'pointer', whiteSpace: 'normal',
   borderBottom: `1px solid ${theme === 'light' ? '#e9ecef' : '#343a40'}`,
@@ -100,9 +101,27 @@ const NavigationBar = () => {
   }, []);
 
 
+  const urlNotif = (slug, category, id) => `/project/${slug}/${category}/${id}`;
   const handleRedirect = (slug, category, id) => {
-    window.location.href = `/project/${slug}/${category}/${id}`;
+    window.location.href = urlNotif(slug, category, id);
   };
+  // Item notif = <a href> asli → klik kanan "Open in new tab", Cmd/Ctrl+klik &
+  // klik tengah buka tab baru; klik biasa tetap pindah di tab ini.
+  // Balasan biasa padam saat diklik; mention tetap nyala sampai dibalas
+  const tandaiBaca = async (notif) => {
+    if (notif.kind === 'mention' || !notif.aktif) return;
+    try {
+      await fetch(`${baseUrl}/notif/read`, {
+        method: 'POST',
+        keepalive: true,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ uid: user.uid, key: notif.key }),
+      });
+    } catch (error) {
+      console.error('Failed to update notification:', error);
+    }
+  };
+  const bukaTabBaru = (e) => e.metaKey || e.ctrlKey || e.shiftKey || e.button === 1;
 
 
 
@@ -679,11 +698,11 @@ const NavigationBar = () => {
                       )}
 
                       {dataAlurKerjaNotif.map((notif, index) => (
-                        <li
+                        <a
                           key={index}
                           className={`dropdown-item ${theme === 'light' ? 'bg-light' : 'bg-dark'} notif-hover-effect`}
-                          style={{ cursor: 'pointer' }}
-                          onClick={() => { window.location.href = `/project/${notif.slug}/${notif.category}`; }}
+                          style={{ cursor: 'pointer', textDecoration: 'none' }}
+                          href={`/project/${notif.slug}/${notif.category}`}
                         >
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             {notif.gambarProduk && (
@@ -707,7 +726,7 @@ const NavigationBar = () => {
                             </div>
                           </div>
                           <hr style={{ color: theme === 'light' ? 'black' : 'white', margin: '6px 0 0 0' }} />
-                        </li>
+                        </a>
                       ))}
                     </ul>
                   </div>
@@ -837,11 +856,12 @@ const NavigationBar = () => {
                             <li className="px-3 py-3 text-secondary" style={{ fontSize: 13 }}>Anda belum pernah berkomentar.</li>
                           )}
                           {riwayat.items.map((r) => (
-                            <li
+                            <a
                               key={r.key}
                               className={`${theme === 'light' ? 'bg-light' : 'bg-dark'} dropdown-item notif-hover-effect`}
                               style={notifItemStyle(theme)}
-                              onClick={() => handleRedirect(r.idProduct, r.category, r.id)}
+                              href={urlNotif(r.idProduct, r.category, r.id)}
+                              onClick={(e) => { if (bukaTabBaru(e)) return; e.preventDefault(); handleRedirect(r.idProduct, r.category, r.id); }}
                             >
                               <NotifThumb src={r.productImage} theme={theme} />
                               <div style={{ minWidth: 0, flex: 1 }}>
@@ -855,7 +875,7 @@ const NavigationBar = () => {
                                   <small className="text-secondary" style={{ display: 'block', fontSize: 12.5, marginTop: 2, ...clamp(2) }}>“{r.snippet}”</small>
                                 )}
                               </div>
-                            </li>
+                            </a>
                           ))}
                         </>
                       ) : (
@@ -876,22 +896,16 @@ const NavigationBar = () => {
                         {pertamaLain && (
                           <li className="px-3 pt-2 pb-1 text-secondary" style={{ fontSize: 12, fontWeight: 700 }}>Lainnya</li>
                         )}
-                        <li
+                        <a
                           className={`${theme === 'light' ? 'bg-light' : 'bg-dark'} dropdown-item notif-hover-effect`}
                           style={{ ...notifItemStyle(theme), opacity: selesai ? 0.55 : 1 }}
-                          onClick={async () => {
-                            // Balasan biasa padam saat diklik; mention tetap nyala sampai dibalas
-                            if (!isMention && notif.aktif) {
-                              try {
-                                await fetch(`${baseUrl}/notif/read`, {
-                                  method: 'POST',
-                                  headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({ uid: user.uid, key: notif.key }),
-                                });
-                              } catch (error) {
-                                console.error('Failed to update notification:', error);
-                              }
-                            }
+                          href={urlNotif(notif.idProduct, notif.category, notif.id)}
+                          onAuxClick={() => tandaiBaca(notif)}
+                          onClick={async (e) => {
+                            // Cmd/Ctrl/Shift+klik → biarkan browser buka tab baru, cukup tandai dibaca
+                            if (bukaTabBaru(e)) { tandaiBaca(notif); return; }
+                            e.preventDefault();
+                            await tandaiBaca(notif);
                             handleRedirect(notif.idProduct, notif.category, notif.id);
                           }}
                         >
@@ -933,7 +947,7 @@ const NavigationBar = () => {
                               </small>
                             )}
                           </div>
-                        </li>
+                        </a>
                         </React.Fragment>
                         );
                       })}

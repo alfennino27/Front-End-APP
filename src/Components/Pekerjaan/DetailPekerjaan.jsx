@@ -20,6 +20,7 @@ import SPKLayoutModal from './SPKLayoutModal';
 import PengerjaanEditor, { barisBaru } from './PengerjaanEditor';
 import { TabPengerjaan, RingkasanBagian, DetailBagian } from './PengerjaanTab';
 import ImageUploadZone from './ImageUploadZone';
+import SkpLink from './SkpLink';
 import LinkProductCard from './LinkProductCard';
 import { format } from "date-fns";
 import { id } from 'date-fns/locale';
@@ -3651,7 +3652,7 @@ const DetailPekerjaan = () => {
         </Modal.Header>
         <Modal.Body>
           {/* Your comment form here */}
-          <label>Image / Video / PDF :</label><br />
+          <label>Image / Video / PDF / SketchUp (.skp) :</label><br />
 
 
           <div className='py-2'>
@@ -3662,6 +3663,7 @@ const DetailPekerjaan = () => {
               theme={globalTheme}
               allowVideo
               allowPdf
+              allowSkp
             />
           </div>
 
@@ -3719,6 +3721,8 @@ const DetailPekerjaan = () => {
 
                     const isPDF = imageUrl.toLowerCase().includes(".pdf");
                     const pdfLink = `${baseUrl}${imageUrl}`;
+
+                    if (/\.skp$/i.test(imageUrl)) return <SkpLink key={imageKey} href={pdfLink} url={imageUrl} />;
 
                     return isPDF ? (
                       <a
@@ -3825,6 +3829,8 @@ const DetailPekerjaan = () => {
 
                         const isPDF = imageUrl.toLowerCase().includes(".pdf");
                         const pdfLink = `${baseUrl}${imageUrl}`;
+
+                        if (/\.skp$/i.test(imageUrl)) return <SkpLink key={imageKey} href={pdfLink} url={imageUrl} />;
 
                         return isPDF ? (
                           <a
@@ -4042,11 +4048,17 @@ const DetailPekerjaan = () => {
                       border: globalTheme === 'light' ? '1px solid #ddd' : '1px solid #444',
                     }}
                   >
-                    <img
-                      src={getImageUrl(img.url)}
-                      alt=""
-                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                    />
+                    {/\.(pdf|skp)$/i.test(img.url) ? (
+                      <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, background: /\.skp$/i.test(img.url) ? '#e3f2fd' : '#fdecea', color: /\.skp$/i.test(img.url) ? '#1565c0' : '#c62828' }}>
+                        {/\.skp$/i.test(img.url) ? 'SKP' : 'PDF'}
+                      </div>
+                    ) : (
+                      <img
+                        src={getImageUrl(img.url)}
+                        alt=""
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      />
+                    )}
                     <button
                       type="button"
                       onClick={(e) => { e.stopPropagation(); handleRemoveExistingEditImage(img.key); }}

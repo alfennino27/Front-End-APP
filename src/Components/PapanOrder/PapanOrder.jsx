@@ -1033,7 +1033,7 @@ const PanelCategory = ({ item, cat, info, proj, fokus, ubahTodo, ui, refresh, bu
         />
         {showFiles && (
           <div style={{ marginTop: 6 }}>
-            <ImageUploadZone images={files} onChange={setFiles} max={10} theme={dark ? 'dark' : 'light'} allowVideo allowPdf />
+            <ImageUploadZone images={files} onChange={setFiles} max={10} theme={dark ? 'dark' : 'light'} allowVideo allowPdf allowSkp />
           </div>
         )}
         {(komen.trim() || files.length > 0 || showFiles) ? (

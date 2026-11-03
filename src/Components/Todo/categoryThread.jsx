@@ -3,6 +3,7 @@ import { Image, Mentions } from 'antd';
 import { format } from 'date-fns';
 import { id as localeId } from 'date-fns/locale';
 import ImageUploadZone from '../Pekerjaan/ImageUploadZone';
+import SkpLink from '../Pekerjaan/SkpLink';
 import { getImageUrl } from '../../Utils/image';
 import { mintaRefreshNotif } from '../../Utils/notifRefresh';
 
@@ -96,7 +97,7 @@ export const Lampiran = ({ doc, baseUrl, size = 72 }) => {
   return (
     <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
       <Image.PreviewGroup preview={PREVIEW}>
-        {img.filter((u) => !/\.pdf/i.test(u)).map((u) => (
+        {img.filter((u) => !/\.(pdf|skp)/i.test(u)).map((u) => (
           <Image key={u} src={getImageUrl(u)} width={size} height={size} style={{ borderRadius: 8, objectFit: 'cover' }} />
         ))}
       </Image.PreviewGroup>
@@ -106,6 +107,7 @@ export const Lampiran = ({ doc, baseUrl, size = 72 }) => {
           PDF
         </a>
       ))}
+      {img.filter((u) => /\.skp$/i.test(u)).map((u) => <SkpLink key={u} href={fileUrl(baseUrl, u)} url={u} size={size} />)}
       {vid.map((u) => <video key={u} src={`${baseUrl}/video/${u.split('/').pop()}`} controls style={{ height: size > 60 ? 120 : 90, maxWidth: '100%', borderRadius: 8 }} />)}
     </div>
   );
@@ -248,7 +250,7 @@ export const TodoKomentar = ({ projectId, cat, proj, ubahTodo, busy, C, users, u
         />
         {showFiles && (
           <div style={{ marginTop: 6 }}>
-            <ImageUploadZone images={files} onChange={setFiles} max={10} theme={dark ? 'dark' : 'light'} allowVideo allowPdf />
+            <ImageUploadZone images={files} onChange={setFiles} max={10} theme={dark ? 'dark' : 'light'} allowVideo allowPdf allowSkp />
           </div>
         )}
         <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>

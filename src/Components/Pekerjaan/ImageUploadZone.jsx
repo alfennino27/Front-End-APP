@@ -20,7 +20,10 @@ export const isVideoFile = (f) =>
 export const isPdfFile = (f) =>
   !!f && (f.type === 'application/pdf' || /\.pdf$/i.test(f.name || ''));
 
-const ImageUploadZone = ({ images = [], onChange, max = 10, theme = 'light', allowVideo = false, allowPdf = false }) => {
+// File SketchUp (.skp) — biasanya type kosong / application/vnd.sketchup.skp, jadi kenali via ekstensi.
+export const isSkpFile = (f) => !!f && /\.skp$/i.test(f.name || '');
+
+const ImageUploadZone = ({ images = [], onChange, max = 10, theme = 'light', allowVideo = false, allowPdf = false, allowSkp = false }) => {
   const inputRef = useRef(null);
   const cameraRef = useRef(null);
   const [dragOver, setDragOver] = useState(false);
@@ -33,10 +36,12 @@ const ImageUploadZone = ({ images = [], onChange, max = 10, theme = 'light', all
     const gambar = semua.filter((f) => f && ((f.type && f.type.startsWith('image/')) || isHeic(f)));
     const video = allowVideo ? semua.filter((f) => isVideoFile(f) && !gambar.includes(f)) : [];
     const pdf = allowPdf ? semua.filter(isPdfFile) : [];
+    const skp = allowSkp ? semua.filter(isSkpFile) : [];
 
-    if (gambar.length === 0 && video.length === 0 && pdf.length === 0) {
+    if (gambar.length === 0 && video.length === 0 && pdf.length === 0 && skp.length === 0) {
       if (!allowVideo && semua.some(isVideoFile)) alert('Video hanya bisa dilampirkan di komentar.');
       if (!allowPdf && semua.some(isPdfFile)) alert('PDF hanya bisa dilampirkan di komentar.');
+      if (!allowSkp && semua.some(isSkpFile)) alert('File SketchUp (.skp) hanya bisa dilampirkan di komentar.');
       return;
     }
 
@@ -47,12 +52,12 @@ const ImageUploadZone = ({ images = [], onChange, max = 10, theme = 'light', all
       const compressed = gambar.length ? await compressImageFiles(gambar) : [];
       onChange((prev) => {
         const lama = prev || [];
-        const gabung = [...lama, ...compressed, ...video, ...pdf].slice(0, max);
+        const gabung = [...lama, ...compressed, ...video, ...pdf, ...skp].slice(0, max);
         const total = gabung.reduce((s, f) => s + (f.size || 0), 0);
         if (total > MAX_TOTAL_BYTES) {
           alert(
             `Total lampiran ${(total / 1024 / 1024).toFixed(1)} MB — maksimal 45 MB sekali kirim.\n` +
-            'Kirim videonya / PDF-nya terpisah atau perkecil ukurannya.'
+            'Kirim videonya / PDF / SKP-nya terpisah atau perkecil ukurannya (SKP: File → Purge Unused).'
           );
           return lama;
         }
@@ -168,7 +173,7 @@ const ImageUploadZone = ({ images = [], onChange, max = 10, theme = 'light', all
         >
           <FaRegImages style={{ fontSize: '22px', marginBottom: '6px' }} />
           <div style={{ fontSize: '13px', lineHeight: 1.4 }}>
-            Drag &amp; drop {['gambar', allowVideo && 'video', allowPdf && 'PDF'].filter(Boolean).join(' / ')} di sini
+            Drag &amp; drop {['gambar', allowVideo && 'video', allowPdf && 'PDF', allowSkp && 'SKP'].filter(Boolean).join(' / ')} di sini
             <br />
             <span style={{ fontSize: '11px' }}>
               (dari Photos / Finder), klik untuk pilih file, atau paste (Cmd+V)
@@ -176,7 +181,7 @@ const ImageUploadZone = ({ images = [], onChange, max = 10, theme = 'light', all
           </div>
           {count > 0 && (
             <div style={{ fontSize: '11px', marginTop: '6px' }}>
-              {count}/{max} {allowVideo || allowPdf ? 'file' : 'gambar'} dipilih
+              {count}/{max} {allowVideo || allowPdf || allowSkp ? 'file' : 'gambar'} dipilih
             </div>
           )}
           {processing && (
@@ -210,7 +215,7 @@ const ImageUploadZone = ({ images = [], onChange, max = 10, theme = 'light', all
       <input
         ref={inputRef}
         type="file"
-        accept={['image/*', allowVideo && 'video/*', allowPdf && 'application/pdf,.pdf', '.heic,.heif'].filter(Boolean).join(',')}
+        accept={['image/*', allowVideo && 'video/*', allowPdf && 'application/pdf,.pdf', allowSkp && '.skp', '.heic,.heif'].filter(Boolean).join(',')}
         multiple
         style={{ display: 'none' }}
         onChange={(e) => {
@@ -266,16 +271,18 @@ const Thumb = ({ file, onRemove, isLight }) => {
         border: `1px solid ${isLight ? '#ddd' : '#444'}`,
       }}
     >
-      {url && (isPdfFile(file) ? (
+      {url && (isPdfFile(file) || isSkpFile(file) ? (
         <div
           title={file.name}
           style={{
             width: '100%', height: '100%', display: 'flex', flexDirection: 'column',
-            alignItems: 'center', justifyContent: 'center', background: '#fdecea',
-            color: '#c62828', fontSize: 9, padding: 3, textAlign: 'center', overflow: 'hidden',
+            alignItems: 'center', justifyContent: 'center',
+            background: isSkpFile(file) ? '#e3f2fd' : '#fdecea',
+            color: isSkpFile(file) ? '#1565c0' : '#c62828',
+            fontSize: 9, padding: 3, textAlign: 'center', overflow: 'hidden',
           }}
         >
-          <b style={{ fontSize: 14 }}>PDF</b>
+          <b style={{ fontSize: 14 }}>{isSkpFile(file) ? 'SKP' : 'PDF'}</b>
           <span style={{ wordBreak: 'break-all', lineHeight: 1.1, maxHeight: 30, overflow: 'hidden' }}>{file.name}</span>
         </div>
       ) : isVideoFile(file) ? (

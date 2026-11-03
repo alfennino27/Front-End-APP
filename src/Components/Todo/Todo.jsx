@@ -17,6 +17,12 @@ import { Sheet, Label, PREVIEW, gambarCategory, TodoKomentar } from './categoryT
 // dikelompokkan per minggu menurut TARGET KIRIM supaya QC/PIC tidak perlu
 // membuka project satu per satu. Sheet tugas memuat to-do list & komentar
 // category yang sama dengan halaman project (Projects.Todo<Cat>, Comments).
+//
+// 3 TAMPILAN (2026-11-03, supaya tidak overwhelming):
+//   🎯 Fokus  — maks FOKUS_MAX tugas terpenting; selesai satu, berikutnya naik.
+//   🏭 Rute   — per bengkel (supplier): saat berkunjung, cek semua barangnya sekaligus.
+//   📋 Daftar — daftar lengkap lama (tab bucket + filter).
+// Cek-in pantau: "Sesuai jadwal" menyembunyikan tugas pantau/servis CEKIN_HARI hari (t.diam dari server).
 
 const KATEGORI = ['Besi', 'Kayu', 'Jok', 'Rotan', 'Marmer', 'Kaca', 'Fiber', 'Veneer', 'Finishing', 'Hardware', 'BarangJadi'];
 
@@ -28,6 +34,19 @@ const BUCKETS = [
   { key: 'next_week', label: 'Minggu depan', color: '#2563eb' },
   { key: 'later', label: 'Nanti', color: '#6b7280' },
 ];
+
+const MODES = [
+  { key: 'fokus', label: '🎯 Fokus' },
+  { key: 'rute', label: '🏭 Bengkel' },
+  { key: 'daftar', label: '📋 Semua' },
+];
+const FOKUS_MAX = 10;
+const CEKIN_HARI = 3; // sama dengan CEKIN_HARI di utils/todoAgenda.js
+
+// Urutan Fokus: dilaporkan telat → siap QC → servis → telat kirim → mendesak → sisanya; lalu target kirim terdekat.
+const rankFokus = (t) => (t.dilaporkan_telat ? 0 : t.jenis === 'qc' ? 1 : t.jenis === 'servis' ? 2 : t.telat_hari > 0 ? 3 : t.mendesak ? 4 : 5);
+const alasanFokus = (t) => (t.dilaporkan_telat ? 'Dilaporkan telat' : t.jenis === 'qc' ? 'Siap QC' : t.jenis === 'servis' ? 'Servis'
+  : t.telat_hari > 0 ? `Telat kirim ${t.telat_hari} hr` : t.mendesak ? 'Mendesak' : null);
 
 const GROUPS = [
   { key: 'tanggal', label: 'Tanggal' },
@@ -87,6 +106,11 @@ const Todo = () => {
 
   // Selalu buka "Mendesak" (Terlambat + Minggu ini) supaya tidak langsung melihat semua tugas.
   const [tab, setTab] = useState('urgent');
+  // Selalu buka "Fokus" — daftar lengkap hanya kalau memang dicari.
+  const [mode, setMode] = useState('fokus');
+  const [ruteKey, setRuteKey] = useState(null);
+  // Cek-in yang baru di-tap (tampil instan sebelum agenda dimuat ulang): key → 'on_track' | 'telat'.
+  const [cekinLokal, setCekinLokal] = useState({});
   const [groupBy, setGroupBy] = useState(() => lsGet('todo.groupBy', 'tanggal'));
   const [showStock, setShowStock] = useState(() => lsGet('todo.showStock', false));
   const [fKategori, setFKategori] = useState('');
@@ -128,7 +152,14 @@ const Todo = () => {
     }).catch(() => {});
   }, [baseUrl, fetchAgenda]);
 
-  const tasks = agenda?.tasks || [];
+  const tasks = useMemo(() => (agenda?.tasks || []).map((t) => {
+    const c = cekinLokal[t.key];
+    if (!c) return t;
+    const checkin = { status: c, umur_hari: 0, by: myName || '' };
+    return c === 'on_track'
+      ? { ...t, diam: true, mendesak: false, dilaporkan_telat: false, checkin }
+      : { ...t, diam: false, mendesak: true, dilaporkan_telat: true, checkin };
+  }), [agenda, cekinLokal, myName]);
   const today = agenda?.today || toYMD(new Date());
 
   // PIC efektif: '__me' → nama user login (selama belum dimuat, tampilkan semua).
@@ -148,19 +179,52 @@ const Todo = () => {
     });
   }, [tasks, showStock, fKategori, fJenis, fSumber, search]);
 
-  // Filter selain bucket — dipakai juga untuk angka di tab.
-  const filtered = useMemo(() => filteredNoPic.filter((t) => {
+  // Filter selain bucket — dipakai juga untuk angka di tab. filteredAll ikut memuat tugas
+  // yang sedang "diam" (sudah dicek sesuai jadwal) untuk bagian "Sudah dicek" di Rute.
+  const filteredAll = useMemo(() => filteredNoPic.filter((t) => {
     if (picAktif === '__none') return picOf(t).length === 0;
     return !picAktif || picOf(t).includes(picAktif);
   }), [filteredNoPic, picAktif]);
+  const filtered = useMemo(() => filteredAll.filter((t) => !t.diam), [filteredAll]);
+  const jumlahDiam = filteredAll.length - filtered.length;
+
+  const fokus = useMemo(() => [...filtered]
+    .sort((a, b) => rankFokus(a) - rankFokus(b) || (a.sisa_hari ?? 9999) - (b.sisa_hari ?? 9999))
+    .slice(0, FOKUS_MAX), [filtered]);
+
+  // Rute: kelompok per bengkel (supplier). Tanpa supplier = urusan kantor.
+  const rute = useMemo(() => {
+    const map = new Map();
+    filteredAll.forEach((t) => {
+      const k = t.supplier || '';
+      if (!map.has(k)) map.set(k, []);
+      map.get(k).push(t);
+    });
+    return [...map.entries()].map(([k, items]) => {
+      const aktif = items.filter((t) => !t.diam);
+      const st = {
+        qc: aktif.filter((t) => t.jenis === 'qc').length,
+        telat: aktif.filter((t) => t.dilaporkan_telat || t.telat_hari > 0).length,
+        cek: aktif.filter((t) => t.bisa_cekin).length,
+        sudah: items.length - aktif.length,
+      };
+      return {
+        key: k, label: k || 'Kantor (belum ada bengkel)', items, aktif, ...st,
+        kategori: [...new Set(items.map((t) => t.category))],
+        skor: st.qc * 3 + st.telat * 2 + st.cek + aktif.length * 0.1,
+      };
+    }).sort((a, b) => (!a.key) - (!b.key) || (b.aktif.length > 0) - (a.aktif.length > 0) || b.skor - a.skor);
+  }, [filteredAll]);
+  const ruteAktif = ruteKey != null ? rute.find((g) => g.key === ruteKey) : null;
 
   // Baris PIC: saya dulu, lalu PIC lain urut jumlah tugas terbanyak.
   const picRow = useMemo(() => {
     const c = {};
     let none = 0;
-    filteredNoPic.forEach((t) => { const ps = picOf(t); if (!ps.length) none += 1; ps.forEach((p) => { c[p] = (c[p] || 0) + 1; }); });
+    const aktifNoPic = filteredNoPic.filter((t) => !t.diam);
+    aktifNoPic.forEach((t) => { const ps = picOf(t); if (!ps.length) none += 1; ps.forEach((p) => { c[p] = (c[p] || 0) + 1; }); });
     const lain = Object.keys(c).filter((n) => n !== myName).sort((a, b) => c[b] - c[a]);
-    return { c, none, lain, semua: filteredNoPic.length };
+    return { c, none, lain, semua: aktifNoPic.length };
   }, [filteredNoPic, myName]);
 
   const counts = useMemo(() => {
@@ -231,7 +295,28 @@ const Todo = () => {
       if (action === 'delete') return post('/projects/todo/item', { ...ident, op: 'delete' });
       if (action === 'pic') return post('/projects/todo/item', { ...ident, op: 'update', patch: { pic: value || '' } });
     }
-    return post('/todo/auto-state', { key: t.key, action, value, jenis: t.jenis });
+    return post('/todo/auto-state', { key: t.key, action, value, jenis: t.jenis, today: toYMD(new Date()) });
+  };
+
+  // Cek-in cepat (Rute/Fokus): tampil instan, simpan di belakang, lalu agenda dimuat ulang.
+  // status null = batalkan cek-in. Banyak tugas sekaligus → satu kali muat ulang agenda.
+  const cekin = async (list, status) => {
+    const arr = Array.isArray(list) ? list : [list];
+    const keys = arr.map((t) => t.key);
+    if (status) setCekinLokal((m) => ({ ...m, ...Object.fromEntries(keys.map((k) => [k, status])) }));
+    try {
+      const hasil = await Promise.all(arr.map((t) => fetch(`${baseUrl}/todo/auto-state`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: t.key, action: status ? 'checkin' : 'uncheckin', value: status || undefined, jenis: t.jenis, today: toYMD(new Date()), by: user?.uid || '' }),
+      })));
+      if (hasil.some((r) => !r.ok)) throw new Error('Sebagian cek-in gagal disimpan — coba lagi.');
+      await fetchAgenda();
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setCekinLokal((m) => { const n = { ...m }; keys.forEach((k) => delete n[k]); return n; });
+    }
   };
 
   const bukaProject = (t) => {
@@ -263,6 +348,93 @@ const Todo = () => {
     if (t.sisa_hari < 0) return { text: `Telat ${-t.sisa_hari} hr`, color: '#dc2626' };
     if (t.sisa_hari === 0) return { text: 'Kirim hari ini', color: '#d97706' };
     return { text: `Kirim H-${t.sisa_hari}`, color: t.sisa_hari <= 7 ? '#d97706' : C.muted };
+  };
+
+  // Kartu tugas (Daftar & Fokus). nomor/alasan hanya untuk Fokus.
+  const kartu = (t, { nomor, alasan } = {}) => {
+    const kirim = kirimBadge(t);
+    return (
+      <div
+        key={t.key}
+        role="button"
+        tabIndex={0}
+        onClick={() => pilih(t)}
+        onKeyDown={(e) => e.key === 'Enter' && pilih(t)}
+        style={{
+          background: C.card, border: `1px solid ${C.border}`, borderLeft: `4px solid ${kirim.color}`,
+          borderRadius: 12, padding: 10, display: 'flex', gap: 10, cursor: 'pointer', position: 'relative',
+        }}
+      >
+        {nomor != null && (
+          <div style={{ flex: '0 0 26px', width: 26, height: 26, borderRadius: 999, background: C.soft, fontWeight: 700, fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', alignSelf: 'center' }}>{nomor}</div>
+        )}
+        {t.image ? (
+          // Ketuk thumbnail = lihat gambar besar (bukan buka sheet).
+          <span onClick={(e) => e.stopPropagation()} style={{ flex: '0 0 56px', width: 56, height: 56 }}>
+            <Image src={getImageUrl(t.image)} width={56} height={56} preview={PREVIEW}
+              style={{ borderRadius: 8, objectFit: 'cover' }} />
+          </span>
+        ) : (
+          <div style={{ width: 56, height: 56, borderRadius: 8, background: C.soft, flex: '0 0 56px' }} />
+        )}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap', marginBottom: 2 }}>
+            {alasan && <span style={chip(alasan === 'Siap QC' ? '#7c3aed' : '#dc2626')}>{alasan}</span>}
+            <span style={chip(CAT_COLOR[t.category] || '#6b7280')}>{labelKategori(t.category)}</span>
+            <span style={{ fontSize: 11, color: C.muted }}>{t.sumber === 'manual' ? '✎ ditulis orang' : `⚙ ${t.jenis_label}`}</span>
+            {t.pic && <span style={{ fontSize: 11, color: C.muted }}>· {t.pic}</span>}
+          </div>
+          <div style={{ fontWeight: 600, fontSize: 14, lineHeight: 1.3, wordBreak: 'break-word' }}>{t.judul}</div>
+          <div style={{ fontSize: 12, color: C.muted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {t.item} · {t.customer || t.kode_invoice}
+          </div>
+          <div style={{ display: 'flex', gap: 8, fontSize: 12, marginTop: 2, flexWrap: 'wrap' }}>
+            <span style={{ color: kirim.color, fontWeight: t.sisa_hari != null && t.sisa_hari < 0 ? 600 : 400 }}>{kirim.text}</span>
+            {t.supplier && groupBy !== 'supplier' && <span style={{ color: C.muted }}>{t.supplier}</span>}
+          </div>
+          {nomor != null && t.bisa_cekin && tombolCekin(t)}
+        </div>
+      </div>
+    );
+  };
+
+  // Dua tombol cek-in pantau (Sesuai jadwal / Telat) — dipakai di Fokus & Rute.
+  const tombolCekin = (t) => (
+    <div style={{ display: 'flex', gap: 6, marginTop: 8 }} onClick={(e) => e.stopPropagation()}>
+      <button type="button" style={{ ...sBtn('#16a34a'), flex: 1, padding: '8px 6px', fontSize: 13 }} onClick={() => cekin(t, 'on_track')}>✅ Sesuai jadwal</button>
+      <button type="button" style={{ ...sBtn(t.dilaporkan_telat ? '#7f1d1d' : '#dc2626'), flex: 1, padding: '8px 6px', fontSize: 13 }} onClick={() => cekin(t, 'telat')}>
+        ⚠️ {t.dilaporkan_telat ? 'Masih telat' : 'Telat'}
+      </button>
+    </div>
+  );
+
+  // Baris ringkas di sheet bengkel.
+  const barisBengkel = (t, { aksiKanan } = {}) => {
+    const kirim = kirimBadge(t);
+    return (
+      <div key={t.key} style={{ padding: '10px 0', borderBottom: `1px solid ${C.border}` }}>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', cursor: 'pointer' }} onClick={() => pilih(t)}>
+          {t.image ? (
+            <span onClick={(e) => e.stopPropagation()} style={{ flex: '0 0 48px', width: 48, height: 48 }}>
+              <Image src={getImageUrl(t.image)} width={48} height={48} preview={PREVIEW} style={{ borderRadius: 8, objectFit: 'cover' }} />
+            </span>
+          ) : <div style={{ width: 48, height: 48, borderRadius: 8, background: C.soft, flex: '0 0 48px' }} />}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontWeight: 600, fontSize: 14, lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.item}</div>
+            <div style={{ fontSize: 12, color: C.muted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {labelKategori(t.category)} · {t.customer || t.kode_invoice}
+            </div>
+            <div style={{ fontSize: 12, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <span style={{ color: kirim.color, fontWeight: t.sisa_hari != null && t.sisa_hari < 0 ? 600 : 400 }}>{kirim.text}</span>
+              {t.dilaporkan_telat && <span style={{ color: '#dc2626', fontWeight: 600 }}>⚠️ dilaporkan telat{t.checkin?.umur_hari ? ` ${t.checkin.umur_hari} hr lalu` : ' hari ini'}</span>}
+              {t.jenis !== 'pantau_progress' && t.jenis !== 'qc' && <span style={{ color: C.muted }}>{t.judul}</span>}
+            </div>
+          </div>
+          {aksiKanan}
+        </div>
+        {t.bisa_cekin && !t.diam && tombolCekin(t)}
+      </div>
+    );
   };
 
   const jenisOptions = agenda?.jenis_label || {};
@@ -305,6 +477,92 @@ const Todo = () => {
           ))}
         </div>
 
+        {/* Pilihan tampilan */}
+        <div style={{ display: 'flex', gap: 4, padding: 4, borderRadius: 12, background: C.soft, border: `1px solid ${C.border}`, marginBottom: 10 }}>
+          {MODES.map((m) => {
+            const on = mode === m.key;
+            const n = m.key === 'fokus' ? fokus.length : m.key === 'rute' ? rute.filter((g) => g.key && g.aktif.length).length : filtered.length;
+            return (
+              <button type="button" key={m.key} onClick={() => setMode(m.key)}
+                style={{
+                  flex: 1, minHeight: 44, borderRadius: 9, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 700, lineHeight: 1.2,
+                  background: on ? C.card : 'transparent', color: on ? C.text : C.muted, boxShadow: on ? '0 1px 3px rgba(0,0,0,0.15)' : 'none',
+                }}>
+                {m.label}{agenda ? <span style={{ fontWeight: 500, opacity: 0.7 }}> {n}</span> : null}
+              </button>
+            );
+          })}
+        </div>
+
+        {loading && !agenda && <div style={{ padding: 30, textAlign: 'center', color: C.muted }}>Memuat agenda…</div>}
+        {error && <div style={{ padding: 12, borderRadius: 10, background: '#fee2e2', color: '#991b1b', marginBottom: 10 }}>{error}</div>}
+
+        {/* ================= FOKUS ================= */}
+        {mode === 'fokus' && agenda && (
+          <div>
+            <div style={{ fontSize: 13, color: C.muted, margin: '0 2px 8px' }}>
+              {fokus.length
+                ? <>Kerjakan dari nomor 1. Selesai satu, tugas berikutnya naik otomatis. <b style={{ color: C.text }}>{filtered.length - fokus.length}</b> tugas lain menunggu.</>
+                : null}
+              {jumlahDiam > 0 && <> · ✅ {jumlahDiam} sudah dicek (muncul lagi ≤{CEKIN_HARI} hari)</>}
+            </div>
+            {fokus.length === 0 && (
+              <div style={{ padding: 40, textAlign: 'center', color: C.muted }}>Semua beres untuk hari ini 🎉</div>
+            )}
+            <div style={{ display: 'grid', gap: 8, gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))' }}>
+              {fokus.map((t, i) => kartu(t, { nomor: i + 1, alasan: alasanFokus(t) }))}
+            </div>
+            {filtered.length > fokus.length && (
+              <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>
+                <button type="button" style={{ ...sBtn(C.card, C.text), border: `1px solid ${C.border}`, flex: '1 1 160px' }} onClick={() => setMode('rute')}>🏭 Lihat per bengkel</button>
+                <button type="button" style={{ ...sBtn(C.card, C.text), border: `1px solid ${C.border}`, flex: '1 1 160px' }} onClick={() => setMode('daftar')}>📋 Lihat semua ({filtered.length})</button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ================= RUTE PER BENGKEL ================= */}
+        {mode === 'rute' && agenda && (
+          <div>
+            <div style={{ fontSize: 13, color: C.muted, margin: '0 2px 8px' }}>
+              Saat berkunjung, buka bengkelnya lalu cek semua barang sekaligus. Yang "Sesuai jadwal" disembunyikan {CEKIN_HARI} hari.
+            </div>
+            {rute.length === 0 && <div style={{ padding: 40, textAlign: 'center', color: C.muted }}>Tidak ada tugas 🎉</div>}
+            <div style={{ display: 'grid', gap: 8, gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
+              {rute.map((g) => {
+                const beres = g.aktif.length === 0;
+                const warna = g.qc || g.telat ? '#dc2626' : beres ? '#16a34a' : '#2563eb';
+                return (
+                  <div key={g.key || '__kantor'} role="button" tabIndex={0} onClick={() => setRuteKey(g.key)}
+                    onKeyDown={(e) => e.key === 'Enter' && setRuteKey(g.key)}
+                    style={{
+                      background: C.card, border: `1px solid ${C.border}`, borderLeft: `4px solid ${warna}`, borderRadius: 12,
+                      padding: 12, cursor: 'pointer', opacity: beres ? 0.65 : 1,
+                    }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div style={{ fontSize: 16, fontWeight: 700, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {g.key ? '🏭' : '🏢'} {g.label}
+                      </div>
+                      <div style={{ fontSize: 22, fontWeight: 700, color: warna }}>{g.aktif.length}</div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', margin: '4px 0 6px' }}>
+                      {g.kategori.slice(0, 4).map((k) => <span key={k} style={chip(CAT_COLOR[k] || '#6b7280')}>{labelKategori(k)}</span>)}
+                    </div>
+                    <div style={{ fontSize: 13, display: 'flex', gap: 10, flexWrap: 'wrap', color: C.muted }}>
+                      {g.qc > 0 && <span style={{ color: '#7c3aed', fontWeight: 700 }}>🔍 {g.qc} siap QC</span>}
+                      {g.telat > 0 && <span style={{ color: '#dc2626', fontWeight: 700 }}>⚠️ {g.telat} telat</span>}
+                      {g.cek > 0 && <span>👀 {g.cek} perlu dicek</span>}
+                      {g.sudah > 0 && <span style={{ color: '#16a34a' }}>✅ {g.sudah} sudah dicek</span>}
+                      {beres && g.sudah === 0 && <span>Tidak ada tugas</span>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {mode === 'daftar' && (<>
         {/* Tab bucket */}
         <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 6, position: 'sticky', top: 0, zIndex: 5, background: C.bg }}>
           {BUCKETS.map((b) => {
@@ -355,8 +613,6 @@ const Todo = () => {
         </div>
 
         {/* Daftar */}
-        {loading && !agenda && <div style={{ padding: 30, textAlign: 'center', color: C.muted }}>Memuat agenda…</div>}
-        {error && <div style={{ padding: 12, borderRadius: 10, background: '#fee2e2', color: '#991b1b', marginBottom: 10 }}>{error}</div>}
         {agenda && groups.length === 0 && (
           <div style={{ padding: 40, textAlign: 'center', color: C.muted }}>
             Tidak ada tugas di “{BUCKETS.find((b) => b.key === tab)?.label}”{picAktif && picAktif !== '__none' ? ` untuk ${picAktif}` : ''} 🎉
@@ -370,51 +626,55 @@ const Todo = () => {
               <div style={{ fontSize: 12, color: C.muted }}>{g.items.length} tugas</div>
             </div>
             <div style={{ display: 'grid', gap: 8, gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))' }}>
-              {g.items.map((t) => {
-                const kirim = kirimBadge(t);
-                return (
-                  <div
-                    key={t.key}
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => pilih(t)}
-                    onKeyDown={(e) => e.key === 'Enter' && pilih(t)}
-                    style={{
-                      background: C.card, border: `1px solid ${C.border}`, borderLeft: `4px solid ${kirim.color}`,
-                      borderRadius: 12, padding: 10, display: 'flex', gap: 10, cursor: 'pointer',
-                    }}
-                  >
-                    {t.image ? (
-                      // Ketuk thumbnail = lihat gambar besar (bukan buka sheet).
-                      <span onClick={(e) => e.stopPropagation()} style={{ flex: '0 0 56px', width: 56, height: 56 }}>
-                        <Image src={getImageUrl(t.image)} width={56} height={56} preview={PREVIEW}
-                          style={{ borderRadius: 8, objectFit: 'cover' }} />
-                      </span>
-                    ) : (
-                      <div style={{ width: 56, height: 56, borderRadius: 8, background: C.soft, flex: '0 0 56px' }} />
-                    )}
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap', marginBottom: 2 }}>
-                        <span style={chip(CAT_COLOR[t.category] || '#6b7280')}>{labelKategori(t.category)}</span>
-                        <span style={{ fontSize: 11, color: C.muted }}>{t.sumber === 'manual' ? '✎ ditulis orang' : `⚙ ${t.jenis_label}`}</span>
-                        {t.pic && <span style={{ fontSize: 11, color: C.muted }}>· {t.pic}</span>}
-                      </div>
-                      <div style={{ fontWeight: 600, fontSize: 14, lineHeight: 1.3, wordBreak: 'break-word' }}>{t.judul}</div>
-                      <div style={{ fontSize: 12, color: C.muted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {t.item} · {t.customer || t.kode_invoice}
-                      </div>
-                      <div style={{ display: 'flex', gap: 8, fontSize: 12, marginTop: 2, flexWrap: 'wrap' }}>
-                        <span style={{ color: kirim.color, fontWeight: t.sisa_hari != null && t.sisa_hari < 0 ? 600 : 400 }}>{kirim.text}</span>
-                        {t.supplier && groupBy !== 'supplier' && <span style={{ color: C.muted }}>{t.supplier}</span>}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
+              {g.items.map((t) => kartu(t))}
             </div>
           </div>
         ))}
+        </>)}
       </div>
+
+      {ruteAktif && (() => {
+        const g = ruteAktif;
+        const qc = g.aktif.filter((t) => t.jenis === 'qc');
+        const cek = g.aktif.filter((t) => t.bisa_cekin)
+          .sort((a, b) => (b.dilaporkan_telat ? 1 : 0) - (a.dilaporkan_telat ? 1 : 0) || (a.sisa_hari ?? 9999) - (b.sisa_hari ?? 9999));
+        const lain = g.aktif.filter((t) => t.jenis !== 'qc' && !t.bisa_cekin);
+        const sudah = g.items.filter((t) => t.diam);
+        const belumDicek = cek.filter((t) => !t.dilaporkan_telat);
+        const judul = (teks, n, warna) => n > 0 && (
+          <div style={{ fontWeight: 700, fontSize: 14, margin: '14px 0 2px', color: warna || C.text }}>{teks} <span style={{ color: C.muted, fontWeight: 500 }}>{n}</span></div>
+        );
+        return (
+          <Sheet C={C} onClose={() => setRuteKey(null)} title={`${g.key ? '🏭' : '🏢'} ${g.label}`}>
+            {belumDicek.length > 1 && (
+              <button type="button" style={{ ...sBtn('#16a34a'), width: '100%', minHeight: 48 }}
+                onClick={() => { if (window.confirm(`Tandai ${belumDicek.length} barang "Sesuai jadwal"? Yang telat tandai dulu satu-satu.`)) cekin(belumDicek, 'on_track'); }}>
+                ✅ Semua sesuai jadwal ({belumDicek.length})
+              </button>
+            )}
+            {judul('🔍 Siap QC', qc.length, '#7c3aed')}
+            {qc.map((t) => barisBengkel(t, { aksiKanan: <button type="button" style={{ ...sBtn('#7c3aed'), flex: '0 0 auto' }} onClick={(e) => { e.stopPropagation(); pilih(t); }}>QC →</button> }))}
+            {judul('👀 Cek progress', cek.length)}
+            {cek.map((t) => barisBengkel(t))}
+            {judul('📌 Lainnya', lain.length)}
+            {lain.map((t) => barisBengkel(t, { aksiKanan: <span style={{ color: C.muted, fontSize: 20 }}>›</span> }))}
+            {g.aktif.length === 0 && <div style={{ padding: '24px 0', textAlign: 'center', color: C.muted }}>Semua barang di bengkel ini sudah dicek 🎉</div>}
+            {sudah.length > 0 && (
+              <details style={{ marginTop: 16 }}>
+                <summary style={{ cursor: 'pointer', fontWeight: 700, fontSize: 14, color: '#16a34a', padding: '6px 0' }}>✅ Sudah dicek ({sudah.length})</summary>
+                {sudah.map((t) => barisBengkel(t, {
+                  aksiKanan: (
+                    <div style={{ textAlign: 'right', fontSize: 11, color: C.muted, flex: '0 0 auto' }} onClick={(e) => e.stopPropagation()}>
+                      <div>{t.checkin?.umur_hari ? `${t.checkin.umur_hari} hr lalu` : 'hari ini'}{t.checkin?.by ? ` · ${t.checkin.by}` : ''}</div>
+                      <button type="button" style={{ background: 'none', border: 'none', color: '#2563eb', padding: '6px 0', fontSize: 13, cursor: 'pointer' }} onClick={() => cekin(t, null)}>Batal</button>
+                    </div>
+                  ),
+                }))}
+              </details>
+            )}
+          </Sheet>
+        );
+      })()}
 
       {selected && (
         <TaskSheet
@@ -530,6 +790,21 @@ const TaskSheet = ({ t, C, users, userList, user, baseUrl, busy, sInput, sBtn, c
       )}
       {t.jenis === 'servis' && (
         <div style={{ fontSize: 13, marginTop: 6, color: C.muted }}>Pantau perbaikan di supplier, lalu QC ulang lewat Alur Kerja sampai QC Pass.</div>
+      )}
+
+      {/* Cek-in pantau: sekali per CEKIN_HARI hari */}
+      {!manual && t.bisa_cekin && (
+        <div style={{ marginTop: 12, background: C.soft, borderRadius: 10, padding: 10 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+            Hasil cek ke bengkel
+            {t.checkin && <span style={{ fontWeight: 400, color: C.muted }}> · terakhir: {t.checkin.status === 'telat' ? '⚠️ telat' : '✅ sesuai jadwal'} {t.checkin.umur_hari ? `${t.checkin.umur_hari} hr lalu` : 'hari ini'}</span>}
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button type="button" disabled={busy} style={{ ...sBtn(green), flex: 1 }} onClick={async () => { if (await aksi(t, 'checkin', 'on_track')) onClose(); }}>✅ Sesuai jadwal</button>
+            <button type="button" disabled={busy} style={{ ...sBtn('#dc2626'), flex: 1 }} onClick={async () => { if (await aksi(t, 'checkin', 'telat')) onClose(); }}>⚠️ Telat</button>
+          </div>
+          <div style={{ fontSize: 12, color: C.muted, marginTop: 6 }}>Sesuai jadwal → disembunyikan {CEKIN_HARI} hari, lalu muncul lagi untuk dicek ulang.</div>
+        </div>
       )}
 
       {/* Aksi utama */}

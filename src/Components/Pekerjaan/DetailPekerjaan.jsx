@@ -217,6 +217,8 @@ const DetailPekerjaan = () => {
   const [commentImages, setCommentImages] = useState([]);
   const [replyImages, setReplyImages] = useState([]);
   const [submittingComment, setSubmittingComment] = useState(false);
+  // Progres upload komentar (0–100) — lampiran besar (video/SKP) bisa makan puluhan detik.
+  const [uploadProgress, setUploadProgress] = useState(null);
 
   const [showImageCategoryEdit, setShowImageCategoryEdit] = useState(false);
 
@@ -1017,12 +1019,24 @@ const DetailPekerjaan = () => {
 
 
   // POST FormData dengan retry — untuk kondisi sinyal lapangan yang naik-turun.
-  const postWithRetry = async (url, formData, retries = 2) => {
+  // XHR (bukan fetch) supaya bisa lapor progres upload lewat onProgress(persen).
+  const postXhr = (url, formData, onProgress) => new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', url);
+    if (onProgress) xhr.upload.onprogress = (e) => { if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100)); };
+    xhr.onload = () => (xhr.status >= 200 && xhr.status < 300 ? resolve(xhr) : reject(new Error(`HTTP ${xhr.status}`)));
+    xhr.onerror = () => reject(new Error('Koneksi terputus'));
+    xhr.send(formData);
+  });
+
+  const postWithRetry = async (url, formData, retries = 2, onProgress) => {
     let lastErr;
     for (let attempt = 0; attempt <= retries; attempt++) {
       try {
-        const res = await fetch(url, { method: 'POST', body: formData });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const res = onProgress
+          ? await postXhr(url, formData, onProgress)
+          : await fetch(url, { method: 'POST', body: formData });
+        if (!onProgress && !res.ok) throw new Error(`HTTP ${res.status}`);
         return res;
       } catch (err) {
         lastErr = err;
@@ -1051,7 +1065,8 @@ const DetailPekerjaan = () => {
       });
 
       // Retry untuk sinyal lapangan yang jelek: coba beberapa kali sebelum menyerah.
-      await postWithRetry(`${baseUrl}/comments/create`, formData);
+      setUploadProgress(0);
+      await postWithRetry(`${baseUrl}/comments/create`, formData, 2, setUploadProgress);
       mintaRefreshNotif();
 
       // Sukses → baru tutup & bersihkan (gambar tidak hilang kalau tadi gagal).
@@ -1069,6 +1084,7 @@ const DetailPekerjaan = () => {
       alert('Gagal mengirim komentar (sinyal kurang bagus). Foto masih tersimpan — coba Submit lagi.');
     } finally {
       setSubmittingComment(false);
+      setUploadProgress(null);
     }
   };
 
@@ -3684,8 +3700,18 @@ const DetailPekerjaan = () => {
 
         </Modal.Body>
         <Modal.Footer>
+          {submittingComment && uploadProgress !== null && (
+            <div style={{ flex: 1, marginRight: 12 }}>
+              <div style={{ height: 6, borderRadius: 3, background: globalTheme === 'light' ? '#e5e7eb' : '#333', overflow: 'hidden' }}>
+                <div style={{ width: `${uploadProgress}%`, height: '100%', background: '#0d6efd', transition: 'width 0.2s' }} />
+              </div>
+              <div style={{ fontSize: 11, marginTop: 3, color: globalTheme === 'light' ? '#555' : '#bbb' }}>
+                {uploadProgress < 100 ? `Mengunggah ${uploadProgress}% — jangan tutup halaman` : 'Menyimpan…'}
+              </div>
+            </div>
+          )}
           <Button variant="primary" onClick={handleSubmitComment} disabled={submittingComment}>
-            {submittingComment ? 'Mengirim…' : 'Submit'}
+            {submittingComment ? (uploadProgress !== null && uploadProgress < 100 ? `${uploadProgress}%` : 'Mengirim…') : 'Submit'}
           </Button>
         </Modal.Footer>
       </Modal>

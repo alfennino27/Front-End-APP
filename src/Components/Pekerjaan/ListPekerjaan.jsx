@@ -620,7 +620,12 @@ const ListPekerjaan = () => {
     );
   }, [searchProduct, labelProducts]);
 
+  const pilihProdukLabel = (item) => {
+    setIdProject(item.id); setSelectedProduct(item.NamaBarang); setProductProject(item.NamaBarang); setBuyerProject(item.Buyer); setTeleponProject(item.Telepon || ''); setAlamatProject(item.Lokasi || ''); setLabelAsal({ buyer: item.Buyer || '', telepon: item.Telepon || '', alamat: item.Lokasi || '' }); setImageProject(item.image1); setQtyProject(item.Qty); setJumlahPrint(item.Qty);
+  };
+
   const submitLabel = () => {
+    if (!productProject) { alert('Pilih produk dulu.'); return; }
     const newLabel = {
       buyer: buyerProject,
       telephone: teleponProject,
@@ -936,6 +941,13 @@ const ListPekerjaan = () => {
             <div>
               <span style={{ fontSize: "25px", color: isIconBlue ? 'blue' : 'inherit' }} onClick={handleSearchClick}><IoSearch size={18} /></span>
               <span style={{ fontSize: "25px", marginLeft: "15px", color: searchSupplier != '' ? 'blue' : 'inherit' }} onClick={handleShowSupplier}><MdOutlineAssignment size={18} /></span>
+              {/* Cetak Label — badge = jumlah label yang sudah ada di daftar cetak */}
+              <span style={{ fontSize: "25px", marginLeft: "15px", position: 'relative' }} onClick={handleShowLabel} aria-label="Cetak Label">
+                <FaRegFilePdf size={17} />
+                {cetakLabel.length > 0 && (
+                  <span style={{ position: 'absolute', top: -2, right: -9, minWidth: 16, height: 16, padding: '0 4px', borderRadius: 8, background: '#e74c3c', color: '#fff', fontSize: 10, fontWeight: 700, lineHeight: '16px', textAlign: 'center' }}>{cetakLabel.length}</span>
+                )}
+              </span>
               {/* Filter (target kirim, bulan, urutan) — di mobile dibuka sebagai panel bawah */}
               <span
                 style={{ fontSize: "25px", marginLeft: "15px", color: sheetFilterActive ? 'blue' : 'inherit' }}
@@ -1475,7 +1487,7 @@ const ListPekerjaan = () => {
 
 
       {/* Modal */}
-      <Modal className={`${globalTheme === 'light' ? 'modalKLFlight' : 'modalKLF'}`} show={showLabel} onHide={() => setShowLabel(false)}>
+      <Modal className={`${globalTheme === 'light' ? 'modalKLFlight' : 'modalKLF'}`} show={showLabel} onHide={() => setShowLabel(false)} centered={isMobile}>
         <Modal.Header closeButton >
           <Modal.Title>Cetak Label</Modal.Title>
         </Modal.Header>
@@ -1532,20 +1544,57 @@ const ListPekerjaan = () => {
             </>
           )}
 
-          {cetakLabel.map((item, index) => (
+          {tipeLabel !== 'PDF Supplier' && (isMobile ? (
+            // HP: daftar kartu, tiap label bisa dihapus satu-satu
+            cetakLabel.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '18px 8px', borderRadius: 12, border: '1px dashed rgba(127,127,127,0.5)', fontSize: 14, opacity: 0.8 }}>
+                Belum ada label.<br />Tap <b>+ Tambah Label</b> untuk memilih produk.
+              </div>
+            ) : (
+              <div style={{ maxHeight: '40vh', overflowY: 'auto' }}>
+                {cetakLabel.map((item, index) => (
+                  <div key={index} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', marginBottom: 8, borderRadius: 12, background: globalTheme === 'light' ? '#f6f7f9' : '#262626', border: `1px solid ${globalTheme === 'light' ? '#e2e2e2' : '#3a3a3a'}` }}>
+                    {item.image && <img src={getImageUrl(item.image)} alt="" style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 8, flexShrink: 0 }} />}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 600, fontSize: 14, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.productName}</div>
+                      <div style={{ fontSize: 12, opacity: 0.75 }}>Qty {item.quantity || '-'} · Print {item.jumlahPrint || item.quantity || '-'}{item.buyer ? ` · ${item.buyer}` : ''}</div>
+                    </div>
+                    <span role="button" aria-label="Hapus label" onClick={() => setCetakLabel(cetakLabel.filter((_, i) => i !== index))}
+                      style={{ width: 36, height: 36, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', color: '#e74c3c', fontSize: 20, cursor: 'pointer' }}>×</span>
+                  </div>
+                ))}
+              </div>
+            )
+          ) : cetakLabel.map((item, index) => (
             <div key={index}>
               <p>{index + 1}. {item.productName} (Qty: {item.quantity}, Print: {item.jumlahPrint ?? item.quantity})</p>
             </div>
-          ))}
+          )))}
 
         </Modal.Body>
-        <Modal.Footer className="d-flex justify-content-between">
-          <Button variant="danger" onClick={() => setCetakLabel([])}>Reset</Button>
-          <div>
-            <Button variant="secondary" onClick={handlePrint}>Print</Button>
-            <Button variant="primary" style={{ marginLeft: "5px" }} onClick={() => { setShowAddLabel(true); setShowLabel(false); }}>Add Label</Button>
-          </div>
-        </Modal.Footer>
+        {isMobile ? (
+          <Modal.Footer style={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
+            {tipeLabel !== 'PDF Supplier' && (
+              <Button variant="outline-primary" style={{ minHeight: 46, fontWeight: 600, margin: 0 }} onClick={() => { setShowAddLabel(true); setShowLabel(false); }}>+ Tambah Label</Button>
+            )}
+            <Button variant="primary" style={{ minHeight: 46, fontWeight: 600, margin: 0 }}
+              disabled={tipeLabel !== 'PDF Supplier' && cetakLabel.length === 0} onClick={handlePrint}>
+              🖨️ Print{tipeLabel !== 'PDF Supplier' && cetakLabel.length > 0 ? ` (${cetakLabel.length} label)` : ''}
+            </Button>
+            {tipeLabel !== 'PDF Supplier' && cetakLabel.length > 0 && (
+              <Button variant="link" style={{ color: '#e74c3c', margin: 0 }}
+                onClick={() => { if (window.confirm('Kosongkan semua label?')) setCetakLabel([]); }}>Kosongkan daftar</Button>
+            )}
+          </Modal.Footer>
+        ) : (
+          <Modal.Footer className="d-flex justify-content-between">
+            <Button variant="danger" onClick={() => setCetakLabel([])}>Reset</Button>
+            <div>
+              <Button variant="secondary" onClick={handlePrint}>Print</Button>
+              <Button variant="primary" style={{ marginLeft: "5px" }} onClick={() => { setShowAddLabel(true); setShowLabel(false); }}>Add Label</Button>
+            </div>
+          </Modal.Footer>
+        )}
       </Modal>
       {/* End Modal */}
 
@@ -1560,6 +1609,7 @@ const ListPekerjaan = () => {
         backdrop="static"
         keyboard={false}
         data-tutup-luar="off"
+        fullscreen={isMobile ? true : undefined}
       >
         <Modal.Header closeButton >
           <Modal.Title>Tambah Label</Modal.Title>
@@ -1590,6 +1640,28 @@ const ListPekerjaan = () => {
 
           <label className='mt-2'>Select Product {labelLoading ? '(memuat…)' : `(${ProjectsCopy.length})`} :</label>
           <input className="form-control mb-1" type='text' placeholder='Search' onChange={(e) => setSearchProduct(e.target.value)}></input>
+          {isMobile ? (
+            // HP: daftar produk langsung (dropdown kecil susah di-tap); yang terpilih disorot
+            <div style={{ maxHeight: idProject ? '22vh' : '45vh', overflowY: 'auto', borderRadius: 12, border: `1px solid ${globalTheme === 'light' ? '#e2e2e2' : '#3a3a3a'}` }}>
+              {ProjectsCopy.length === 0 && <div style={{ padding: 14, fontSize: 13, opacity: 0.7 }}>{labelLoading ? 'Memuat…' : 'Produk tidak ditemukan'}</div>}
+              {ProjectsCopy.map((item, index) => {
+                const aktif = idProject === item.id;
+                return (
+                  <div key={index} onClick={() => pilihProdukLabel(item)}
+                    style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 54, padding: '8px 12px', cursor: 'pointer',
+                      borderBottom: `1px solid ${globalTheme === 'light' ? '#eee' : '#333'}`,
+                      background: aktif ? (globalTheme === 'light' ? '#e3edff' : '#1a2744') : 'transparent' }}>
+                    <img src={getImageUrl(item.image1)} alt="" style={{ width: 38, height: 38, objectFit: 'cover', borderRadius: 8, flexShrink: 0 }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 14, fontWeight: aktif ? 700 : 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.NamaBarang}</div>
+                      <div style={{ fontSize: 12, opacity: 0.7, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{[item.Buyer, item.Qty ? `Qty ${item.Qty}` : ''].filter(Boolean).join(' · ')}</div>
+                    </div>
+                    {aktif && <span style={{ color: '#0d6efd', fontWeight: 700 }}>✓</span>}
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
           <div>
             <Dropdown>
               <Dropdown.Toggle variant={`${globalTheme === 'light' ? 'light' : 'dark'}`} id="dropdown-basic">
@@ -1603,7 +1675,7 @@ const ListPekerjaan = () => {
                   return (
                     <Dropdown.Item
                       key={index}
-                      onClick={() => { setIdProject(item.id); setSelectedProduct(item.NamaBarang); setProductProject(item.NamaBarang); setBuyerProject(item.Buyer); setTeleponProject(item.Telepon || ''); setAlamatProject(item.Lokasi || ''); setLabelAsal({ buyer: item.Buyer || '', telepon: item.Telepon || '', alamat: item.Lokasi || '' }); setImageProject(item.image1); setQtyProject(item.Qty); setJumlahPrint(item.Qty); }}
+                      onClick={() => pilihProdukLabel(item)}
                     >
                       <img
                         src={getImageUrl(item.image1)}
@@ -1616,6 +1688,7 @@ const ListPekerjaan = () => {
               </Dropdown.Menu>
             </Dropdown>
           </div>
+          )}
           <div style={{ display: tipeLabel == "Pengiriman" ? "" : "none" }}>
             {/* Terisi dari order (Quote/Invoice) tapi boleh diubah KHUSUS label ini —
                 tidak ditulis balik ke Quote/Invoice (label hanya disimpan di localStorage). */}
@@ -1638,13 +1711,20 @@ const ListPekerjaan = () => {
             <input className="form-control mb-1" type='text' value={productProject || ''} readOnly style={{ backgroundColor: 'rgba(0,0,0,0.06)' }}></input>
           </div>
           <label className='mt-2'>Quantity Product :</label>
-          <input className="form-control mb-1" type='number' value={qtyProject} onChange={(e) => setQtyProject(e.target.value)} onWheel={(e) => e.target.blur()}></input>
+          <input className="form-control mb-1" type='number' inputMode='numeric' value={qtyProject} onChange={(e) => setQtyProject(e.target.value)} onWheel={(e) => e.target.blur()}></input>
           <label className='mt-2'>Jumlah Print :</label>
-          <input className="form-control mb-1" type='number' value={jumlahPrint} onChange={(e) => setJumlahPrint(e.target.value)} onWheel={(e) => e.target.blur()}></input>
+          <input className="form-control mb-1" type='number' inputMode='numeric' value={jumlahPrint} onChange={(e) => setJumlahPrint(e.target.value)} onWheel={(e) => e.target.blur()}></input>
         </Modal.Body>
-        <Modal.Footer >
-          <Button variant="primary" onClick={submitLabel}>Submit</Button>
-        </Modal.Footer>
+        {isMobile ? (
+          <Modal.Footer style={{ display: 'flex', gap: 8, flexWrap: 'nowrap' }}>
+            <Button variant="secondary" style={{ flex: 1, minHeight: 46, margin: 0 }} onClick={() => { setShowAddLabel(false); setShowLabel(true); }}>← Kembali</Button>
+            <Button variant="primary" style={{ flex: 2, minHeight: 46, fontWeight: 600, margin: 0 }} disabled={!productProject} onClick={submitLabel}>Tambah ke Daftar</Button>
+          </Modal.Footer>
+        ) : (
+          <Modal.Footer >
+            <Button variant="primary" onClick={submitLabel}>Submit</Button>
+          </Modal.Footer>
+        )}
       </Modal>
       {/* End Modal */}
 

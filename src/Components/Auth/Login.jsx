@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Container } from 'react-bootstrap';
 import { getApiBaseUrl } from '../../Config/APIurl';
 import { DEFAULT_HOMEPAGE, fetchHomepage } from '../../Utils/homepage';
+import { setToken } from '../../Utils/authToken';
 
 const Login = () => {
   const baseUrl = getApiBaseUrl();
@@ -27,6 +28,9 @@ const Login = () => {
     if (new URLSearchParams(window.location.search).get('noaccess')) {
       setError('Akun ini belum punya akses ke aplikasi. Hubungi admin.');
     }
+    if (new URLSearchParams(window.location.search).get('expired')) {
+      setError('Sesi login sudah berakhir. Silakan login ulang.');
+    }
     const cekLogin = () => {
       if (user !== null) {
         fetchHomepage(user.uid).then((path) => window.location.replace(path));
@@ -51,6 +55,7 @@ const Login = () => {
       if (data.status === 'success') {
         // ✅ Simpan uid ke localStorage
         localStorage.setItem('user', JSON.stringify({ uid: data.user.uid }));
+        setToken(data.token);
 
         // ✅ Redirect ke halaman awal user (User Management), default project
         window.location.replace(data.user.homepage || DEFAULT_HOMEPAGE);

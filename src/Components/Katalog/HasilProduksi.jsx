@@ -1,12 +1,15 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
+import { pasangAxios } from '../../Utils/authToken';
 import { Drawer, Image, Select, message, Modal, Popconfirm } from 'antd';
 import { FiSearch, FiLink, FiExternalLink, FiUpload, FiSlash, FiRotateCcw, FiEdit2, FiTrash2, FiPlus, FiSettings, FiCheck, FiX } from 'react-icons/fi';
 import { getApiBaseUrl } from '../../Config/APIurl';
 import { useTheme } from '../../ThemeContext';
 import { getImageUrl } from '../../Utils/image';
 import ProductPicker, { firstImage, thumb } from './ProductPicker';
+
+pasangAxios(axios); // token sesi ERP (lihat Utils/authToken.js)
 
 /**
  * Hasil Produksi → Katalog (/hasil-produksi). Semua project yang punya foto Barang Jadi:

@@ -1,6 +1,7 @@
 import './navbar.css';
 import '../Pekerjaan/table.css';
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import { clearToken } from '../../Utils/authToken';
 // import { useState } from 'react';
 import { Col, Container, Modal, Dropdown, Toast, Button } from 'react-bootstrap';
 import Nav from 'react-bootstrap/Nav';
@@ -296,6 +297,7 @@ const NavigationBar = () => {
 
   const handleLogout = () => {
     localStorage.removeItem('user');
+    clearToken();
     navigate('/login');
   };
 
@@ -429,6 +431,7 @@ const NavigationBar = () => {
       if (uidNow && !SUPER_ADMIN.includes(uidNow)
         && !data.some(a => a.uid === uidNow && (a.value === true || a.value === 'true'))) {
         localStorage.removeItem('user');
+        clearToken();
         window.location.replace('/login?noaccess=1');
         return;
       }

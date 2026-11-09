@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { FcGoogle } from 'react-icons/fc';
 import { useNavigate } from 'react-router-dom';
+import { clearToken } from '../../Utils/authToken';
 
 const Logout = () => {
   const navigate = useNavigate();
@@ -12,6 +13,7 @@ const Logout = () => {
 
   const handleLogout = () => {
     localStorage.removeItem('user');
+    clearToken();
     navigate('/login');
   };
 

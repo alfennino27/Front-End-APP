@@ -8,6 +8,10 @@ import 'bootstrap/dist/js/bootstrap.bundle.min.js';
 import { HelmetProvider } from 'react-helmet-async';
 import { ThemeProvider } from './ThemeContext';
 import ErrorBoundary from './Components/ErrorBoundary';
+import { pasangFetch } from './Utils/authToken';
+
+// Sisipkan token sesi ke semua fetch ke API sebelum komponen apa pun jalan.
+pasangFetch();
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

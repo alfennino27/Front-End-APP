@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
+import { pasangAxios } from '../../Utils/authToken';
 import { Drawer, Image, Select, message, Popconfirm, Modal } from 'antd';
 import { FiPlus, FiTrash2, FiUpload, FiFileText, FiBox, FiCheck, FiRotateCcw, FiArchive, FiEdit2, FiExternalLink, FiSearch } from 'react-icons/fi';
 import { FaRegImages } from 'react-icons/fa';
@@ -9,6 +10,8 @@ import { useTheme } from '../../ThemeContext';
 import { compressImageFiles } from '../../Utils/compressImage';
 import { getImageUrl } from '../../Utils/image';
 import { isHeic } from '../../Utils/heic';
+
+pasangAxios(axios); // token sesi ERP (lihat Utils/authToken.js)
 
 /**
  * Arsip Desain Produk (/desain) — desainer upload desain produk buatan sendiri (foto + 3D .glb

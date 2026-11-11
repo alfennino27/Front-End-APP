@@ -191,11 +191,15 @@ const HasilProduksi = () => {
   // ---- aksi ----
   const togglePilih = (id) => setPilih((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const bisaDipilih = (r) => r.status === 'belum_taut';
-  const ajukanMassal = async () => {
+  // ajukan foto katalog tanpa pindah halaman: satu item (dari detail) atau banyak (mode pilih)
+  const ajukanMassal = async (ids = [...pilih]) => {
     setBusy(true);
     try {
-      const r = await axios.post(`${baseUrl}/desain/ajukan-massal`, { uid, projectIds: [...pilih] });
-      message.success(`${r.data.dibuat} project diajukan — masuk tab "Perlu Foto Katalog" di Desain Produk${r.data.dilewati?.length ? ` (${r.data.dilewati.length} dilewati)` : ''}`);
+      const r = await axios.post(`${baseUrl}/desain/ajukan-massal`, { uid, projectIds: ids });
+      const lewat = r.data.dilewati || [];
+      if (r.data.dibuat) message.success(`${r.data.dibuat} project diajukan ke Desain Produk (Perlu Foto Katalog)${lewat.length ? ` · ${lewat.length} dilewati` : ''}`);
+      else message.warning(lewat[0]?.alasan === 'belum ada kategori' ? 'Pilih kategori dulu sebelum diajukan' : 'Sudah pernah diajukan');
+      if (r.data.dibuat && ids.length === 1) openDetail(null);
       setPilih(null); await loadRows();
     } catch (e) { message.error(e.response?.data?.message || e.message); }
     finally { setBusy(false); }
@@ -294,7 +298,7 @@ const HasilProduksi = () => {
           <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
             <div style={{ flex: '1 1 160px', fontSize: 13 }}><b>{pilih.size}</b> dipilih<div style={{ fontSize: 11, color: th.muted }}>Codex/desainer membuatkan foto katalognya, kamu tinggal pilih di Desain Produk</div></div>
             <button type="button" onClick={() => setPilih(new Set(list.slice(0, limit).filter(bisaDipilih).map((r) => r.id)))} style={{ ...btn('none'), flex: 'none', padding: '10px 14px' }}>Pilih semua tampil</button>
-            <button type="button" disabled={!pilih.size || busy} onClick={ajukanMassal} style={{ ...btn(pilih.size ? '#013175' : '#9ca3af'), flex: 'none', padding: '10px 16px' }}><FiUpload /> {busy ? 'Mengajukan…' : 'Ajukan Foto Katalog'}</button>
+            <button type="button" disabled={!pilih.size || busy} onClick={() => ajukanMassal()} style={{ ...btn(pilih.size ? '#013175' : '#9ca3af'), flex: 'none', padding: '10px 16px' }}><FiUpload /> {busy ? 'Mengajukan…' : 'Ajukan Foto Katalog'}</button>
           </div>
         </div>
       )}
@@ -361,8 +365,8 @@ const HasilProduksi = () => {
                 </>
               ) : (
                 <>
-                  <div style={{ fontSize: 13, color: th.muted, marginBottom: 10 }}>Ajukan ke Desain Produk → desainer membuatkan <b>foto katalog</b>-nya → setelah dikurasi & ditambahkan jadi produk, project ini otomatis tertaut.</div>
-                  <button type="button" onClick={() => navigate(`/desain?dariProject=${sel.id}`)} style={{ ...btn(linked.length ? 'none' : '#013175'), width: '100%' }}><FiUpload /> Ajukan ke Desain Produk</button>
+                  <div style={{ fontSize: 13, color: th.muted, marginBottom: 10 }}>Ajukan → Codex/desainer membuatkan <b>foto katalog</b>-nya di Desain Produk (halaman ini tetap terbuka) → setelah dikurasi & ditambahkan jadi produk, project ini otomatis tertaut.</div>
+                  <button type="button" disabled={busy} onClick={() => ajukanMassal([sel.id])} style={{ ...btn(linked.length ? 'none' : '#013175'), width: '100%' }}><FiUpload /> {busy ? 'Mengajukan…' : 'Ajukan Foto Katalog'}</button>
                 </>
               )}
             </div>

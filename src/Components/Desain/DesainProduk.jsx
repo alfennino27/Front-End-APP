@@ -302,6 +302,7 @@ const DesainProduk = () => {
   const [editInfo, setEditInfo] = useState(null);
   const [aksi, setAksi] = useState(null); // {action:'revisi'|'arsip', catatan}
   const [busy, setBusy] = useState(false);
+  const [pilihFoto, setPilihFoto] = useState([]); // foto kandidat yang dipakai saat Tambah Produk (kosong = semua)
   const selId = params.get('id');
 
   const load = () => axios.get(`${baseUrl}/desain/get`).then((r) => setRows(Array.isArray(r.data) ? r.data : [])).catch(() => message.error('Gagal memuat desain')).finally(() => setLoading(false));
@@ -322,6 +323,7 @@ const DesainProduk = () => {
 
   const sel = rows.find((r) => r.id === selId) || null;
   useEffect(() => { if (sel) setSelV(sel.approvedVersion || lastVer(sel).v); setEditInfo(null); }, [selId, sel?.versions?.length]);
+  useEffect(() => { setPilihFoto(sel && selV === sel.approvedVersion ? (sel.approvedPhotos || []) : []); }, [selId, selV]);
   const openDetail = (id) => setParams(id ? { id } : {});
 
   const counts = useMemo(() => TABS.reduce((a, t) => ({ ...a, [t]: t === 'semua' ? rows.length : rows.filter((r) => r.status === t).length }), {}), [rows]);
@@ -349,7 +351,7 @@ const DesainProduk = () => {
   const layak = async (v) => {
     setBusy(true);
     try {
-      const r = await axios.post(`${baseUrl}/desain/${sel.id}/layak`, { uid, v });
+      const r = await axios.post(`${baseUrl}/desain/${sel.id}/layak`, { uid, v, photos: v === selV ? pilihFoto : (sel.approvedPhotos || []) });
       navigate(`/products/new?draft=${r.data.draftId}`);
     } catch (e) { message.error(e.response?.data?.message || e.message); setBusy(false); }
   };
@@ -378,6 +380,8 @@ const DesainProduk = () => {
   // pengajuan hasil produksi yang belum ada foto: semua desainer boleh upload foto katalognya
   const bisaVersiBaru = sel && !sel.productId && sel.status !== 'layak' && (sel.uid === uid || kurator || sel.status === 'foto');
   const bisaHapus = sel && !sel.productId && (sel.uid === uid || kurator);
+  const bisaPilihFoto = kurator && sel && !sel.productId && !!ver && (ver.photos || []).length > 1;
+  const labelFoto = pilihFoto.length ? ` · ${pilihFoto.length} foto` : '';
   const riwayat = sel ? [
     ...(sel.sumber === 'produksi' ? [{ at: sel.created_at, text: `${sel.designer || 'Admin'} mengajukan dari hasil produksi`, catatan: sel.catatanPengajuan }] : []),
     ...(sel.versions || []).map((v) => ({ at: v.created_at, text: `${v.designer || 'Desainer'} upload ${sel.sumber === 'produksi' ? 'foto katalog ' : ''}v${v.v}`, catatan: v.catatan })),
@@ -492,7 +496,7 @@ const DesainProduk = () => {
             {!hasVer && (
               <div style={{ background: th.card, border: `1px dashed ${th.border}`, borderRadius: 14, padding: 18, marginBottom: 12, textAlign: 'center', color: th.muted, fontSize: 13 }}>
                 <FaRegImages size={26} /><div style={{ marginTop: 6, color: th.text, fontWeight: 600 }}>Belum ada foto katalog</div>
-                Desainer (Pakde / Azwad / Nino) upload foto katalognya lewat tombol di bawah.
+                Codex membuatkan beberapa kandidat foto katalog dari foto real di atas (atau desainer Pakde / Azwad / Nino upload lewat tombol di bawah). Setelah masuk, centang foto yang dipakai lalu Tambah Produk.
               </div>
             )}
 
@@ -507,12 +511,19 @@ const DesainProduk = () => {
             </div>
 
             <div style={{ background: th.card, border: `1px solid ${th.border}`, borderRadius: 14, padding: 14, marginBottom: 12 }}>
-              <div style={{ fontWeight: 700, marginBottom: 8 }}>Foto desain · v{ver.v} <span style={{ fontWeight: 400, color: th.muted, fontSize: 12 }}>({(ver.photos || []).length})</span></div>
+              <div style={{ fontWeight: 700, marginBottom: 8 }}>Foto desain · v{ver.v} <span style={{ fontWeight: 400, color: th.muted, fontSize: 12 }}>({(ver.photos || []).length}){ver.designer ? ` · ${ver.designer}` : ''}</span></div>
+              {bisaPilihFoto && <div style={{ fontSize: 12, color: th.muted, marginTop: -4, marginBottom: 8 }}>Centang foto yang mau dipakai di produk (urutan centang = urutan foto). Tidak dicentang = semua foto dipakai.</div>}
               <Image.PreviewGroup>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))', gap: 8 }}>
                   {(ver.photos || []).map((u) => (
-                    <div key={u} style={{ aspectRatio: '1/1', borderRadius: 10, overflow: 'hidden', background: '#eee' }}>
+                    <div key={u} style={{ position: 'relative', aspectRatio: '1/1', borderRadius: 10, overflow: 'hidden', background: '#eee', outline: pilihFoto.includes(u) ? '3px solid #15803d' : 'none', outlineOffset: -3 }}>
                       <Image src={thumb(u, 300)} preview={{ src: fileUrl(u) }} width="100%" height="100%" style={{ objectFit: 'cover' }} />
+                      {bisaPilihFoto && (
+                        <button type="button" aria-label="Pilih foto" onClick={() => setPilihFoto((xs) => (xs.includes(u) ? xs.filter((x) => x !== u) : [...xs, u]))}
+                          style={{ position: 'absolute', top: 6, right: 6, width: 34, height: 34, borderRadius: 999, border: '2px solid #fff', background: pilihFoto.includes(u) ? '#15803d' : 'rgba(0,0,0,.35)', color: '#fff', fontSize: 14, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 1px 4px rgba(0,0,0,.3)' }}>
+                          {pilihFoto.includes(u) ? pilihFoto.indexOf(u) + 1 : ''}
+                        </button>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -557,7 +568,7 @@ const DesainProduk = () => {
                 <button type="button" style={btn(!hasVer || (sel.status === 'revisi' && !kurator) ? '#013175' : 'none')} onClick={() => setForm(sel)}><FiUpload /> {hasVer ? 'Upload Versi Baru' : 'Upload Foto Katalog'}</button>
               )}
               {kurator && !sel.productId && sel.status === 'layak' && (
-                <button type="button" disabled={busy} style={btn('#15803d')} onClick={() => layak(sel.approvedVersion)}><FiPlus /> Lanjut Tambah Produk (v{sel.approvedVersion})</button>
+                <button type="button" disabled={busy} style={btn('#15803d')} onClick={() => layak(sel.approvedVersion)}><FiPlus /> Lanjut Tambah Produk (v{sel.approvedVersion}{selV === sel.approvedVersion ? labelFoto : ''})</button>
               )}
               {kurator && !sel.productId && (
                 <div style={{ display: 'flex', gap: 8 }}>
@@ -565,8 +576,8 @@ const DesainProduk = () => {
                   {sel.status === 'arsip' || sel.status === 'layak'
                     ? <button type="button" disabled={busy} style={btn('none')} onClick={() => kirimReview('review', '')}><FiRotateCcw /> Ke Review</button>
                     : <button type="button" disabled={busy} style={btn('none')} onClick={() => setAksi({ action: 'arsip', catatan: '' })}><FiArchive /> Arsip</button>}
-                  {hasVer && !(sel.status === 'layak' && sel.approvedVersion === ver.v) && (
-                    <Popconfirm title={`Tambah produk dari versi ${ver.v}?`} description="Foto katalog versi ini otomatis jadi foto produk. Judul, ukuran, material, harga & varian diisi di halaman Tambah Produk." okText="Ya, lanjut" cancelText="Batal" onConfirm={() => layak(ver.v)}>
+                  {hasVer && !(sel.status === 'layak' && sel.approvedVersion === ver.v && (sel.approvedPhotos || []).join('|') === pilihFoto.join('|')) && (
+                    <Popconfirm title={`Tambah produk dari versi ${ver.v}?`} description={`${pilihFoto.length ? `${pilihFoto.length} foto terpilih` : 'Semua foto katalog versi ini'} otomatis jadi foto produk. Judul, ukuran, material, harga & varian diisi di halaman Tambah Produk.`} okText="Ya, lanjut" cancelText="Batal" onConfirm={() => layak(ver.v)}>
                       <button type="button" disabled={busy} style={btn('#15803d')}><FiPlus /> Tambah Produk (v{ver.v})</button>
                     </Popconfirm>
                   )}

@@ -34,7 +34,7 @@ const STATUS_STYLE = {
   tertaut: { label: 'Tertaut', color: '#15803d', bg: '#dcfce7' },
   bukan: { label: 'Bukan katalog', color: '#4b5563', bg: '#e5e7eb' },
 };
-const DESAIN_LABEL = { foto: 'menunggu foto katalog dari desainer', review: 'menunggu review', revisi: 'perlu revisi', layak: 'layak — draft produk', arsip: 'diarsip' };
+const DESAIN_LABEL = { foto: 'menunggu foto katalog dari desainer / Codex', review: 'menunggu review', revisi: 'perlu revisi', layak: 'layak — draft produk', arsip: 'diarsip' };
 
 const statusOf = (r) => {
   if (r.bukanKatalog) return 'bukan';
@@ -159,6 +159,7 @@ const HasilProduksi = () => {
   const [picker, setPicker] = useState(false);
   const [kelola, setKelola] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [pilih, setPilih] = useState(null); // null = mode biasa; Set id = mode pilih-banyak untuk ajukan foto katalog
   const selId = params.get('id');
 
   const loadRows = () => axios.get(`${baseUrl}/hasil-produksi/get`).then((r) => setRows(Array.isArray(r.data) ? r.data : [])).catch(() => message.error('Gagal memuat hasil produksi')).finally(() => setLoading(false));
@@ -188,6 +189,17 @@ const HasilProduksi = () => {
   const openDetail = (id) => setParams(id ? { id } : {});
 
   // ---- aksi ----
+  const togglePilih = (id) => setPilih((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const bisaDipilih = (r) => r.status === 'belum_taut';
+  const ajukanMassal = async () => {
+    setBusy(true);
+    try {
+      const r = await axios.post(`${baseUrl}/desain/ajukan-massal`, { uid, projectIds: [...pilih] });
+      message.success(`${r.data.dibuat} project diajukan — masuk tab "Perlu Foto Katalog" di Desain Produk${r.data.dilewati?.length ? ` (${r.data.dilewati.length} dilewati)` : ''}`);
+      setPilih(null); await loadRows();
+    } catch (e) { message.error(e.response?.data?.message || e.message); }
+    finally { setBusy(false); }
+  };
   const patchRow = (id, patch) => setRows((rs) => rs.map((r) => (r.id === id ? { ...r, ...patch } : r)));
   const setKategori = async (kategori) => {
     try { await axios.post(`${baseUrl}/hasil-produksi/kategori`, { ids: [sel.id], kategori: kategori || '', uid }); patchRow(sel.id, { KategoriProduk: kategori || '' }); message.success('Kategori disimpan'); }
@@ -228,6 +240,7 @@ const HasilProduksi = () => {
             <div style={{ fontSize: 20, fontWeight: 700 }}>Hasil Produksi → Katalog</div>
             <div style={{ fontSize: 12, color: th.muted }}>Project ber-foto Barang Jadi · tautkan ke produk website atau ajukan ke Desain Produk</div>
           </div>
+          <button type="button" onClick={() => { setPilih(pilih ? null : new Set()); if (!pilih && tab !== 'belum_taut') setTab('belum_taut'); }} style={{ ...btn(pilih ? '#013175' : 'none'), flex: 'none', padding: '10px 14px' }}><FiCheck /> {pilih ? 'Selesai pilih' : (isMobile ? 'Pilih' : 'Pilih untuk foto katalog')}</button>
           {canKelola && <button type="button" onClick={() => setKelola(true)} style={{ ...btn('none'), flex: 'none', padding: '10px 14px' }}><FiSettings /> {isMobile ? '' : 'Kelola Kategori'}</button>}
         </div>
 
@@ -255,11 +268,13 @@ const HasilProduksi = () => {
             <>
               <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${isMobile ? 150 : 190}px, 1fr))`, gap: 10 }}>
                 {list.slice(0, limit).map((r) => (
-                  <div key={r.id} onClick={() => openDetail(r.id)} style={{ background: th.card, border: `1px solid ${th.border}`, borderRadius: 14, overflow: 'hidden', cursor: 'pointer' }}>
+                  <div key={r.id} onClick={() => (pilih ? (bisaDipilih(r) ? togglePilih(r.id) : message.info('Hanya yang "Belum ditautkan" (sudah berkategori) yang bisa diajukan')) : openDetail(r.id))}
+                    style={{ background: th.card, border: `${pilih?.has(r.id) ? 3 : 1}px solid ${pilih?.has(r.id) ? '#013175' : th.border}`, borderRadius: 14, overflow: 'hidden', cursor: 'pointer', opacity: pilih && !bisaDipilih(r) ? 0.45 : 1 }}>
                     <div style={{ position: 'relative', aspectRatio: '1/1', background: '#eee' }}>
                       {r.foto[0] && <img src={thumb(r.foto[0], 400)} alt="" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />}
                       <span style={{ ...pill(r.status), position: 'absolute', top: 8, left: 8 }}>{STATUS_STYLE[r.status].label}</span>
-                      {r.linkProducts.length > 1 && <span style={{ position: 'absolute', top: 8, right: 8, fontSize: 11, fontWeight: 700, background: 'rgba(0,0,0,.6)', color: '#fff', padding: '2px 7px', borderRadius: 999 }}>{r.linkProducts.length} produk</span>}
+                      {pilih && bisaDipilih(r) && <span style={{ position: 'absolute', top: 8, right: 8, width: 28, height: 28, borderRadius: 999, background: pilih.has(r.id) ? '#013175' : 'rgba(255,255,255,.9)', border: '2px solid #013175', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{pilih.has(r.id) && <FiCheck />}</span>}
+                      {!pilih && r.linkProducts.length > 1 && <span style={{ position: 'absolute', top: 8, right: 8, fontSize: 11, fontWeight: 700, background: 'rgba(0,0,0,.6)', color: '#fff', padding: '2px 7px', borderRadius: 999 }}>{r.linkProducts.length} produk</span>}
                     </div>
                     <div style={{ padding: '8px 10px' }}>
                       <div style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.NamaBarang || '(tanpa nama)'}</div>
@@ -272,6 +287,17 @@ const HasilProduksi = () => {
             </>
           )}
       </div>
+
+      {/* ===== bar pilih-banyak: ajukan foto katalog ===== */}
+      {pilih && (
+        <div style={{ position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 900, background: th.card, borderTop: `1px solid ${th.border}`, boxShadow: '0 -4px 16px rgba(0,0,0,.08)', padding: '12px 16px calc(12px + env(safe-area-inset-bottom))' }}>
+          <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <div style={{ flex: '1 1 160px', fontSize: 13 }}><b>{pilih.size}</b> dipilih<div style={{ fontSize: 11, color: th.muted }}>Codex/desainer membuatkan foto katalognya, kamu tinggal pilih di Desain Produk</div></div>
+            <button type="button" onClick={() => setPilih(new Set(list.slice(0, limit).filter(bisaDipilih).map((r) => r.id)))} style={{ ...btn('none'), flex: 'none', padding: '10px 14px' }}>Pilih semua tampil</button>
+            <button type="button" disabled={!pilih.size || busy} onClick={ajukanMassal} style={{ ...btn(pilih.size ? '#013175' : '#9ca3af'), flex: 'none', padding: '10px 16px' }}><FiUpload /> {busy ? 'Mengajukan…' : 'Ajukan Foto Katalog'}</button>
+          </div>
+        </div>
+      )}
 
       {/* ===== detail ===== */}
       <Drawer open={!!sel} onClose={() => openDetail(null)} destroyOnClose

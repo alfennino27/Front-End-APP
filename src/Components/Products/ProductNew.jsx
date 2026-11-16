@@ -215,7 +215,8 @@ const ProductNew = () => {
       if (!r.ok) throw new Error(d.message || 'Gagal menyimpan');
       dirtyRef.current = false;
       message.success('Produk tersimpan');
-      navigate(`/products?id=${d.insertedId}`);
+      // dari Arsip Desain → kembali ke Desain Produk (kurator lanjut review), bukan ke halaman Products
+      navigate(dariDesain ? '/desain' : `/products?id=${d.insertedId}`);
     } catch (e) { message.error(e.message); }
     finally { setSaving(false); }
   };
@@ -225,7 +226,7 @@ const ProductNew = () => {
       try { await fetch(`${baseUrl}/products/drafts/delete/${draftIdRef.current}`, { method: 'DELETE' }); } catch (e) { /* abaikan */ }
     }
     dirtyRef.current = false;
-    navigate('/products');
+    navigate(dariDesain ? '/desain' : '/products');
   };
 
   // ---- style ----
@@ -243,7 +244,7 @@ const ProductNew = () => {
       {/* header sticky */}
       <div style={{ position: 'sticky', top: 0, zIndex: 5, background: card, borderBottom: `1px solid ${border}` }}>
         <div style={{ maxWidth: 1100, margin: '0 auto', padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
-        <button style={btn(false)} onClick={() => navigate('/products')}><FiArrowLeft /> Kembali</button>
+        <button style={btn(false)} onClick={() => navigate(dariDesain ? '/desain' : '/products')}><FiArrowLeft /> Kembali</button>
         <div style={{ fontWeight: 700, fontSize: 17 }}>Tambah Produk Baru</div>
         {dariDesain && <span style={{ fontSize: 11, fontWeight: 600, background: '#e8f5e9', color: '#1e7b34', padding: '3px 9px', borderRadius: 999 }} title="Foto & 3D disalin dari versi desain yang di-approve">Dari Arsip Desain · v{dariDesain.v}</span>}
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 12 }}>

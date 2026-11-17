@@ -276,6 +276,11 @@ const Quote = () => {
   const [renamingFolder, setRenamingFolder] = useState(false);
   const [folderDraft, setFolderDraft] = useState({ namaCust: '', waCust: '', alamatCust: '' });
   const [renamingBusy, setRenamingBusy] = useState(false);
+  // Gabung folder dobel: mode pilih → pilih master → konfirmasi
+  const [mergeMode, setMergeMode] = useState(false);
+  const [mergeSel, setMergeSel] = useState([]);      // kodeCust terpilih
+  const [mergeMaster, setMergeMaster] = useState(null); // null = sheet tertutup
+  const [mergeBusy, setMergeBusy] = useState(false);
 
   // ---- form state ----
   const blankForm = () => ({
@@ -834,17 +839,54 @@ const Quote = () => {
       if (seen.has(k)) return false; seen.add(k); return true;
     });
     const filtered = q ? uniqueFolders.filter((c) => (c.namaCust || '').toLowerCase().includes(q)) : uniqueFolders;
+    const selFolders = mergeSel.map((k) => uniqueFolders.find((c) => c.kodeCust === k)).filter(Boolean);
+    const toggleSel = (k) => setMergeSel((s) => (s.includes(k) ? s.filter((x) => x !== k) : [...s, k]));
+    const exitMerge = () => { setMergeMode(false); setMergeSel([]); setMergeMaster(null); };
+    const doMerge = async () => {
+      const master = selFolders.find((c) => c.kodeCust === mergeMaster);
+      const dups = selFolders.filter((c) => c.kodeCust !== mergeMaster);
+      if (!master || dups.length === 0) return;
+      if (!window.confirm(`Gabungkan ${dups.length} folder ke "${master.namaCust}"?\n\nSemua quote, invoice & jurnal dipindah ke folder master, lalu folder lain dihapus.`)) return;
+      setMergeBusy(true);
+      try {
+        const res = await fetch(`${baseUrl}/quotation/customer/merge`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ masterKode: master.kodeCust, dupKodes: dups.map((c) => c.kodeCust), oleh: user?.uid || '' }),
+        });
+        const r = await res.json();
+        if (!res.ok) throw new Error(r.message);
+        alert(`Berhasil digabung ke "${master.namaCust}".\nDipindah: ${r.dipindah.quotation} quote, ${r.dipindah.invoice} invoice, ${r.dipindah.jurnal} jurnal.`);
+        exitMerge();
+        fetchFolders();
+        try { setCustList(await (await fetch(`${baseUrl}/accounting/cust/get`)).json()); } catch (e) { /* ignore */ }
+      } catch (e) { alert('Gagal gabung folder: ' + e.message); }
+      setMergeBusy(false);
+    };
     return (
-      <div>
-        <input placeholder="Cari customer…" value={search} onChange={(e) => setSearch(e.target.value)} style={{ ...inputStyle, marginBottom: 14 }} />
+      <div style={{ paddingBottom: mergeMode ? 90 : 0 }}>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+          <input placeholder="Cari customer…" value={search} onChange={(e) => setSearch(e.target.value)} style={{ ...inputStyle, flex: 1 }} />
+          <button style={{ ...(mergeMode ? btn('#c0392b') : btnGhost), whiteSpace: 'nowrap', minHeight: 44 }}
+            onClick={() => (mergeMode ? exitMerge() : setMergeMode(true))}>{mergeMode ? '✕ Batal' : '🔗 Gabung'}</button>
+        </div>
+        {mergeMode && (
+          <p style={{ color: sub, fontSize: 13, marginTop: -6 }}>Tap folder yang dobel (min. 2), lalu tekan <b>Lanjut</b> untuk memilih folder master.</p>
+        )}
         {loading && <p style={{ color: sub }}>Memuat…</p>}
         <div className="klf-quote-grid">
-          {filtered.map((c, idx) => (
-            <div key={`${c.kodeCust || 'x'}-${idx}`} className="klf-quote-folder" style={{ background: card, border: `1px solid ${border}`, borderRadius: 12, padding: 16, cursor: 'pointer' }}
-              onClick={() => fetchCustomerDetail(c.kodeCust)}>
-              <div style={{ fontWeight: 700, color: text, fontSize: 16, marginBottom: 2, display: 'flex', alignItems: 'center', gap: 8, overflowWrap: 'anywhere' }}>
+          {filtered.map((c, idx) => {
+            const picked = mergeMode && mergeSel.includes(c.kodeCust);
+            return (
+            <div key={`${c.kodeCust || 'x'}-${idx}`} className="klf-quote-folder"
+              style={{ background: card, border: picked ? '2px solid #1e40af' : `1px solid ${border}`, borderRadius: 12, padding: picked ? 15 : 16, cursor: 'pointer', position: 'relative' }}
+              onClick={() => (mergeMode ? (c.kodeCust && toggleSel(c.kodeCust)) : fetchCustomerDetail(c.kodeCust))}>
+              {mergeMode && (
+                <span style={{ position: 'absolute', top: 10, right: 10, width: 24, height: 24, borderRadius: 12, border: `2px solid ${picked ? '#1e40af' : border}`, background: picked ? '#1e40af' : 'transparent', color: '#fff', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{picked ? '✓' : ''}</span>
+              )}
+              <div style={{ fontWeight: 700, color: text, fontSize: 16, marginBottom: 2, display: 'flex', alignItems: 'center', gap: 8, overflowWrap: 'anywhere', paddingRight: mergeMode ? 28 : 0 }}>
                 <span style={{ fontSize: 24, lineHeight: 1 }}>📁</span>{c.namaCust || '(tanpa nama)'}
               </div>
+              {mergeMode && <div style={{ color: sub, fontSize: 11 }}>Kode {c.kodeCust}{c.alamatCust ? ' · ' + c.alamatCust : ''}</div>}
               <div style={{ color: sub, fontSize: 13 }}>{c.waCust || c.noTelpCust || ''}</div>
               <div style={{ marginTop: 10, display: 'flex', justifyContent: 'space-between', fontSize: 13, color: sub }}>
                 <span>{c.quoteCount} quote</span>
@@ -856,9 +898,48 @@ const Quote = () => {
                 <span style={{ fontWeight: 600, color: (c.totalDeal || 0) > 0 ? '#1e7b34' : sub }}>{rupiah(c.totalDeal || 0)}</span>
               </div>
             </div>
-          ))}
+            );
+          })}
           {!loading && filtered.length === 0 && <p style={{ color: sub }}>Belum ada customer. Buat quote baru untuk menambah folder.</p>}
         </div>
+
+        {/* bar bawah mode gabung */}
+        {mergeMode && (
+          <div style={{ position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 1000, background: card, borderTop: `1px solid ${border}`, padding: '12px 16px calc(12px + env(safe-area-inset-bottom))', display: 'flex', alignItems: 'center', gap: 10, boxShadow: '0 -4px 16px rgba(0,0,0,.12)' }}>
+            <span style={{ flex: 1, color: text, fontSize: 14 }}>{mergeSel.length} folder dipilih</span>
+            <button style={{ ...btn('#1e40af'), minHeight: 44, opacity: mergeSel.length < 2 ? 0.5 : 1 }} disabled={mergeSel.length < 2}
+              onClick={() => setMergeMaster(mergeSel[0])}>Lanjut →</button>
+          </div>
+        )}
+
+        {/* sheet pilih master */}
+        {mergeMode && mergeMaster && (
+          <div onClick={() => !mergeBusy && setMergeMaster(null)}
+            style={{ position: 'fixed', inset: 0, zIndex: 1001, background: 'rgba(0,0,0,.45)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+            <div onClick={(e) => e.stopPropagation()}
+              style={{ background: card, width: '100%', maxWidth: 520, maxHeight: '85vh', overflowY: 'auto', borderRadius: '16px 16px 0 0', padding: '18px 16px calc(18px + env(safe-area-inset-bottom))' }}>
+              <div style={{ fontWeight: 700, fontSize: 17, color: text, marginBottom: 4 }}>Pilih folder master</div>
+              <div style={{ color: sub, fontSize: 13, marginBottom: 12 }}>Nama & data folder master yang dipakai. Isi folder lain (quote, invoice, jurnal) dipindah ke sini, lalu folder lain dihapus.</div>
+              {selFolders.map((c) => {
+                const on = c.kodeCust === mergeMaster;
+                return (
+                  <label key={c.kodeCust} style={{ display: 'flex', gap: 12, alignItems: 'flex-start', padding: 12, marginBottom: 8, borderRadius: 12, cursor: 'pointer', border: on ? '2px solid #1e40af' : `1px solid ${border}` }}>
+                    <input type="radio" name="mergeMaster" checked={on} onChange={() => setMergeMaster(c.kodeCust)} style={{ marginTop: 4, width: 18, height: 18 }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 700, color: text, overflowWrap: 'anywhere' }}>📁 {c.namaCust || '(tanpa nama)'} {on && <span style={{ fontSize: 11, background: '#1e40af', color: '#fff', borderRadius: 6, padding: '1px 6px', marginLeft: 4 }}>MASTER</span>}</div>
+                      <div style={{ color: sub, fontSize: 12 }}>Kode {c.kodeCust} · {c.waCust || c.noTelpCust || 'tanpa telepon'}{c.alamatCust ? ' · ' + c.alamatCust : ''}</div>
+                      <div style={{ color: sub, fontSize: 12, marginTop: 2 }}>{c.quoteCount} quote ({rupiah(c.totalNilai)}) · {c.dealCount || 0} deal</div>
+                    </div>
+                  </label>
+                );
+              })}
+              <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                <button style={{ ...btnGhost, flex: 1, minHeight: 46 }} disabled={mergeBusy} onClick={() => setMergeMaster(null)}>Kembali</button>
+                <button style={{ ...btn('#1e7b34'), flex: 2, minHeight: 46 }} disabled={mergeBusy} onClick={doMerge}>{mergeBusy ? 'Menggabung…' : `Gabung ${selFolders.length} folder`}</button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   };

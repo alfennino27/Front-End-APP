@@ -12,6 +12,7 @@ import { useParams } from 'react-router-dom';
 import { MdFormatListBulletedAdd, MdAssignment } from 'react-icons/md';
 import { BsPrinterFill } from "react-icons/bs";
 import { getApiBaseUrl } from '../../Config/APIurl';
+import SPKQtyCheckModal from '../AI/SPKQtyCheckModal';
 import { useNavigate } from 'react-router-dom';
 import { Skeleton, Image, Switch, Select, Input, InputNumber, DatePicker, Modal, Button, Popconfirm } from 'antd';
 import { debounce } from 'lodash';
@@ -57,6 +58,9 @@ const Spk = () => {
 
   const [SPK, setSPK] = useState([]);
   const { slug } = useParams();
+  // Print SPK lewat cek jumlah dulu (teks keterangan "Qty: N" vs order) — kasus 2026-11-21.
+  const [showQtyCheck, setShowQtyCheck] = useState(false);
+  const cetakSetelahCekQty = () => { setShowQtyCheck(false); setTimeout(() => window.print(), 300); };
 
   const isMobile = useIsMobile();
   const [searchProduct, setSearchProduct] = useState('');
@@ -1372,7 +1376,8 @@ useEffect(() => {
               ) : (
                 <span>SPK Pengrajin Karya Logam Furniture</span>
               )}
-              <Button style={{ marginBottom: "-5px", marginTop: "-5px", display: slug && (dataSPKFromDB[0]?.status == 'Acc' || dataSPKFromDB[0]?.status == 'Acc Harga' || dataSPKFromDB[0]?.status == 'Acc Keterangan') ? 'block' : 'none' }} variant="secondary" onClick={() => window.print()}><BsPrinterFill /> Print</Button>
+              <Button style={{ marginBottom: "-5px", marginTop: "-5px", display: slug && (dataSPKFromDB[0]?.status == 'Acc' || dataSPKFromDB[0]?.status == 'Acc Harga' || dataSPKFromDB[0]?.status == 'Acc Keterangan') ? 'block' : 'none' }} variant="secondary" onClick={() => setShowQtyCheck(true)}><BsPrinterFill /> Print</Button>
+              <SPKQtyCheckModal show={showQtyCheck} idSPK={slug} onClose={() => setShowQtyCheck(false)} onProceed={cetakSetelahCekQty} />
               <Button style={{ marginBottom: "-5px", marginTop: "-5px", display: searchSupplier !== '' && !slug && !showProduct ? 'block' : 'none' }} variant="primary" onClick={() => setShowProduct(true)}><MdOutlineChair /> Product</Button>
               <Button style={{ marginBottom: "-5px", marginTop: "-5px", display: searchSupplier !== '' && !slug && showProduct ? 'block' : 'none' }} variant="primary" onClick={() => setShowProduct(false)}><FaFileInvoice /> SPK</Button>
             </h4>

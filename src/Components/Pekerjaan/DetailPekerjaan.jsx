@@ -16,6 +16,7 @@ import { AiOutlinePrinter } from "react-icons/ai";
 import { getApiBaseUrl } from '../../Config/APIurl';
 import ConsistencyCheck from '../AI/ConsistencyCheck';
 import SPKPrecheckModal from '../AI/SPKPrecheckModal';
+import { cekQty } from '../../Utils/qtyTeks';
 import SPKLayoutModal from './SPKLayoutModal';
 import PengerjaanEditor, { barisBaru } from './PengerjaanEditor';
 import { TabPengerjaan, RingkasanBagian, DetailBagian } from './PengerjaanTab';
@@ -3083,6 +3084,16 @@ const DetailPekerjaan = () => {
           </>)}
           <label className='mt-2'>{pengerjaanDraft.length ? 'Deskripsi umum :' : 'Description :'}</label><br />
           <textarea className="form-control" type='text' rows="5" value={description} onChange={(e) => setDescription(e.target.value)}></textarea>
+          {/* Peringatan jumlah langsung saat mengetik — pengrajin membaca TEKS ini, bukan kolom qty
+              (kasus Rangka Console Tn Stefanus 2026-11-21: order 2, teks "Qty: 1 PCS" → dibuat 1). */}
+          {cekQty({ orderQty: dataProjectFromDB[0]?.Qty, category, text: description }).map((q, i) => (
+            <div key={i} style={{ marginTop: 6, padding: '8px 10px', borderRadius: 6, fontSize: 14, fontWeight: 600,
+              background: q.level === 'kritis' ? 'rgba(220,53,69,0.12)' : 'rgba(255,193,7,0.15)',
+              border: `1px solid ${q.level === 'kritis' ? '#dc3545' : '#d39e00'}`,
+              color: q.level === 'kritis' ? '#dc3545' : (globalTheme === 'light' ? '#8a6d00' : '#ffd54f') }}>
+              ⚠️ {q.problem}
+            </div>
+          ))}
 
           {!pengerjaanDraft.length && (<>
           <label className='mt-2'>Status :</label><br />

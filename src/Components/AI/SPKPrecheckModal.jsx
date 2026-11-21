@@ -3,6 +3,8 @@
 // category lain, chat WA & komentar. Kalau ada KONTRADIKSI nyata, print diblokir
 // sampai user menjawab setiap issue (jelaskan "sudah benar" atau "akan diperbaiki").
 // Jawaban dicatat sebagai komentar tanya-jawab + masuk knowledge base.
+// Issue kind 'qty' = cek JUMLAH deterministik dari server (bukan AI): hanya "Sudah benar"
+// (dengan alasan) yang membuka cetak; "Akan diperbaiki" = perbaiki teks dulu lalu Cek ulang.
 import React, { useState, useEffect, useCallback } from 'react';
 import { Modal, Button } from 'react-bootstrap';
 import { getApiBaseUrl } from '../../Config/APIurl';
@@ -38,7 +40,10 @@ const SPKPrecheckModal = ({ show, projectId, category, onClose, onProceed }) => 
   useEffect(() => { if (show) run(); }, [show, run]);
 
   const issues = result?.issues || [];
-  const allAnswered = issues.length > 0 && issues.every((_, i) => ans[i]?.status === 'saved');
+  const isQty = (g) => g?.kind === 'qty';
+  // Qty: "Akan diperbaiki" TIDAK membuka cetak — kalau dicetak, pengrajin tetap baca angka yang salah.
+  const allAnswered = issues.length > 0 && issues.every((g, i) => ans[i]?.status === 'saved'
+    && (!isQty(g) || (ans[i]?.verdict || 'correct') === 'correct'));
 
   const submitAnswer = async (i, issue) => {
     const a = ans[i] || {};
@@ -50,7 +55,7 @@ const SPKPrecheckModal = ({ show, projectId, category, onClose, onProceed }) => 
       const u = getUser();
       const res = await fetch(`${baseUrl}/ai/project/${projectId}/category/${category}/spk-precheck/answer`, {
         method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ topic: issue.topic, problem: issue.problem, verdict, answer: note, user_uid: u.uid || null, user_name: u.name || u.displayName || u.email || 'User' }),
+        body: JSON.stringify({ kind: issue.kind || 'ai', topic: issue.topic, problem: issue.problem, verdict, answer: note, user_uid: u.uid || null, user_name: u.name || u.displayName || u.email || 'User' }),
       });
       patch(i, { status: res.ok ? 'saved' : 'error' });
     } catch (e) { patch(i, { status: 'error' }); }
@@ -73,11 +78,16 @@ const SPKPrecheckModal = ({ show, projectId, category, onClose, onProceed }) => 
       <Modal.Body style={{ color: textColor }}>
         {loading && <div style={{ padding: 8 }}>⏳ AI sedang memeriksa deskripsi {category} vs deskripsi produk, category lain, chat & komentar…</div>}
         {error && <div style={{ color: '#dc3545' }}>❌ {error}</div>}
+        {result?.ai_error && !loading && (
+          <div style={{ fontSize: 13, color: subColor, marginBottom: 8 }}>
+            ⚠️ Cek AI (kontradiksi isi) gagal jalan: {result.ai_error}. Cek jumlah tetap dilakukan.
+          </div>
+        )}
 
         {result && !loading && (
           result.clear ? (
             <div style={{ padding: 12, borderRadius: 6, background: 'rgba(25,135,84,0.15)', border: '1px solid #198754' }}>
-              ✅ Deskripsi {category} konsisten — tidak ada kontradiksi dengan deskripsi produk/category lain. Aman untuk dicetak.
+              ✅ Deskripsi {category} konsisten — jumlah cocok dengan order{result.order_qty ? ` (${result.order_qty} pcs)` : ''}{result.ai_error ? '' : ' & tidak ada kontradiksi dengan deskripsi produk/category lain'}. Aman untuk dicetak.
             </div>
           ) : (
             <div>
@@ -95,12 +105,24 @@ const SPKPrecheckModal = ({ show, projectId, category, onClose, onProceed }) => 
                   <button key={val} onClick={() => patch(i, { verdict: val })} disabled={a.status === 'saved'}
                     style={{ ...chip, ...(verdict === val ? chipActive : {}) }}>{label}</button>
                 );
+                const warnOnly = isQty(g) && g.level === 'cek';
                 return (
-                  <div key={i} style={{ padding: 12, marginBottom: 10, borderRadius: 6, background: 'rgba(220,53,69,0.10)', border: '1px solid #dc3545' }}>
-                    {g.topic && <div style={{ fontWeight: 700 }}>{g.topic}</div>}
-                    <div style={{ fontSize: 14, marginTop: 2 }}>🤖 {g.problem}</div>
+                  <div key={i} style={{ padding: 12, marginBottom: 10, borderRadius: 6,
+                    background: warnOnly ? 'rgba(255,193,7,0.15)' : 'rgba(220,53,69,0.10)',
+                    border: `1px solid ${warnOnly ? '#d39e00' : '#dc3545'}` }}>
+                    {isQty(g) ? (
+                      <div style={{ fontWeight: 700, color: warnOnly ? undefined : '#dc3545' }}>
+                        🔢 JUMLAH {warnOnly ? 'perlu dicek' : 'SALAH'} — order customer {g.order_qty} pcs
+                      </div>
+                    ) : (g.topic && <div style={{ fontWeight: 700 }}>{g.topic}</div>)}
+                    <div style={{ fontSize: 14, marginTop: 2 }}>{isQty(g) ? '' : '🤖 '}{g.problem}</div>
 
-                    {a.status === 'saved' ? (
+                    {a.status === 'saved' && isQty(g) && verdict === 'will_fix' ? (
+                      <div style={{ marginTop: 8, fontSize: 13, color: '#dc3545', fontWeight: 600 }}>
+                        ✏️ Tercatat. Cetak tetap DIBLOKIR: tutup jendela ini, perbaiki teks keterangan {category}
+                        (mis. ganti "Qty" jadi {g.order_qty} pcs), simpan, lalu klik 🔄 Cek ulang.
+                      </div>
+                    ) : a.status === 'saved' ? (
                       <div style={{ marginTop: 8, fontSize: 13, color: '#198754' }}>
                         ✅ Jawaban tersimpan ({verdict === 'correct' ? 'sudah benar' : 'akan diperbaiki'}) — tercatat di komentar {category}.
                       </div>
@@ -114,7 +136,11 @@ const SPKPrecheckModal = ({ show, projectId, category, onClose, onProceed }) => 
                           value={a.note || ''}
                           onChange={(e) => patch(i, { note: e.target.value, status: undefined })}
                           rows={2}
-                          placeholder={verdict === 'correct'
+                          placeholder={isQty(g)
+                            ? (verdict === 'correct'
+                              ? 'Kenapa jumlahnya memang beda? Mis. "2 lembar marmer untuk 1 meja" / "4 bantal untuk 1 kursi".'
+                              : 'Catat rencana koreksi. Mis. "salah ketik, Qty diganti jadi 2 pcs".')
+                            : verdict === 'correct'
                             ? 'Jelaskan kenapa ini sudah benar. Mis. "tinggi besi 46cm + marmer 4cm = 50cm".'
                             : 'Jelaskan kesalahannya & rencana koreksi. Mis. "tinggi besi salah ketik, harusnya 50cm — akan diperbaiki".'}
                           style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #999', background: isLight ? '#fff' : '#222', color: textColor, boxSizing: 'border-box' }}
@@ -138,7 +164,10 @@ const SPKPrecheckModal = ({ show, projectId, category, onClose, onProceed }) => 
       </Modal.Body>
       <Modal.Footer>
         {result && !loading && !result.clear && !allAnswered && (
-          <span style={{ fontSize: 12, color: subColor, marginRight: 'auto' }}>Jawab semua poin untuk membuka tombol cetak.</span>
+          <span style={{ fontSize: 12, color: subColor, marginRight: 'auto' }}>Jawab semua poin untuk membuka tombol cetak{issues.some(isQty) ? ' (jumlah salah hanya bisa lanjut kalau "Sudah benar")' : ''}.</span>
+        )}
+        {result && !loading && !result.clear && (
+          <Button variant="outline-secondary" onClick={run}>🔄 Cek ulang</Button>
         )}
         <Button variant="secondary" onClick={onClose}>Tutup</Button>
         {result && !loading && (result.clear || allAnswered) && (
